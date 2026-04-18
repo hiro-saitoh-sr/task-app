@@ -1,0 +1,2437 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>社労士業務タスク管理システム</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="initial_data.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    /* ── ログイン画面 ── */
+    .login-card { background: white; border-radius: 16px; padding: 48px 40px; max-width: 420px; width: 90%; box-shadow: 0 8px 40px rgba(0,0,0,0.12); }
+    .login-google-btn { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; padding: 12px 24px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; font-size: 17px; font-weight: 700; color: #111827; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+    .login-google-btn:hover { background: #f9fafb; border-color: #9ca3af; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .login-google-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    body {
+      font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      font-size: 19px;
+      color: #000000;
+      line-height: 1.65;
+      font-weight: 500;
+    }
+
+    /* ── ステータスバッジ ── */
+    .status-依頼受付 { background-color: #bfdbfe; color: #1e3a8a !important; font-weight: 700; }
+    .status-手続き済 { background-color: #bbf7d0; color: #14532d !important; font-weight: 700; }
+    .status-納品済  { background-color: #fde68a; color: #713f12 !important; font-weight: 700; }
+    .status-請求済  { background-color: #e5e7eb; color: #000000 !important; font-weight: 700; }
+
+    /* ── 警告行 ── */
+    .row-danger td  { background-color: #fee2e2 !important; }
+    .row-danger:hover td { background-color: #fecaca !important; }
+    .row-warning td { background-color: #fffbeb !important; }
+    .row-warning:hover td { background-color: #fef3c7 !important; }
+
+    /* ── ナビゲーション ── */
+    .tab-active { border-bottom: 3px solid #2563eb; color: #1d4ed8; font-weight: 800; font-size: 19px; }
+    .nav-active  { background-color: #dbeafe; color: #1e3a8a; font-weight: 800; font-size: 19px; }
+    nav a, nav button, .tab-btn { font-size: 19px !important; font-weight: 600 !important; color: #000000; }
+
+    /* ── テーブル ── */
+    th { position: sticky; top: 0; z-index: 10; font-size: 18px; color: #000000; font-weight: 700; background: #f9fafb; }
+    td { padding-top: 10px !important; padding-bottom: 10px !important; font-size: 19px !important; color: #000000 !important; font-weight: 500 !important; }
+    table { color: #000000; font-size: 19px; }
+    tr:hover td { background: #eff6ff; }
+
+    /* ── レイアウト ── */
+    .table-wrap { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 310px); }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: flex; align-items: center; justify-content: center; }
+    .modal-box { background: white; border-radius: 12px; padding: 32px; width: 600px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.35); }
+
+    /* ── フォーム ── */
+    input, select, textarea {
+      width: 100%; border: 1px solid #9ca3af; border-radius: 6px; padding: 8px 12px;
+      font-size: 19px; font-family: inherit; color: #000000; outline: none; transition: border 0.2s; font-weight: 500;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+    input::placeholder, textarea::placeholder { color: #374151; font-weight: 500; }
+    select option { color: #000000; font-weight: 500; }
+
+    /* ── ボタン ── */
+    .btn { padding: 9px 20px; border-radius: 6px; font-size: 19px; font-weight: 700; cursor: pointer; transition: all 0.15s; border: none; font-family: inherit; }
+    .btn-primary   { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-danger    { background: #dc2626; color: white; }
+    .btn-danger:hover  { background: #b91c1c; }
+    .btn-secondary { background: #f3f4f6; color: #000000; border: 1px solid #9ca3af; }
+    .btn-secondary:hover { background: #e5e7eb; }
+
+    /* ── Tailwind グレー文字クラスを上書き（コントラスト強化） ── */
+    .text-gray-300 { color: #4b5563 !important; font-weight: 500; }
+    .text-gray-400 { color: #374151 !important; font-weight: 500; }
+    .text-gray-500 { color: #1f2937 !important; font-weight: 500; }
+    .text-gray-600 { color: #111827 !important; font-weight: 500; }
+    .text-gray-700 { color: #000000 !important; font-weight: 500; }
+    .text-gray-800 { color: #000000 !important; font-weight: 500; }
+    .text-gray-900 { color: #000000 !important; font-weight: 500; }
+    /* ── Tailwind テキストサイズ上書き ── */
+    .text-sm  { font-size: 17px !important; font-weight: 500; }
+    .text-xs  { font-size: 16px !important; font-weight: 500; }
+    .text-base { font-size: 19px !important; font-weight: 500; }
+
+    /* ── その他 ── */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+/* ══════════════════════════════════════════
+   認証設定
+   ── アクセスを許可するメールアドレスをここに列挙する ──
+   追加: 末尾に 'メール@ドメイン', を追記
+   削除: 対象の行を削除またはコメントアウト
+══════════════════════════════════════════ */
+const ALLOWED_EMAILS = [
+  'hiro@saitoh-sr.com',
+];
+
+const GSI_CLIENT_ID = '714632380111-0a9qleqctdripon18t664rsdoafiiq9f.apps.googleusercontent.com';
+const AUTH_SK = 'task_app_auth_user';
+
+/* JWT のペイロードをデコードしてユーザー情報を取り出す（UTF-8対応） */
+function decodeJwt(token) {
+  try {
+    const payload = token.split('.')[1];
+    // base64url → base64 → バイナリ → UTF-8文字列 の順に変換（日本語対応）
+    const binary  = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const utf8str = decodeURIComponent(
+      binary.split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
+    const decoded = JSON.parse(utf8str);
+    return { name: decoded.name || decoded.email, email: decoded.email, picture: decoded.picture || '' };
+  } catch(e) { return null; }
+}
+
+/* セッション保持（タブを閉じると消えるsessionStorage） */
+function loadAuthUser() {
+  try { const v = sessionStorage.getItem(AUTH_SK); return v ? JSON.parse(v) : null; } catch(e) { return null; }
+}
+function saveAuthUser(user) {
+  try { if (user) sessionStorage.setItem(AUTH_SK, JSON.stringify(user)); else sessionStorage.removeItem(AUTH_SK); } catch(e) {}
+}
+
+/* ══════════════════════════════════════════
+   Google Sheets 連携
+══════════════════════════════════════════ */
+const SHEETS_ID   = '1BB3K51Nn8dsIvqttzcaB2VjCqN258eo_ylJlSMm8ezo';
+const SHEET_NAME  = '案件データ';
+const CASES_FIELDS = ['id','no','customerName','procedure','memo','assignee','status','receivedDate','billingAmount','targetMonth'];
+
+/* Sheets REST API 共通リクエスト */
+async function sheetsRequest(token, path, method = 'GET', body = null) {
+  const opts = {
+    method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  };
+  if (body !== null) opts.body = JSON.stringify(body);
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SHEETS_ID}${path}`,
+    opts
+  );
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => ({}));
+    const err = new Error(errJson.error?.message || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+/* シートが存在しなければ新規作成 */
+async function ensureSheetExists(token) {
+  const meta = await sheetsRequest(token, '');
+  const exists = (meta.sheets || []).some(s => s.properties.title === SHEET_NAME);
+  if (!exists) {
+    await sheetsRequest(token, ':batchUpdate', 'POST', {
+      requests: [{ addSheet: { properties: { title: SHEET_NAME } } }],
+    });
+  }
+}
+
+/* シートから全行読み込み */
+async function sheetsRead(token) {
+  try {
+    const data = await sheetsRequest(
+      token,
+      `/values/${encodeURIComponent(SHEET_NAME + '!A1:K')}`
+    );
+    return data.values || [];
+  } catch (e) {
+    if (e.status === 400) return []; // シートが存在しない場合は空配列
+    throw e;
+  }
+}
+
+/* シートへ全件書き込み（クリア → 上書き） */
+async function sheetsWrite(token, cases) {
+  await ensureSheetExists(token);
+  const values = [
+    CASES_FIELDS,
+    ...cases.map(c => CASES_FIELDS.map(f => (c[f] != null ? String(c[f]) : ''))),
+  ];
+  await sheetsRequest(token, `/values/${encodeURIComponent(SHEET_NAME)}:clear`, 'POST');
+  await sheetsRequest(
+    token,
+    `/values/${encodeURIComponent(SHEET_NAME + '!A1')}?valueInputOption=RAW`,
+    'PUT',
+    { values }
+  );
+}
+
+/* 行配列 → 案件オブジェクト配列 */
+function rowsToCases(rows) {
+  if (!rows || rows.length < 2) return null;
+  const [header, ...dataRows] = rows;
+  return dataRows
+    .filter(row => row.some(cell => cell !== ''))
+    .map(row => {
+      const obj = {};
+      header.forEach((key, i) => { obj[key] = row[i] ?? ''; });
+      if (obj.id !== '') obj.id = Number(obj.id);
+      return obj;
+    });
+}
+
+/* ══════════════════════════════════════════
+   ログイン画面
+══════════════════════════════════════════ */
+function LoginScreen({ onLogin }) {
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const btnRef = useRef(null);
+
+  useEffect(() => {
+    let timer;
+    function initGsi() {
+      if (!window.google) { timer = setTimeout(initGsi, 200); return; }
+      window.google.accounts.id.initialize({
+        client_id: GSI_CLIENT_ID,
+        callback: handleCredential,
+        auto_select: false,
+      });
+      if (btnRef.current) {
+        window.google.accounts.id.renderButton(btnRef.current, {
+          theme: 'outline', size: 'large', text: 'signin_with', locale: 'ja', width: 340,
+        });
+      }
+    }
+    initGsi();
+    return () => clearTimeout(timer);
+  }, []);
+
+  function handleCredential(response) {
+    setLoading(true);
+    setError('');
+    const user = decodeJwt(response.credential);
+    if (!user) { setError('認証情報の取得に失敗しました。'); setLoading(false); return; }
+    if (!ALLOWED_EMAILS.includes(user.email)) {
+      setError(`このアカウント（${user.email}）はアクセスが許可されていません。`);
+      setLoading(false);
+      window.google.accounts.id.disableAutoSelect();
+      return;
+    }
+    saveAuthUser(user);
+    onLogin(user);
+  }
+
+  return (
+    <div style={{minHeight:'100vh', background:'linear-gradient(135deg,#eff6ff 0%,#f0fdf4 100%)', display:'flex', alignItems:'center', justifyContent:'center'}}>
+      <div className="login-card" style={{textAlign:'center'}}>
+        <div style={{fontSize:'42px', marginBottom:'12px'}}>⚖️</div>
+        <h1 style={{fontSize:'20px', fontWeight:'800', color:'#111827', marginBottom:'6px'}}>社労士業務タスク管理システム</h1>
+        <p style={{fontSize:'15px', color:'#6b7280', marginBottom:'32px'}}>社会保険労務士齊藤事務所</p>
+        <p style={{fontSize:'16px', fontWeight:'600', color:'#374151', marginBottom:'20px'}}>Googleアカウントでログイン</p>
+        {/* GSI レンダリングターゲット */}
+        <div ref={btnRef} style={{display:'flex', justifyContent:'center', minHeight:'44px', marginBottom:'16px'}}></div>
+        {loading && <p style={{fontSize:'15px', color:'#6b7280', marginTop:'8px'}}>認証中...</p>}
+        {error && (
+          <div style={{background:'#fee2e2', border:'1px solid #fca5a5', borderRadius:'8px', padding:'12px 16px', marginTop:'12px', fontSize:'15px', color:'#991b1b', fontWeight:'600'}}>
+            {error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const STATUSES = ['依頼受付', '手続き済', '納品済', '請求済'];
+const SK = {
+  cases:    'task_app_cases',
+  masters:  'task_app_masters',
+  checks:   'task_app_monthly_checks',
+  payrolls: 'task_app_payroll_schedules',
+};
+const MASTER_VERSION = 3;
+const CHECKS_VERSION = 1;
+const PAYROLL_VERSION = 3;
+
+const INITIAL_MONTHLY_CHECKS = [
+  {id:1, no:'14', customerName:'株式会社カノエ',
+   checker:'001勅使川原将\n011前田貴史\n036増淵昌美',
+   procedureBy:'001勅使川原将\n011前田貴史',
+   count:'2', assignee:'武井', completedDate:'2026/3/31', targetMonth:'2026年4月'},
+  {id:2, no:'19', customerName:'株式会社キャラクリエイション',
+   checker:'001田村裕',
+   procedureBy:'001田村裕',
+   count:'1', assignee:'武井', completedDate:'2026/3/31', targetMonth:'2026年4月'},
+  {id:3, no:'55', customerName:'株式会社ジェイワンズ',
+   checker:'001石渡慎太郎\n002石渡麗',
+   procedureBy:'001石渡慎太郎\n002石渡麗',
+   count:'2', assignee:'武井', completedDate:'2026/3/31', targetMonth:'2026年4月'},
+  {id:4, no:'33', customerName:'株式会社藤野興業',
+   checker:'001山田拓也\n012藤田怜\n019ホサイン\n020ジャシム\n023片倉\n024ウスマン\n028伊藤貴浩\n032加藤蓮\n038須賀洋介\n042鳥海卓司\n044イベス\n046大里力哉',
+   procedureBy:'012藤田怜\n019ホサイン\n020ジャシム\n023片倉\n024ウスマン\n032加藤蓮',
+   count:'6', assignee:'武井', completedDate:'2026/3/31', targetMonth:'2026年4月'},
+  {id:5, no:'20', customerName:'株式会社看板ボーイ',
+   checker:'001青木利典\n002椿儀晴\n003青木潔子',
+   procedureBy:'対象者なし',
+   count:'0', assignee:'武井', completedDate:'2026/3/31', targetMonth:'2026年4月'},
+  {id:6, no:'18', customerName:'株式会社シンシア',
+   checker:'136星野ミエ',
+   procedureBy:'対象者なし',
+   count:'0', assignee:'武井', completedDate:'2026/3/31', targetMonth:'2026年4月'},
+];
+
+/* ── storage ── */
+function load(key, fallback) {
+  try { const v = localStorage.getItem(key); if (v) return JSON.parse(v); } catch(e){}
+  return fallback();
+}
+function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){} }
+
+function loadCases() {
+  try {
+    const saved = localStorage.getItem(SK.cases);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const initialMap = Object.fromEntries(INITIAL_DATA.map(c => [c.id, c]));
+        // INITIAL_DATA に対応する案件は billingAmount を常に Excel 値で上書き
+        // （NaN・不正値・旧キャッシュを一掃する）
+        return parsed.map(c => {
+          const orig = initialMap[c.id];
+          if (orig) {
+            return {...c, billingAmount: orig.billingAmount};
+          }
+          // ユーザーが追加した新規案件は既存の billingAmount を保持しつつ数値検証
+          const amt = c.billingAmount;
+          const safe = (amt === '' || amt == null) ? '' : isNaN(Number(amt)) ? '' : String(Number(amt));
+          return {...c, billingAmount: safe};
+        });
+      }
+    }
+  } catch(e){}
+  return INITIAL_DATA;
+}
+
+function loadChecks() {
+  try {
+    const saved = localStorage.getItem(SK.checks);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && !Array.isArray(parsed) && parsed.version === CHECKS_VERSION) return parsed.data;
+    }
+  } catch(e){}
+  return INITIAL_MONTHLY_CHECKS;
+}
+
+/* ── 給与計算スケジュール 初期データ ── */
+const INITIAL_PAYROLL_DATA = (function(){
+  const PB = ()=>({受取日:'',送信日:'',人数:'',納品日:'',賞与人数:'',賞与納品日:''});
+  const PM = ()=>Object.fromEntries(Array.from({length:12},(_,i)=>[i+1,PB()]));
+  const mk = (base,ov)=>{
+    const m=PM();
+    for(const [mo,v] of Object.entries(ov)) m[Number(mo)]={...PB(),...v};
+    return {...base, yearData:{2026:m}};
+  };
+  const S='齊藤', W='武井';
+  return [
+    mk({id:1, customerName:'株式会社天山工務店',       assignee:S,締日:'15日',  支給日:'25日(前倒し)',            年末調整還付月:'1月', 賞与支給月:'',              納品方法:'弥生専用用紙/弥生の封筒、労務だより、印刷と郵送は武井さん担当',その他メモ:''},{
+      1:{受取日:'20',送信日:'22',人数:'18',納品日:'22'},2:{受取日:'17',送信日:'17',人数:'17',納品日:'19'},3:{受取日:'17',送信日:'18',人数:'17',納品日:'19'},
+    }),
+    mk({id:2, customerName:'株式会社キャラクリエイション',assignee:W,締日:'末日',支給日:'翌月25日(前倒し)',      年末調整還付月:'1月', 賞与支給月:'',              納品方法:'PDFのみA5、dropboxあり、労務だより',その他メモ:''},{
+      1:{納品日:'15'},2:{納品日:'16'},3:{納品日:'17'},
+    }),
+    mk({id:3, customerName:'合同会社あまね',            assignee:S,締日:'末日',  支給日:'翌月25日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'6月・12月',     納品方法:'PDFを印刷/アスクルの封筒、dropboxあり、労務だより、印刷と郵送は武井さん担当',その他メモ:''},{
+      1:{受取日:'13',送信日:'14',人数:'9',納品日:'19'},2:{受取日:'8',送信日:'9',人数:'9',納品日:'13'},3:{受取日:'12',送信日:'13',人数:'9',納品日:'13'},
+    }),
+    mk({id:4, customerName:'株式会社HOLLY',             assignee:S,締日:'末日',  支給日:'翌月末日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'',              納品方法:'個別PDF/A5、dropboxあり',その他メモ:''},{
+      1:{受取日:'13',送信日:'15',人数:'3',納品日:'15',賞与人数:'1',賞与納品日:'15'},2:{受取日:'16',送信日:'17',人数:'5',納品日:'17'},3:{受取日:'27',送信日:'28',人数:'5',納品日:'28'},
+    }),
+    mk({id:5, customerName:'株式会社TwinStars',         assignee:S,締日:'末日',  支給日:'翌月末日(前倒し)',       年末調整還付月:'12月',賞与支給月:'1月・7月',       納品方法:'オフィスweb給与明細',その他メモ:'毎月10日に勤怠ダウンロード'},{
+      1:{受取日:'13',送信日:'15',人数:'9',納品日:'15',賞与人数:'7',賞与納品日:'29'},2:{受取日:'12',送信日:'12',人数:'9',納品日:'12'},3:{受取日:'12',送信日:'12',人数:'9',納品日:'12'},
+    }),
+    mk({id:6, customerName:'パンブルク',                assignee:S,締日:'末日',  支給日:'翌月25日(変更なし)',     年末調整還付月:'1月', 賞与支給月:'',              納品方法:'PDF一覧/A4',その他メモ:''},{
+      1:{受取日:'19',送信日:'20',人数:'6',納品日:'20'},2:{受取日:'16',送信日:'17',人数:'6',納品日:'17'},3:{受取日:'16',送信日:'16',人数:'7',納品日:'16'},
+    }),
+    mk({id:7, customerName:'合同会社アシスト',          assignee:S,締日:'末日',  支給日:'翌々月1日・10日(後ろ倒し)',年末調整還付月:'3月',賞与支給月:'',              納品方法:'PDF一覧/A4',その他メモ:'社保：翌月'},{
+      1:{受取日:'15',送信日:'16',人数:'4',納品日:'16'},2:{受取日:'26',送信日:'27',人数:'4',納品日:'27'},3:{受取日:'26',送信日:'27',人数:'4',納品日:'27'},
+    }),
+    mk({id:8, customerName:'株式会社カノエ',            assignee:S,締日:'末日',  支給日:'翌月20日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'2月・6月・10月',納品方法:'オフィスweb給与明細、dropboxあり',その他メモ:'社会保険料の一覧をつける'},{
+      1:{受取日:'6',送信日:'7',人数:'23',納品日:'7'},2:{受取日:'2',送信日:'5',人数:'22',納品日:'5'},3:{受取日:'7',送信日:'10',人数:'22',納品日:'10'},4:{受取日:'8',送信日:'9',人数:'22',納品日:'9'},
+    }),
+    mk({id:9, customerName:'株式会社よごえい印刷',      assignee:W,締日:'末日',  支給日:'翌月15日(後ろ倒し)',     年末調整還付月:'2月', 賞与支給月:'9月・12月',     納品方法:'PDF一覧/A5、武井さん担当',その他メモ:''},{
+      1:{受取日:'13',送信日:'13',人数:'4',納品日:'13'},2:{受取日:'6',送信日:'6',人数:'4',納品日:'6'},3:{受取日:'4',送信日:'4',人数:'4',納品日:'4'},
+    }),
+    mk({id:10,customerName:'株式会社キタオカ建物',      assignee:S,締日:'20日',  支給日:'当月25日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'',              納品方法:'PDF一覧/A4、dropboxあり',その他メモ:'10日まで経費精算の連絡なければ無し'},{
+      1:{受取日:'7',送信日:'8',人数:'3',納品日:'8'},2:{受取日:'9',送信日:'10',人数:'3',納品日:'10'},3:{受取日:'11',送信日:'11',人数:'3',納品日:'11'},4:{受取日:'7',送信日:'7',人数:'3',納品日:'7'},
+    }),
+    mk({id:11,customerName:'株式会社藤野興業',          assignee:S,締日:'末日',  支給日:'翌月15日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'',              納品方法:'FocusU/外国人実習生のみPDFと賃金台帳',その他メモ:''},{
+      1:{受取日:'6',送信日:'7',人数:'58',納品日:'9',賞与人数:'1'},2:{受取日:'6',送信日:'6',人数:'57',納品日:'6'},3:{受取日:'4',送信日:'6',人数:'65',納品日:'10'},4:{受取日:'3',送信日:'6',人数:'65',納品日:'7'},
+    }),
+    mk({id:12,customerName:'株式会社シンシア',          assignee:S,締日:'末日',  支給日:'翌月20日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'',              納品方法:'FocusU',その他メモ:''},{
+      1:{受取日:'13',送信日:'14',人数:'61',納品日:'15',賞与人数:'3',賞与納品日:'20'},2:{受取日:'11',送信日:'12',人数:'60',納品日:'16'},3:{受取日:'11',送信日:'11',人数:'61',納品日:'13',賞与人数:'21',賞与納品日:'11'},
+    }),
+    mk({id:13,customerName:'パーソナルケア株式会社',    assignee:S,締日:'末日',  支給日:'翌月20日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'',              納品方法:'PDF一覧/A4',その他メモ:''},{
+      1:{受取日:'15',送信日:'16',人数:'14',納品日:'16'},2:{受取日:'18',送信日:'18',人数:'14',納品日:'18'},3:{受取日:'17',送信日:'18',人数:'13',納品日:'18'},
+    }),
+    mk({id:14,customerName:'株式会社看板ボーイ',        assignee:S,締日:'末日',  支給日:'翌月25日(前倒し)',       年末調整還付月:'',    賞与支給月:'',              納品方法:'オフィスweb給与明細',その他メモ:''},{
+      1:{受取日:'8',送信日:'9',人数:'5',納品日:'9'},2:{受取日:'5',送信日:'6',人数:'5',納品日:'6'},3:{受取日:'10',送信日:'11',人数:'5',納品日:'11'},
+    }),
+    mk({id:15,customerName:'株式会社建物屋',            assignee:S,締日:'20日',  支給日:'当月25日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'',              納品方法:'PDF一覧/A4、dropboxあり',その他メモ:''},{
+      1:{受取日:'15',送信日:'15',人数:'1',納品日:'15'},2:{受取日:'19',送信日:'19',人数:'1',納品日:'19'},3:{受取日:'17',送信日:'17',人数:'1',納品日:'17'},4:{受取日:'6',送信日:'6',人数:'1',納品日:'6'},
+    }),
+    mk({id:16,customerName:'Ano Clean株式会社',         assignee:W,締日:'末日',  支給日:'翌月末日(前倒し)',       年末調整還付月:'',    賞与支給月:'',              納品方法:'個別PDF/A5、dropboxあり、労務だより',その他メモ:''},{
+      1:{受取日:'15',送信日:'16',人数:'1',納品日:'16'},2:{受取日:'13',送信日:'13',人数:'1',納品日:'13'},3:{受取日:'17',送信日:'17',人数:'1',納品日:'17'},
+    }),
+    mk({id:17,customerName:'藤野興業株式会社',          assignee:S,締日:'末日',  支給日:'翌月15日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'',              納品方法:'FocusU',その他メモ:''},{
+      1:{受取日:'6',送信日:'7',人数:'7',納品日:'9'},2:{受取日:'6',送信日:'6',人数:'7',納品日:'6'},
+    }),
+    mk({id:18,customerName:'株式会社ハッピーヒーロー',  assignee:S,締日:'末日',  支給日:'翌月末日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'',              納品方法:'オフィスweb給与明細',その他メモ:''},{
+      1:{受取日:'21',送信日:'21',人数:'1',納品日:'21'},2:{受取日:'19',送信日:'19',人数:'1',納品日:'19'},3:{受取日:'4',送信日:'4',人数:'1',納品日:'4'},4:{受取日:'1',送信日:'1',人数:'1',納品日:'1'},
+    }),
+    mk({id:19,customerName:'株式会社とねりっこ',        assignee:S,締日:'末日',  支給日:'翌月25日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'',              納品方法:'PDF一覧/A5',その他メモ:''},{
+      1:{受取日:'20',送信日:'21',人数:'20',納品日:'21'},2:{受取日:'18',送信日:'19',人数:'19',納品日:'19'},3:{受取日:'23',送信日:'23',人数:'19',納品日:'23'},
+    }),
+    mk({id:20,customerName:'医療法人社団秀道会',        assignee:S,締日:'15日',  支給日:'当月25日(前倒し)',       年末調整還付月:'1月', 賞与支給月:'夏・冬（1/30役員賞与あり）',納品方法:'PDF一覧/A5、dropboxあり',その他メモ:''},{
+      1:{受取日:'16',送信日:'19',人数:'11',納品日:'19'},2:{受取日:'17',送信日:'17',人数:'11',納品日:'17'},3:{受取日:'18',送信日:'19',人数:'11',納品日:'19'},
+    }),
+    mk({id:21,customerName:'株式会社ジェイワンズ',      assignee:S,締日:'末日',  支給日:'翌月25日',               年末調整還付月:'',    賞与支給月:'',              納品方法:'オフィスweb給与明細、dropboxあり',その他メモ:'超過割増は5日まで連絡なければ無し'},{
+      1:{受取日:'7',送信日:'7',人数:'3',納品日:'7'},2:{受取日:'6',送信日:'6',人数:'3',納品日:'6'},3:{受取日:'4',送信日:'4',人数:'3',納品日:'4',賞与人数:'1',賞与納品日:'4'},4:{受取日:'6',送信日:'6',人数:'3',納品日:'6'},
+    }),
+    mk({id:22,customerName:'司法書士法人鹿島事務所',    assignee:S,締日:'末日',  支給日:'翌月10日(前倒し)',       年末調整還付月:'',    賞与支給月:'年2回',         納品方法:'オフィスweb給与明細',その他メモ:'毎月4日になったら作業する。役員賞与→1/30・7/31'},{
+      1:{受取日:'5',送信日:'5',人数:'4',納品日:'5',賞与人数:'1',賞与納品日:'5'},2:{受取日:'4',送信日:'4',人数:'6',納品日:'4'},3:{受取日:'4',送信日:'4',人数:'6',納品日:'4'},4:{受取日:'5',送信日:'6',人数:'6',納品日:'6'},
+    }),
+    mk({id:23,customerName:'合同会社HCC',               assignee:S,締日:'末日',  支給日:'翌月15日',               年末調整還付月:'',    賞与支給月:'',              納品方法:'オフィスweb給与明細',その他メモ:'毎月5日まで連絡なければ変更なしで進める'},{
+      1:{受取日:'12',送信日:'13',人数:'3',納品日:'13'},2:{受取日:'2',送信日:'6',人数:'3',納品日:'6'},3:{受取日:'4',送信日:'4',人数:'3',納品日:'4'},4:{受取日:'6',送信日:'6',人数:'3',納品日:'6'},
+    }),
+    mk({id:24,customerName:'株式会社マツブン',          assignee:S,締日:'20日',  支給日:'当月末日',               年末調整還付月:'',    賞与支給月:'',              納品方法:'オフィスweb給与明細',その他メモ:''},{
+    }),
+  ];
+})();
+
+function loadPayrolls() {
+  try {
+    const saved = localStorage.getItem(SK.payrolls);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && !Array.isArray(parsed)) {
+        if (parsed.version === PAYROLL_VERSION) return parsed.data;
+        // v2→v3 migration: months → yearData:{2026:months}
+        if (parsed.version === 2 && Array.isArray(parsed.data)) {
+          return parsed.data.map(p => { const {months,...r}=p; return {...r,yearData:{2026:months||PM()}}; });
+        }
+      }
+    }
+  } catch(e){}
+  return INITIAL_PAYROLL_DATA;
+}
+
+function initMasters() {
+  // c(id, no, name, 業種, 代表者名, 担当者名, 代表者メール, 担当者メール, 決算月, 契約サービス[])
+  const c = (id, no, name, gy, dr, da, m1, m2, km, sv) => ({
+    id, no, name,
+    業種: gy||'', 代表者名: dr||'', 担当者名: da||'',
+    代表者メール: m1||'', 担当者メール: m2||'',
+    決算月: km||'', 契約サービス: sv||[],
+    '36協定起算日': '', 'その他労使協定の届出': '', '東京SR特別加入': '',
+  });
+  const customers = [
+    c(1,  '',   'スポット'),
+    c(2,  '1',  '株式会社天山工務店',              '建築',       '田中啓太',    '田中里子',    '',                             'keiri@tenzan.net',                    '',    ['労務顧問','給与計算']),
+    c(3,  '3',  'ピースフルライフ有限会社',          '介護',       '宮本直子',    '宮本尚久',    '',                             'peaceful.14@jcom.zaq.ne.jp',          '',    ['処遇改善加算']),
+    c(4,  '4',  '大雄商会株式会社',                '介護・障害', '森美也子',    '森繁幸',      'roze@roze-daiyuu.tokyo',        'rose.hill.tokyo@gmail.com',           '',    ['処遇改善加算']),
+    c(5,  '5',  '株式会社フロンティア',              '介護・障害', '秋田裕介',    '高橋さん',    'akita0903.work@gmail.com',      'infoadfrontier@gmail.com',            '',    ['処遇改善加算']),
+    c(6,  '7',  '株式会社Ryuuru',                  '障害',       '佐和田桂一',  '',            'officesawada@juno.ocn.ne.jp',   '',                                    '',    ['処遇改善加算']),
+    c(7,  '8',  '合同会社あまね',                   '介護',       '菊地華恵',    '',            'kk_fumika_fk@outlook.jp',       '',                                    '8月', ['労務顧問','給与計算']),
+    c(8,  '9',  '株式会社TwinStars',               'web',        '田口真弓',    '',            'taguchi@twinstars.co.jp',       '',                                    '',    ['給与計算']),
+    c(9,  '10', 'パンブルク',                       'パン屋',     '大場結',      '',            'panburg.kameari@gmail.com',     '',                                    '',    ['給与計算']),
+    c(10, '11', '合同会社アシスト',                  '建築',       '小峯真奈美',  '',            'skassisto@yahoo.co.jp',         '',                                    '',    ['労務顧問','給与計算']),
+    c(11, '13', '株式会社HOLLY',                    '人材',       '櫻井敏久',    '浅見一八',    '',                             'asami@holly-service.com',             '',    ['労務顧問','給与計算']),
+    c(12, '14', '株式会社カノエ',                    'お掃除本舗', '勅使河原将',  '',            'sho.teshigahara@gmail.com',     '',                                    '10月',['労務顧問','給与計算']),
+    c(13, '16', '株式会社よごえい印刷',               '印刷・飲食', '内田圭太郎',  '',            'yogoei@sage.ocn.ne.jp',         '',                                    '',    ['給与計算']),
+    c(14, '17', '有限会社サン',                      '介護・障害', '小松埼睦子',  '',            'chika-sun@beach.ocn.ne.jp',     '',                                    '',    ['処遇改善加算']),
+    c(15, '18', '株式会社シンシア',                   '介護',       '小久保文子',  '',            'fumikokokubo48@gmail.com',      '',                                    '',    ['労務顧問','給与計算','処遇改善加算']),
+    c(16, '19', '株式会社キャラクリエイション',         'ＶＲキャラ', '田村裕',      '',            'hi-ta@s5.spaaqs.ne.jp',         '',                                    '',    ['給与計算']),
+    c(17, '20', '株式会社看板ボーイ',                  '看板製作',   '青木利典',    '青木潔子',    'aoki@kanbanboy.net',            'schweppes_33@yahoo.co.jp',            '',    ['労務顧問','給与計算']),
+    c(18, '23', '株式会社レグザーク',                  '障害',       '加藤貴司',    '',            't.kato@rexarc.co.jp',           '',                                    '',    ['労務顧問','処遇改善加算']),
+    c(19, '25', 'ケアプランニング株式会社',              '障害',       '友松直人',    '片桐知昭',    '',                             'info@ffe-co.net',                     '',    ['処遇改善加算']),
+    c(20, '26', '株式会社開成工業',                    '建築',       '那知秀年',    '那知真理',    '',                             'pesan0530@gmail.com',                 '',    ['労務顧問']),
+    c(21, '29', '株式会社キタオカ建物',                 '不動産',     '北岡明徳',    '齋藤麻美',    'kitaoka@kitaokatatemono.jp',    'a-saito@kitaokatatemono.jp',          '',    ['労務顧問','給与計算']),
+    c(22, '30', '株式会社エフ・ティー介護サービス',       '介護',       '髙木奈央美',  '',            'imoimoimoan@yahoo.co.jp',       '',                                    '',    ['処遇改善加算']),
+    c(23, '31', '社会福祉法人厚生福祉会',                '介護',       '',            '梅村茂',      '',                             'umemura@higashiyotsugi.sakura.ne.jp', '',    ['処遇改善加算']),
+    c(24, '32', '有限会社ベルアート',                    '介護',       '神保行宏',    '',            'jimbo-bbonds@outlook.jp',       '',                                    '',    ['処遇改善加算']),
+    c(25, '33', '株式会社藤野興業',                     '建設',       '藤野拓也',    '藤野奈央',    '',                             'naonaopink0718@gmail.com',            '',    ['労務顧問','給与計算']),
+    c(26, '35', '株式会社建物屋',                       '不動産',     '北岡明徳',    '櫻井明日香',  '',                             'support@tatemonoya.jp',               '',    ['労務顧問','給与計算']),
+    c(27, '36', 'パーソナルケア株式会社',                 '介護',       '木村周吾',    '木村洋子',    'shugo.15km@gmail.com',          'personalcare0211@gmail.com',          '',    ['労務顧問','給与計算','処遇改善加算']),
+    c(28, '37', '株式会社エコディラクション',              '介護',       '澤田亘',      '吉井真由美',  '',                             'yoshii@g-fine.jp',                    '',    ['処遇改善加算']),
+    c(29, '38', 'Ano Clean株式会社',                   'お掃除',     '神村多恵子',  '',            'contact@anoclean.jp',           '',                                    '',    ['労務顧問','給与計算']),
+    c(30, '39', '藤野興業株式会社',                      '建設',       '藤野拓也',    '藤野奈央',    '',                             '',                                    '',    ['労務顧問','給与計算']),
+    c(31, '41', '株式会社とねりっこ',                     '介護・障害', '馬場好子',    '矢野弘行',    'nemunoki@tonerikko.co.jp',      '',                                    '',    ['労務顧問','給与計算','処遇改善加算']),
+    c(32, '43', '株式会社PlusA',                       '障害',       '吉行昌',      '森井さん',    'yoshiyuki@plusa.top',           'info@plusa.top',                      '',    ['処遇改善加算']),
+    c(33, '44', '合同会社HOS',                          '障害',       '石川聡',      '',            'sat.ishikawa2737@gmail.com',    '',                                    '',    ['処遇改善加算']),
+    c(34, '45', '日本建電株式会社',                       '建設',       '鈴木浩介',    '',            'kousuke@kenden-jp.co.jp',       '',                                    '',    ['労務顧問']),
+    c(35, '47', 'みらいキッズ株式会社',                    '障害',       '友松直人',    '片桐知昭',    '',                             'info@ffe-co.net',                     '',    ['処遇改善加算']),
+    c(36, '48', '株式会社パレット',                        '障害',       '三宅治樹',    '小関信太郎',  'miyake@cr2.co.jp',              's.koseki@cr2.co.jp',                  '',    ['処遇改善加算']),
+    c(37, '50', '社会福祉法人練馬山彦福祉会',               '障害',       '坂本信幸',    '渡辺・黒川',  '',                             'ymbk@nerimayamabiko.com',             '',    ['労務顧問','処遇改善加算']),
+    c(38, '59', 'グレース合同会社',                        '介護・障害', '晝間京子',    '晝間大郎',    '',                             'akaid@wb3.so-net.ne.jp',              '',    ['処遇改善加算']),
+    c(39, '52', 'フォーベル合同会社',                       '介護・障害', '神﨑恵利果',  '石坂',        'forbel.llc@gmail.com',          '',                                    '',    ['労務顧問','処遇改善加算']),
+    c(40, '51', '医療法人社団秀道会',                       'クリニック', '高島秀夫',    '',            'hclinic@kg8.so-net.ne.jp',      '',                                    '',    ['労務顧問','給与計算']),
+    c(41, '56', '司法書士法人鹿島事務所',                    '司法書士',   '鹿島崇之',    '',            'takayuki@kashima-office.com',   '',                                    '',    ['労務顧問','給与計算']),
+    c(42, '58', '合同会社HCC',                            '建設',       '杉谷一',      '',            'hajime21212@gmail.com',         '',                                    '',    ['労務顧問','給与計算']),
+    c(43, '55', '株式会社ジェイワンズ',                      '格闘技ジム', '石渡伸太郎',  '',            'shintaroishiwatari@gmail.com',  '',                                    '',    ['労務顧問','給与計算']),
+    c(44, '53', '華騰商事株式会社',                          '貿易',       'ユイ・ハントン','ﾁｮｳ・ﾃﾝｴｲ','yokantou@katoushoji.co.jp',     'choutenei@katoushoji.co.jp',          '',    ['労務顧問']),
+    c(45, '54', '有限会社湖南',                              '障害',       '西森麻郁子',  '',            'a.nishimori@konan-gh.co.jp',    '',                                    '',    ['処遇改善加算']),
+    c(46, '57', '株式会社FTS',                              '介護・障害', '鈴木太',      '大里恵美',    'fts.ohsato@gmail.com',          '',                                    '',    ['処遇改善加算']),
+    c(47, '60', '株式会社マツブン',                           '刺繍',       '松本照人',    '松本詩子',    '',                             'u-matsumoto@matsubun.com',            '3月', ['労務顧問']),
+    c(48, '61', '株式会社ぶどうの木',                          '介護',       '竹内順子',    '渡邉智佳',    '',                             'hiroshi310704@outlook.jp',            '',    ['労務顧問','処遇改善加算']),
+  ];
+  const procedures = [
+    {id:1,  name:'社保取得'},
+    {id:2,  name:'雇用保険取得'},
+    {id:3,  name:'健保扶養該当'},
+    {id:4,  name:'社保喪失'},
+    {id:5,  name:'雇用保険喪失(離職票あり)'},
+    {id:6,  name:'雇用保険喪失(離職票なし)'},
+    {id:7,  name:'離職票'},
+    {id:8,  name:'健保扶養非該当'},
+    {id:9,  name:'月額変更届'},
+    {id:10, name:'賞与支払届'},
+    {id:11, name:'年度更新'},
+    {id:12, name:'算定基礎届'},
+    {id:13, name:'36協定'},
+    {id:14, name:'雇用契約の更新'},
+    {id:15, name:'厚生年金７０歳以上該当'},
+    {id:16, name:'厚生年金７０歳以上不該当'},
+    {id:17, name:'雇用保険喪失'},
+    {id:18, name:'雇用保険６０歳到達賃金証明'},
+    {id:19, name:'厚生年金７０歳該当'},
+    {id:20, name:'保険関係成立届'},
+    {id:21, name:'労働保険概算保険料申告'},
+    {id:22, name:'労働保険料確定保険料の申告'},
+    {id:23, name:'社保産前産後休業申出'},
+    {id:24, name:'社保産前産後休業変更(終了)届'},
+    {id:25, name:'出産手当金'},
+    {id:26, name:'社保育休取得申出'},
+    {id:27, name:'育休開始時賃金月額証明'},
+    {id:28, name:'育児休業給付'},
+    {id:29, name:'社保育休終了申出'},
+    {id:30, name:'厚生年金養育特例'},
+    {id:31, name:'育休終了月額変更届'},
+    {id:32, name:'介護休業開始時賃金月額証明'},
+    {id:33, name:'介護休業給付'},
+    {id:34, name:'高年齢雇用継続給付(基本給付)'},
+    {id:35, name:'高年齢雇用継続給付(再就職給付)'},
+    {id:36, name:'死傷病報告(休業４日以上)'},
+    {id:37, name:'死傷病報告(休業４日未満)'},
+    {id:38, name:'療養補償給付(様式第５号）'},
+    {id:39, name:'療養補償給付(様式第６号）'},
+    {id:40, name:'休業補償給付(様式第８号)'},
+    {id:41, name:'傷病手当金'},
+    {id:42, name:'療養費の請求'},
+    {id:43, name:'社保の新規適用届'},
+    {id:44, name:'雇用保険設置届'},
+    {id:45, name:'社保の事業所関係変更届'},
+    {id:46, name:'社保の名称所在地変更届'},
+    {id:47, name:'雇用保険の各種変更届'},
+    {id:48, name:'雇用保険非該当承認の申請'},
+    {id:49, name:'労働保険継続事業の一括'},
+    {id:50, name:'労働保険名称、所在地変更'},
+    {id:51, name:'社保の全喪届'},
+    {id:52, name:'雇用保険の事業所廃止'},
+    {id:53, name:'労働保険確定保険料申告'},
+    {id:54, name:'社保取得(健保組合）'},
+    {id:55, name:'社保喪失の取り消し'},
+    {id:56, name:'社保の取得日訂正'},
+    {id:57, name:'雇用取得日訂正'},
+    {id:58, name:'離職票の補正願'},
+    {id:59, name:'社保の任意適用'},
+    {id:60, name:'キャリアアップ助成金'},
+    {id:61, name:'正社員転換'},
+    {id:62, name:'特別加入'},
+    {id:63, name:'特別加入の脱退'},
+    {id:64, name:'就業規則等の届出'},
+    {id:65, name:'処遇改善規程'},
+  ];
+  const assignees = [
+    {id:1, name:'齊藤'},
+    {id:2, name:'武井'},
+  ];
+  return { customers, procedures, assignees, nextId: 9000, version: MASTER_VERSION };
+}
+
+function loadMasters() {
+  try {
+    const saved = localStorage.getItem(SK.masters);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.version === MASTER_VERSION) return parsed;
+      // v2 → v3: merge new fields (業種・担当者名・メール等) into existing customers, add new customers
+      if (parsed.version === 2 && Array.isArray(parsed.customers)) {
+        const defaults = initMasters();
+        const defMap = Object.fromEntries(defaults.customers.map(c=>[c.id, c]));
+        const oldIds = new Set(parsed.customers.map(c=>c.id));
+        const merged = parsed.customers.map(c => ({
+          ...(defMap[c.id] || {}),  // new fields from defaults
+          ...c,                      // preserve user's existing data (no, name, terminated…)
+        }));
+        const newCusts = defaults.customers.filter(c=>!oldIds.has(c.id));
+        return {
+          ...parsed,
+          customers: [...merged, ...newCusts],
+          version: MASTER_VERSION,
+        };
+      }
+    }
+  } catch(e){}
+  return initMasters();
+}
+
+/* ── utils ── */
+function parseDate(str) {
+  if (!str) return null;
+  const s = str.trim();
+  const m1 = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (m1) return new Date(+m1[1], +m1[2]-1, +m1[3]);
+  const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m2) return new Date(+m2[1], +m2[2]-1, +m2[3]);
+  return null;
+}
+function formatDate(str) {
+  if (!str) return '';
+  const d = parseDate(str);
+  if (!d) return str;
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}/${m}/${day}`;
+}
+function daysSince(str) {
+  const d = parseDate(str); if (!d) return null;
+  const t = new Date(); t.setHours(0,0,0,0);
+  return Math.floor((t - d) / 86400000);
+}
+function rowAlert(c) {
+  if (c.status !== '依頼受付') return '';
+  const days = daysSince(c.receivedDate);
+  if (days === null) return '';
+  if (days >= 30) return 'row-danger';
+  if (days >= 14) return 'row-warning';
+  return '';
+}
+function nextId(list) { return Math.max(0, ...list.map(x => x.id||0)) + 1; }
+function parseYM(str) {
+  if (!str) return 0;
+  const m = str.match(/(\d+)年(\d+)月/);
+  return m ? parseInt(m[1]) * 100 + parseInt(m[2]) : 0;
+}
+// 「2026/1/1」「2026/01/01」「2026-1」→「2026年1月」に変換
+function toYearMonth(str) {
+  if (!str) return str;
+  if (/^\d{4}年\d{1,2}月$/.test(str.trim())) return str.trim();
+  const m1 = str.match(/^(\d{4})[\/\-](\d{1,2})(?:[\/\-]\d{1,2})?$/);
+  if (m1) return `${m1[1]}年${parseInt(m1[2])}月`;
+  return str;
+}
+
+/* ══════════════════════════════════════════
+   STATUS BADGE
+══════════════════════════════════════════ */
+function StatusBadge({status}) {
+  return <span className={`status-${status} text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap`}>{status}</span>;
+}
+
+/* ══════════════════════════════════════════
+   SIMPLE CONFIRM MODAL
+══════════════════════════════════════════ */
+function ConfirmModal({title, body, onConfirm, onClose, confirmLabel='削除する', confirmClass='btn-danger', note='この操作は取り消せません。'}) {
+  return (
+    <div className="modal-overlay" onClick={e => e.target===e.currentTarget&&onClose()}>
+      <div className="modal-box" style={{width:'400px'}}>
+        <h2 className="text-lg font-bold mb-3 text-gray-800">{title}</h2>
+        <p className="text-sm text-gray-600 mb-5">{body}</p>
+        {note && <p className="text-xs text-gray-400 mb-5">{note}</p>}
+        <div className="flex gap-3 justify-end">
+          <button className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+          <button className={`btn ${confirmClass}`} onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   SEARCHABLE SELECT（案件モーダル専用）
+══════════════════════════════════════════ */
+function SearchableSelect({ options, value, onChange, placeholder }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen]   = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const handler = e => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filtered = options.filter(o =>
+    o.label.toLowerCase().includes(query.toLowerCase())
+  );
+  const selected = options.find(o => o.value === value);
+
+  const triggerStyle = {
+    display:'flex', alignItems:'center', justifyContent:'space-between',
+    border:'1px solid #9ca3af', borderRadius:'6px', padding:'8px 12px',
+    cursor:'pointer', background:'white', minHeight:'40px', userSelect:'none',
+    fontSize:'19px', fontWeight:'500', color: selected ? '#000000' : '#6b7280',
+  };
+  const dropStyle = {
+    position:'absolute', top:'calc(100% + 2px)', left:0, right:0, zIndex:200,
+    background:'white', border:'1px solid #9ca3af', borderRadius:'6px',
+    boxShadow:'0 4px 16px rgba(0,0,0,0.15)',
+  };
+  const itemBase = {
+    padding:'8px 12px', cursor:'pointer', fontSize:'19px', fontWeight:'500', color:'#000000',
+  };
+
+  return (
+    <div ref={wrapRef} style={{position:'relative'}}>
+      <div style={triggerStyle} onClick={() => { setOpen(o => !o); if (!open) setQuery(''); }}>
+        <span>{selected ? selected.label : (placeholder || '選択してください')}</span>
+        <span style={{color:'#9ca3af', fontSize:'12px', marginLeft:'8px'}}>{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div style={dropStyle}>
+          <div style={{padding:'8px 8px 4px'}}>
+            <input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="検索..."
+              onClick={e => e.stopPropagation()}
+              style={{width:'100%', fontSize:'17px'}}
+            />
+          </div>
+          <div style={{maxHeight:'220px', overflowY:'auto'}}>
+            {filtered.length === 0 ? (
+              <div style={{...itemBase, color:'#6b7280'}}>該当なし</div>
+            ) : filtered.map(o => (
+              <div
+                key={o.value}
+                style={{...itemBase, background: o.value === value ? '#dbeafe' : 'transparent'}}
+                onMouseEnter={e => e.currentTarget.style.background = o.value === value ? '#bfdbfe' : '#f3f4f6'}
+                onMouseLeave={e => e.currentTarget.style.background = o.value === value ? '#dbeafe' : 'transparent'}
+                onClick={() => { onChange(o.value); setOpen(false); setQuery(''); }}
+              >
+                {o.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   CASE MODAL
+══════════════════════════════════════════ */
+function CaseModal({caseData, onSave, onClose, masters}) {
+  const isNew = !caseData;
+  const todayStr = (()=>{const d=new Date();const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}/${m}/${day}`;})();
+  const blank = {no:'',customerName:'',procedure:'',memo:'',assignee:'',status:'依頼受付',receivedDate:todayStr,billingAmount:'',targetMonth:''};
+  const [form, setForm] = useState(caseData ? {...caseData} : blank);
+  const [errors, setErrors] = useState({receivedDate:'', targetMonth:''});
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const clearErr = k => { if(errors[k]) setErrors(er=>({...er,[k]:''})); };
+
+  const validateDateInput = str => {
+    if (!str||!str.trim()) return false;
+    const s=str.trim();
+    const m1=s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+    if(m1){const d=new Date(+m1[1],+m1[2]-1,+m1[3]);return d.getMonth()===+m1[2]-1&&d.getDate()===+m1[3];}
+    const m2=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(m2){const d=new Date(+m2[1],+m2[2]-1,+m2[3]);return d.getMonth()===+m2[2]-1&&d.getDate()===+m2[3];}
+    return false;
+  };
+  const validateYM = str => {
+    if (!str||!str.trim()) return false;
+    return /^\d{4}年\d{1,2}月$/.test(toYearMonth(str.trim()));
+  };
+
+  const custInMaster = masters.customers.some(c=>c.name===form.customerName);
+  const procInMaster = masters.procedures.some(p=>p.name===form.procedure);
+  const [custMode, setCustMode] = useState(!isNew && !custInMaster && masters.customers.length>0 ? 'text' : 'select');
+  const [procMode, setProcMode] = useState(!isNew && !procInMaster && masters.procedures.length>0 ? 'text' : 'select');
+
+  const handleCustSelect = v => {
+    if (v==='__text__') { setCustMode('text'); set('customerName',''); }
+    else { const c=masters.customers.find(x=>x.name===v); set('customerName',v); if(c) set('no',c.no); }
+  };
+  const handleProcSelect = v => {
+    if (v==='__text__') { setProcMode('text'); set('procedure',''); }
+    else set('procedure',v);
+  };
+
+  const handleSubmit = e => {
+    e.preventDefault();
+    if (!form.customerName.trim() || !form.procedure.trim()) { alert('顧客名と手続き内容は必須です。'); return; }
+    const amt = form.billingAmount.trim();
+    if (amt !== '' && amt !== '請求なし' && isNaN(Number(amt))) {
+      alert('請求金額には半角数字（例：2500）または「請求なし」を入力してください。');
+      return;
+    }
+    const newErrors = {receivedDate:'', targetMonth:''};
+    if (!validateDateInput(form.receivedDate)) newErrors.receivedDate='正しい日付を入力してください（例：2026/4/1）';
+    if (!validateYM(form.targetMonth))         newErrors.targetMonth='正しい年月を入力してください（例：2026/4）';
+    if (newErrors.receivedDate || newErrors.targetMonth) { setErrors(newErrors); return; }
+    onSave({...form, billingAmount: amt, receivedDate: formatDate(form.receivedDate)});
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal-box">
+        <h2 className="text-xl font-bold mb-6 text-gray-800">{isNew?'新規案件登録':'案件編集'}</h2>
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">No</label>
+              <input value={form.no} onChange={e=>set('no',e.target.value)} placeholder="顧客No" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">ステータス <span className="text-red-500">*</span></label>
+              <select value={form.status} onChange={e=>set('status',e.target.value)}>
+                {STATUSES.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">顧客名 <span className="text-red-500">*</span></label>
+            {masters.customers.length>0 && custMode==='select' ? (
+              <SearchableSelect
+                value={form.customerName}
+                onChange={v => handleCustSelect(v)}
+                placeholder="選択または検索..."
+                options={[
+                  ...masters.customers.map(c=>({value:c.name, label:c.name})),
+                  {value:'__text__', label:'その他（直接入力）'},
+                ]}
+              />
+            ) : (
+              <div className="flex gap-2">
+                <input value={form.customerName} onChange={e=>set('customerName',e.target.value)} placeholder="株式会社〇〇" />
+                {masters.customers.length>0 && <button type="button" className="btn btn-secondary text-xs px-2 py-1 whitespace-nowrap" onClick={()=>setCustMode('select')}>一覧から選択</button>}
+              </div>
+            )}
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">手続き内容 <span className="text-red-500">*</span></label>
+            {masters.procedures.length>0 && procMode==='select' ? (
+              <select value={form.procedure} onChange={e=>handleProcSelect(e.target.value)}>
+                <option value="">選択してください</option>
+                {masters.procedures.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
+                <option value="__text__">その他（直接入力）</option>
+              </select>
+            ) : (
+              <div className="flex gap-2">
+                <input value={form.procedure} onChange={e=>set('procedure',e.target.value)} placeholder="社保取得など" />
+                {masters.procedures.length>0 && <button type="button" className="btn btn-secondary text-xs px-2 py-1 whitespace-nowrap" onClick={()=>setProcMode('select')}>一覧から選択</button>}
+              </div>
+            )}
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">メモ</label>
+            <textarea value={form.memo} onChange={e=>set('memo',e.target.value)} rows={2} placeholder="備考・詳細" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">担当者</label>
+              {masters.assignees.length>0 ? (
+                <select value={form.assignee} onChange={e=>set('assignee',e.target.value)}>
+                  <option value="">選択してください</option>
+                  {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+                </select>
+              ) : (
+                <input value={form.assignee} onChange={e=>set('assignee',e.target.value)} placeholder="担当者名" />
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">受付日 <span className="text-red-500">*</span></label>
+              <input value={form.receivedDate} onChange={e=>{set('receivedDate',e.target.value);clearErr('receivedDate');}} placeholder="2026/1/1" style={errors.receivedDate?{borderColor:'#ef4444'}:{}} />
+              {errors.receivedDate && <p className="text-red-500 text-xs mt-1">{errors.receivedDate}</p>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">請求金額（円）</label>
+              <input type="text" value={form.billingAmount} onChange={e=>set('billingAmount',e.target.value)} placeholder="例：2500 または 請求なし" style={{MozAppearance:'textfield'}} />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">対象年月 <span className="text-red-500">*</span></label>
+              <input value={form.targetMonth} onChange={e=>{set('targetMonth',e.target.value);clearErr('targetMonth');}} onBlur={e=>set('targetMonth',toYearMonth(e.target.value))} placeholder="2026/4（または 2026年4月）" style={errors.targetMonth?{borderColor:'#ef4444'}:{}} />
+              {errors.targetMonth && <p className="text-red-500 text-xs mt-1">{errors.targetMonth}</p>}
+            </div>
+          </div>
+
+          <div className="flex gap-3 justify-end">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+            <button type="submit" className="btn btn-primary">{isNew?'登録する':'保存する'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   CASE LIST SCREEN
+══════════════════════════════════════════ */
+function CaseListScreen({cases, setCases, masters}) {
+  const [activeTab, setActiveTab] = useState('全件');
+  const [search, setSearch]       = useState('');
+  const [filter, setFilter]       = useState({customerName:'',assignee:'',targetMonth:'',status:''});
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [editCase, setEditCase]     = useState(null);
+  const [showNew, setShowNew]       = useState(false);
+  const [cancelCase, setCancelCase] = useState(null);
+  const [showCancelled, setShowCancelled] = useState(false);
+  const nid = useRef(nextId(cases));
+
+  const tabCounts = useMemo(()=>{
+    const active = cases.filter(c=>!c.cancelled);
+    const cnt={'全件':active.length};
+    STATUSES.forEach(s=>{ cnt[s]=active.filter(x=>x.status===s).length; });
+    return cnt;
+  },[cases]);
+
+  const alertCounts = useMemo(()=>{
+    let danger=0, warning=0;
+    cases.filter(c=>!c.cancelled).forEach(c=>{
+      if(c.status!=='依頼受付') return;
+      const d=daysSince(c.receivedDate); if(d===null) return;
+      if(d>=30) danger++; else if(d>=14) warning++;
+    });
+    return {danger,warning};
+  },[cases]);
+
+  const filtered = useMemo(()=>{
+    let arr = showCancelled ? cases : cases.filter(c=>!c.cancelled);
+    const st = filter.status || (activeTab!=='全件' ? activeTab : '');
+    if(st) arr=arr.filter(c=>c.status===st);
+    if(filter.customerName) arr=arr.filter(c=>c.customerName===filter.customerName);
+    if(filter.assignee)     arr=arr.filter(c=>c.assignee===filter.assignee);
+    if(filter.targetMonth)  arr=arr.filter(c=>c.targetMonth===filter.targetMonth);
+    if(search.trim()){
+      const q=search.trim().toLowerCase();
+      arr=arr.filter(c=>(c.customerName||'').toLowerCase().includes(q)||(c.procedure||'').toLowerCase().includes(q)||(c.memo||'').toLowerCase().includes(q));
+    }
+    arr=[...arr].sort((a,b)=>{
+      const da=parseDate(a.receivedDate), db=parseDate(b.receivedDate);
+      const ta=da?da.getTime():0, tb=db?db.getTime():0;
+      if(tb!==ta) return tb-ta;
+      return (b.id||0)-(a.id||0);
+    });
+    return arr;
+  },[cases,activeTab,search,filter,showCancelled]);
+
+  const handleSave = form => {
+    if(editCase){ setCases(p=>p.map(c=>c.id===editCase.id?{...form,id:editCase.id}:c)); setEditCase(null); }
+    else { setCases(p=>[...p,{...form,id:nid.current++}]); setShowNew(false); }
+  };
+
+  const hasFilter = !!(filter.customerName||filter.assignee||filter.targetMonth||filter.status||showCancelled);
+  const isViewOnly = activeTab !== '全件';
+
+  const targetMonths = useMemo(()=>{
+    const set = new Set(cases.map(c=>c.targetMonth).filter(Boolean));
+    return [...set].sort((a,b)=>parseYM(a)-parseYM(b));
+  },[cases]);
+
+  return (
+    <div>
+      {/* Top action bar */}
+      <div className="flex items-center justify-between mb-3">
+        {isViewOnly
+          ? <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">👁 閲覧モード（「全件」タブで編集可）</span>
+          : <span />
+        }
+        {!isViewOnly && (
+          <button className="btn btn-primary flex items-center gap-2" onClick={()=>setShowNew(true)}>
+            <span className="text-lg font-bold">＋</span> 新規案件登録
+          </button>
+        )}
+      </div>
+
+      {/* Alert badges */}
+      {(alertCounts.danger>0||alertCounts.warning>0) && (
+        <div className="flex gap-2 mb-3 items-center bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm">
+          <span className="text-sm font-semibold text-gray-600 mr-1">期限注意</span>
+          {alertCounts.danger>0  && <span className="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">🔴 30日超過 {alertCounts.danger}件</span>}
+          {alertCounts.warning>0 && <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-3 py-1 rounded-full">🟡 14日超過 {alertCounts.warning}件</span>}
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-3 flex items-center gap-3">
+        <span className="text-gray-400">🔍</span>
+        <input type="text" value={search} onChange={e=>setSearch(e.target.value)}
+          placeholder="顧客名・手続き内容・メモで検索..."
+          style={{border:'none',boxShadow:'none',padding:'0'}}
+          className="flex-1 border-none outline-none text-sm bg-transparent" />
+        {search && <button onClick={()=>setSearch('')} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>}
+        <span className="text-sm text-gray-400 border-l pl-3">{filtered.length}件</span>
+      </div>
+
+      {/* Filter Panel */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 mb-3">
+        <div className="flex items-center justify-between cursor-pointer" onClick={()=>setFilterOpen(o=>!o)}>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-gray-700">絞り込みフィルター</span>
+            {hasFilter && <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold">適用中</span>}
+          </div>
+          <span className="text-gray-400 text-xs">{filterOpen?'▲':'▼'}</span>
+        </div>
+        {filterOpen && (
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">顧客名</label>
+              <SearchableSelect
+                value={filter.customerName}
+                onChange={v => setFilter(f=>({...f, customerName: v}))}
+                placeholder="すべて"
+                options={[
+                  {value:'', label:'すべて'},
+                  ...masters.customers.map(c=>({value:c.name, label:c.name})),
+                ]}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">担当者</label>
+              <select value={filter.assignee} onChange={e=>setFilter(f=>({...f,assignee:e.target.value}))}>
+                <option value="">すべて</option>
+                {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+              </select>
+            </div>
+            {activeTab==='全件' && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">ステータス</label>
+                <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))}>
+                  <option value="">すべて</option>
+                  {STATUSES.map(s=><option key={s}>{s}</option>)}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">対象年月</label>
+              <select value={filter.targetMonth} onChange={e=>setFilter(f=>({...f,targetMonth:e.target.value}))}>
+                <option value="">すべて</option>
+                {targetMonths.map(m=><option key={m}>{m}</option>)}
+              </select>
+            </div>
+            <div className="col-span-2 md:col-span-4 flex items-center justify-between">
+              <label className="flex items-center gap-1.5 cursor-pointer" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
+                <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
+                  style={{width:'15px',height:'15px',cursor:'pointer'}} />
+                取消済みを表示
+              </label>
+              <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>{setFilter({customerName:'',assignee:'',targetMonth:'',status:''});setShowCancelled(false);}}>クリア</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-white rounded-t-xl border border-b-0 border-gray-200 flex overflow-x-auto">
+        {['全件',...STATUSES].map(tab=>(
+          <button key={tab} onClick={()=>{setActiveTab(tab);setFilter(f=>({...f,status:''}));}}
+            className={`px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${activeTab===tab&&!filter.status?'tab-active':'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
+            {tab}
+            <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${activeTab===tab&&!filter.status?'bg-blue-100 text-blue-700':'bg-gray-100 text-gray-500'}`}>
+              {tabCounts[tab]||0}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-b-xl border border-gray-200 shadow-sm table-wrap">
+        {filtered.length===0 ? (
+          <div className="text-center py-16 text-gray-400"><div className="text-4xl mb-3">📋</div><p>該当する案件がありません</p></div>
+        ) : (
+          <table className="w-full text-sm border-collapse" style={{tableLayout:'fixed'}}>
+            <colgroup>
+              <col style={{width:'52px'}} />
+              <col style={{width:'168px'}} />
+              <col style={{width:'220px'}} />
+              <col style={{width:'316px'}} />
+              <col style={{width:'88px'}} />
+              <col style={{width:'104px'}} />
+              <col style={{width:'92px'}} />
+              <col style={{width:'92px'}} />
+              <col style={{width:'116px'}} />
+              {!isViewOnly && <col style={{width:'92px'}} />}
+            </colgroup>
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">No</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">顧客名</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">手続き内容</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">メモ</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">担当者</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">ステータス</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">受付日</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600 bg-gray-50">請求金額</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">対象年月</th>
+                {!isViewOnly && <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">操作</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filtered.map(c=>(
+                <tr key={c.id} className={`group ${c.cancelled?'opacity-50 bg-gray-50':rowAlert(c)}`}>
+                  <td className="px-3 py-2.5 text-gray-500 text-center text-xs">{c.no}</td>
+                  <td className="px-3 py-2.5 font-medium text-xs" style={{color:c.cancelled?'#9ca3af':'#1f2937'}}>
+                    {c.cancelled && <span className="inline-block mr-1 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">取消</span>}
+                    {c.customerName}
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-700 text-xs" style={{textDecoration:c.cancelled?'line-through':'none'}}>{c.procedure}</td>
+                  <td className="px-3 py-2.5 text-gray-500 text-xs" style={{whiteSpace:'pre-wrap',wordBreak:'break-word',verticalAlign:'middle'}}>{c.memo}</td>
+                  <td className="px-3 py-2.5">
+                    {(isViewOnly||c.cancelled)
+                      ? <span className="text-gray-600 text-xs">{c.assignee}</span>
+                      : <select value={c.assignee||''} onChange={e=>setCases(p=>p.map(x=>x.id===c.id?{...x,assignee:e.target.value}:x))}
+                          className="text-xs border border-gray-200 rounded px-1 py-0.5 text-gray-700 bg-white cursor-pointer w-full">
+                          <option value=""></option>
+                          {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+                        </select>
+                    }
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {(isViewOnly||c.cancelled)
+                      ? <StatusBadge status={c.status} />
+                      : <select value={c.status} onChange={e=>setCases(p=>p.map(x=>x.id===c.id?{...x,status:e.target.value}:x))}
+                          className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer`}
+                          style={{appearance:'none',textAlign:'center',width:'100%'}}>
+                          {STATUSES.map(s=><option key={s}>{s}</option>)}
+                        </select>
+                    }
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{formatDate(c.receivedDate)}</td>
+                  <td className="px-3 py-2.5 text-gray-700 text-sm text-right">
+                    {c.billingAmount==='請求なし'
+                      ? <span className="text-gray-400 text-xs">請求なし</span>
+                      : c.billingAmount!==''&&c.billingAmount!=null
+                        ? `¥${Number(c.billingAmount).toLocaleString()}`
+                        : ''}
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{c.targetMonth}</td>
+                  {!isViewOnly && (
+                    <td className="px-3 py-2.5">
+                      <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        {!c.cancelled && <button onClick={()=>setEditCase(c)} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>}
+                        <button onClick={()=>setCancelCase(c)}
+                          className={`text-xs px-2 py-1 rounded font-medium ${c.cancelled?'bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-600':'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
+                          {c.cancelled?'取消解除':'取消'}
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <div className="mt-3 text-xs text-gray-400 text-right px-1">全{cases.length}件中 {filtered.length}件表示 ／ 変更はブラウザに自動保存されます</div>
+
+      {(showNew||editCase) && <CaseModal caseData={editCase||null} onSave={handleSave} onClose={()=>{setShowNew(false);setEditCase(null);}} masters={masters} />}
+      {cancelCase && (
+        cancelCase.cancelled
+          ? <ConfirmModal
+              title={`「${cancelCase.procedure}」の取消を解除しますか？`}
+              body={`${cancelCase.customerName} — 案件を通常表示に戻します。`}
+              confirmLabel="取消を解除する" confirmClass="btn-primary" note=""
+              onConfirm={()=>{setCases(p=>p.map(c=>c.id===cancelCase.id?{...c,cancelled:false}:c));setCancelCase(null);}}
+              onClose={()=>setCancelCase(null)} />
+          : <ConfirmModal
+              title={`「${cancelCase.procedure}」を取消しますか？`}
+              body={`${cancelCase.customerName} — 一覧から非表示になります。`}
+              confirmLabel="取消する" confirmClass="btn-danger"
+              note="データは保持されます。フィルターで再表示できます。"
+              onConfirm={()=>{setCases(p=>p.map(c=>c.id===cancelCase.id?{...c,cancelled:true}:c));setCancelCase(null);}}
+              onClose={()=>setCancelCase(null)} />
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   BILLING SUMMARY SCREEN
+══════════════════════════════════════════ */
+function BillingSummaryScreen({cases}) {
+  const months = useMemo(()=>[...new Set(cases.map(c=>c.targetMonth).filter(Boolean))].sort((a,b)=>parseYM(a)-parseYM(b)),[cases]);
+  const [sel, setSel] = useState(months[0]||'');
+
+  const rows = useMemo(()=>{
+    if(!sel) return [];
+    const map={};
+    cases.filter(c=>c.targetMonth===sel && c.status==='請求済' && c.billingAmount!=='請求なし').forEach(c=>{
+      if(!map[c.customerName]) map[c.customerName]={name:c.customerName,count:0,total:0};
+      map[c.customerName].count++;
+      map[c.customerName].total+=Number(c.billingAmount)||0;
+    });
+    return Object.values(map).sort((a,b)=>a.name.localeCompare(b.name,'ja'));
+  },[cases,sel]);
+
+  const grandCount = rows.reduce((s,r)=>s+r.count,0);
+  const grandTotal = rows.reduce((s,r)=>s+r.total,0);
+
+  return (
+    <div>
+      <div className="flex items-center gap-4 mb-6 flex-wrap">
+        <h2 className="text-lg font-bold text-gray-800">請求集計</h2>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-semibold text-gray-600">対象年月：</label>
+          <select value={sel} onChange={e=>setSel(e.target.value)} style={{width:'auto'}}>
+            <option value="">選択してください</option>
+            {months.map(m=><option key={m}>{m}</option>)}
+          </select>
+        </div>
+      </div>
+      {!sel ? (
+        <div className="text-center py-20 text-gray-400"><div className="text-5xl mb-3">📊</div><p>対象年月を選択してください</p></div>
+      ) : rows.length===0 ? (
+        <div className="text-center py-20 text-gray-400"><p>該当する案件がありません</p></div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 200px)'}}>
+          <table className="text-sm" style={{tableLayout:'fixed',width:'600px'}}>
+            <colgroup>
+              <col /><col style={{width:'80px'}} /><col style={{width:'160px'}} />
+            </colgroup>
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">顧客名</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600">件数</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600">合計請求金額</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map(r=>(
+                <tr key={r.name} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium text-gray-800">{r.name}</td>
+                  <td className="px-4 py-3 text-right text-gray-700">{r.count}件</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{`¥${r.total.toLocaleString()}`}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-blue-50 border-t-2 border-blue-200 font-bold">
+                <td className="px-4 py-3 text-blue-800">合計</td>
+                <td className="px-4 py-3 text-right text-blue-800">{grandCount}件</td>
+                <td className="px-4 py-3 text-right text-blue-800">¥{grandTotal.toLocaleString()}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   MONTHLY CHECK SCREEN
+══════════════════════════════════════════ */
+function MonthlyCheckModal({item, onSave, onClose, masters}) {
+  const blank = {no:'',customerName:'',checker:'',procedureBy:'',count:'',assignee:'',completedDate:'',targetMonth:''};
+  const [form, setForm] = useState(item?{...item}:blank);
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal-box">
+        <h2 className="text-xl font-bold mb-6">{item?'編集':'新規追加'} — 月額変更届チェック</h2>
+        <form onSubmit={e=>{e.preventDefault();onSave(form);}}>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">No</label><input value={form.no} onChange={e=>set('no',e.target.value)} /></div>
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">月変対象年月</label><input value={form.targetMonth} onChange={e=>set('targetMonth',e.target.value)} onBlur={e=>set('targetMonth',toYearMonth(e.target.value))} placeholder="2026年5月" /></div>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">顧客名</label>
+            <select value={form.customerName} onChange={e=>set('customerName',e.target.value)}>
+              <option value="">選択してください</option>
+              {masters.customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">月変チェック者</label>
+              <textarea value={form.checker||''} onChange={e=>set('checker',e.target.value)} rows={4} placeholder="従業員番号とフルネームを1行ずつ入力" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">月変手続きした人</label>
+              <textarea value={form.procedureBy||''} onChange={e=>set('procedureBy',e.target.value)} rows={4} placeholder="従業員番号とフルネームを1行ずつ入力" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">月変した人数</label><input type="number" value={form.count} onChange={e=>set('count',e.target.value)} placeholder="0" /></div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">担当者</label>
+              <select value={form.assignee} onChange={e=>set('assignee',e.target.value)}>
+                <option value="">選択してください</option>
+                {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="mb-6"><label className="block text-sm font-semibold text-gray-600 mb-1">チェック完了日</label><input value={form.completedDate} onChange={e=>set('completedDate',e.target.value)} placeholder="2026/5/31" /></div>
+          <div className="flex gap-3 justify-end">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+            <button type="submit" className="btn btn-primary">{item?'保存する':'追加する'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function MonthlyCheckScreen({checks, setChecks, masters}) {
+  const [showModal, setShowModal]         = useState(false);
+  const [editItem, setEditItem]           = useState(null);
+  const [cancelItem, setCancelItem]       = useState(null);
+  const [filterMonth, setFilterMonth]     = useState('');
+  const [showCancelled, setShowCancelled] = useState(false);
+  const nid = useRef(nextId(checks));
+
+  const months = useMemo(()=>[...new Set(checks.map(c=>c.targetMonth).filter(Boolean))].sort(),[checks]);
+  const rows = useMemo(()=>{
+    let arr = showCancelled ? checks : checks.filter(c=>!c.cancelled);
+    if(filterMonth) arr = arr.filter(c=>c.targetMonth===filterMonth);
+    return arr;
+  },[checks,filterMonth,showCancelled]);
+
+  const handleSave = form=>{
+    if(editItem){ setChecks(p=>p.map(c=>c.id===editItem.id?{...form,id:editItem.id}:c)); }
+    else         { setChecks(p=>[...p,{...form,id:nid.current++}]); }
+    setShowModal(false); setEditItem(null);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="text-lg font-bold text-gray-800">月額変更届チェック管理</h2>
+        <button className="btn btn-primary" onClick={()=>{setEditItem(null);setShowModal(true);}}>＋ 新規追加</button>
+      </div>
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <label className="text-sm font-semibold text-gray-600">月変対象年月：</label>
+        <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{width:'auto'}}>
+          <option value="">すべて</option>
+          {months.map(m=><option key={m}>{m}</option>)}
+        </select>
+        {filterMonth && <button className="text-xs text-gray-400 hover:text-gray-600" onClick={()=>setFilterMonth('')}>クリア</button>}
+        <label className="flex items-center gap-1.5 cursor-pointer ml-2" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
+          <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
+            style={{width:'15px',height:'15px',cursor:'pointer'}} />
+          取消済みを表示
+        </label>
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 240px)'}}>
+        {rows.length===0 ? (
+          <div className="text-center py-16 text-gray-400"><div className="text-4xl mb-3">📝</div><p>データがありません</p></div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-3 py-3 text-left font-semibold text-gray-600 w-12">No</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600">顧客名</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600">月変チェック者</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600">月変手続きした人</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600">月変人数</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600">担当者</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600">チェック完了日</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600">月変対象年月</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600 w-24">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map(c=>(
+                <tr key={c.id} className={`group ${c.cancelled?'bg-gray-50 opacity-50':'hover:bg-gray-50'}`}>
+                  <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.no}</td>
+                  <td className="px-3 py-2.5 font-medium text-xs" style={{color:c.cancelled?'#9ca3af':'#1f2937'}}>
+                    {c.cancelled && <span className="inline-block mr-1 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">取消</span>}
+                    {c.customerName}
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.checker}</td>
+                  <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.procedureBy}</td>
+                  <td className="px-3 py-2.5 text-gray-700 text-xs text-center">{c.count}</td>
+                  <td className="px-3 py-2.5 text-gray-600 text-xs text-center">{c.assignee}</td>
+                  <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.completedDate}</td>
+                  <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.targetMonth}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {!c.cancelled && <button onClick={()=>{setEditItem(c);setShowModal(true);}} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>}
+                      <button onClick={()=>setCancelItem(c)}
+                        className={`text-xs px-2 py-1 rounded font-medium ${c.cancelled?'bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-600':'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
+                        {c.cancelled?'取消解除':'取消'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {showModal && <MonthlyCheckModal item={editItem} onSave={handleSave} onClose={()=>{setShowModal(false);setEditItem(null);}} masters={masters} />}
+      {cancelItem && (
+        cancelItem.cancelled
+          ? <ConfirmModal
+              title={`「${cancelItem.customerName}」の取消を解除しますか？`}
+              body={`${cancelItem.targetMonth} — データを通常表示に戻します。`}
+              confirmLabel="取消を解除する" confirmClass="btn-primary" note=""
+              onConfirm={()=>{setChecks(p=>p.map(c=>c.id===cancelItem.id?{...c,cancelled:false}:c));setCancelItem(null);}}
+              onClose={()=>setCancelItem(null)} />
+          : <ConfirmModal
+              title={`「${cancelItem.customerName}」を取消しますか？`}
+              body={`${cancelItem.targetMonth} — 一覧から非表示になります。`}
+              confirmLabel="取消する" confirmClass="btn-danger"
+              note="データは保持されます。フィルターで再表示できます。"
+              onConfirm={()=>{setChecks(p=>p.map(c=>c.id===cancelItem.id?{...c,cancelled:true}:c));setCancelItem(null);}}
+              onClose={()=>setCancelItem(null)} />
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   PAYROLL SCHEDULE SCREEN
+══════════════════════════════════════════ */
+const PB = ()=>({受取日:'',送信日:'',人数:'',納品日:'',賞与人数:'',賞与納品日:''});
+const PM = ()=>Object.fromEntries(Array.from({length:12},(_,i)=>[i+1,PB()]));
+
+function PayrollCustomerModal({item, onSave, onClose, masters}) {
+  const blank={customerName:'',assignee:'',締日:'',支給日:'',年末調整還付月:'',賞与支給月:'',納品方法:'',その他メモ:''};
+  const [form,setForm]=useState(item?{customerName:item.customerName,assignee:item.assignee,締日:item.締日,支給日:item.支給日,年末調整還付月:item.年末調整還付月,賞与支給月:item.賞与支給月,納品方法:item.納品方法,その他メモ:item.その他メモ}:blank);
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal-box" style={{width:'620px'}}>
+        <h2 className="text-xl font-bold mb-6">{item?'顧問先情報編集':'顧問先追加'} — 給与計算スケジュール</h2>
+        <form onSubmit={e=>{e.preventDefault();if(!form.customerName.trim()){alert('顧問先名は必須です');return;}onSave(form);}}>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">顧問先名 <span className="text-red-500">*</span></label>
+              <SearchableSelect value={form.customerName} onChange={v=>set('customerName',v)} placeholder="選択または検索..."
+                options={masters.customers.map(c=>({value:c.name,label:c.name}))} />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">担当者</label>
+              <select value={form.assignee} onChange={e=>set('assignee',e.target.value)}>
+                <option value="">選択してください</option>
+                {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">締日</label><input value={form.締日} onChange={e=>set('締日',e.target.value)} placeholder="例：末日、20日" /></div>
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">支給日</label><input value={form.支給日} onChange={e=>set('支給日',e.target.value)} placeholder="例：翌月25日(前倒し)" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">年末調整還付月</label><input value={form.年末調整還付月} onChange={e=>set('年末調整還付月',e.target.value)} placeholder="例：1月" /></div>
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">賞与支給月</label><input value={form.賞与支給月} onChange={e=>set('賞与支給月',e.target.value)} placeholder="例：6月・12月" /></div>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">納品方法</label>
+            <input value={form.納品方法} onChange={e=>set('納品方法',e.target.value)} placeholder="例：PDF一覧/A4、dropboxあり" />
+          </div>
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">その他メモ</label>
+            <textarea value={form.その他メモ} onChange={e=>set('その他メモ',e.target.value)} rows={3} />
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+            <button type="submit" className="btn btn-primary">{item?'保存する':'追加する'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PayrollMonthModal({payroll, month, year, onSave, onClose}) {
+  const md = (payroll.yearData&&payroll.yearData[year]&&payroll.yearData[year][month]) || PB();
+  const [form,setForm]=useState({...PB(),...md});
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal-box" style={{width:'480px'}}>
+        <h2 className="text-xl font-bold mb-1">{payroll.customerName}</h2>
+        <p className="text-sm text-gray-500 mb-5">{year}年 {month}月 — 月次データ入力</p>
+        <form onSubmit={e=>{e.preventDefault();onSave(form);}}>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">給与データ受取日</label><input value={form.受取日} onChange={e=>set('受取日',e.target.value)} placeholder="例：15" /></div>
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">給与データ送信日</label><input value={form.送信日} onChange={e=>set('送信日',e.target.value)} placeholder="例：17" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">給与計算人数</label><input value={form.人数} onChange={e=>set('人数',e.target.value)} placeholder="例：15" /></div>
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">給与明細納品日</label><input value={form.納品日} onChange={e=>set('納品日',e.target.value)} placeholder="例：20" /></div>
+          </div>
+          <div className="border-t pt-4 mb-6">
+            <p className="text-xs text-gray-500 font-semibold mb-3 uppercase tracking-wide">賞与（臨時・該当月のみ）</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="block text-sm font-semibold text-gray-600 mb-1">賞与人数</label><input value={form.賞与人数} onChange={e=>set('賞与人数',e.target.value)} placeholder="例：5" /></div>
+              <div><label className="block text-sm font-semibold text-gray-600 mb-1">賞与明細納品日</label><input value={form.賞与納品日} onChange={e=>set('賞与納品日',e.target.value)} placeholder="例：25" /></div>
+            </div>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+            <button type="submit" className="btn btn-primary">保存する</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PayrollScheduleScreen({payrolls, setPayrolls, masters}) {
+  const [viewMode, setViewMode]             = useState('annual');
+  const [selMonth, setSelMonth]             = useState(new Date().getMonth()+1);
+  const [selYear, setSelYear]               = useState(2026);
+  const [filterCustomer, setFilterCustomer]     = useState('');
+  const [filterAssignee, setFilterAssignee]     = useState('');
+  const [filterStatus, setFilterStatus]         = useState('all');
+  const [showTerminated, setShowTerminated]     = useState(false);
+  const [showCustModal, setShowCustModal]       = useState(false);
+  const [editCust, setEditCust]                 = useState(null);
+  const [termCust, setTermCust]                 = useState(null);
+  const [editMD, setEditMD]                 = useState(null); // {payroll, month, year}
+  const [detailItem, setDetailItem]         = useState(null);
+  const nid = useRef(Math.max(0,...payrolls.map(p=>p.id||0))+1);
+
+  const handleSaveCust = form => {
+    if(editCust){ setPayrolls(p=>p.map(x=>x.id===editCust.id?{...x,...form}:x)); }
+    else        { setPayrolls(p=>[...p,{...form,id:nid.current++,yearData:{[selYear]:PM()}}]); }
+    setShowCustModal(false); setEditCust(null);
+  };
+  const handleSaveMonth = form => {
+    const {payroll,month,year}=editMD;
+    setPayrolls(p=>p.map(x=>{
+      if(x.id!==payroll.id) return x;
+      const yd=x.yearData||{};
+      const ym=yd[year]||PM();
+      return {...x,yearData:{...yd,[year]:{...ym,[month]:{...form}}}};
+    }));
+    setEditMD(null);
+  };
+
+  const getStatus = (p,year,m) => {
+    const md=p.yearData&&p.yearData[year]&&p.yearData[year][m];
+    if(!md) return 'none';
+    if(md.納品日) return 'done';
+    if(md.受取日||md.送信日||md.人数||md.賞与人数||md.賞与納品日) return 'wip';
+    return 'none';
+  };
+  const Badge = ({status})=>{
+    const s={display:'inline-flex',alignItems:'center',justifyContent:'center',width:'26px',height:'26px',borderRadius:'50%',fontWeight:'700',fontSize:'13px'};
+    if(status==='done') return <span style={{...s,background:'#bbf7d0',color:'#15803d'}}>✓</span>;
+    if(status==='wip')  return <span style={{...s,background:'#fef3c7',color:'#92400e'}}>●</span>;
+    return <span style={{...s,background:'#f3f4f6',color:'#d1d5db',fontWeight:'400'}}>–</span>;
+  };
+  const MONTHS=[1,2,3,4,5,6,7,8,9,10,11,12];
+  const YEARS=[2023,2024,2025,2026,2027,2028,2029];
+
+  const filteredPayrolls = useMemo(()=>{
+    return payrolls.filter(p=>{
+      if(!showTerminated && p.terminated) return false;
+      if(filterCustomer && p.customerName!==filterCustomer) return false;
+      if(filterAssignee && p.assignee!==filterAssignee) return false;
+      if(filterStatus!=='all'){
+        if(viewMode==='annual'){
+          if(!MONTHS.some(m=>getStatus(p,selYear,m)===filterStatus)) return false;
+        } else {
+          if(getStatus(p,selYear,selMonth)!==filterStatus) return false;
+        }
+      }
+      return true;
+    });
+  },[payrolls,filterCustomer,filterAssignee,filterStatus,showTerminated,selYear,selMonth,viewMode]);
+
+  const hasFilter = !!(filterCustomer||filterAssignee||filterStatus!=='all'||showTerminated);
+  const customerOptions = payrolls.map(p=>({label:p.customerName,value:p.customerName}));
+  const assigneeOptions = [...new Set(payrolls.map(p=>p.assignee).filter(Boolean))].map(a=>({label:a,value:a}));
+
+  /* ── sticky列共通スタイル ── */
+  const stickyTh = {position:'sticky',left:0,top:0,zIndex:20,background:'#f9fafb',boxShadow:'2px 0 5px rgba(0,0,0,0.07)'};
+  const stickyTd = {position:'sticky',left:0,zIndex:5,background:'white',boxShadow:'2px 0 5px rgba(0,0,0,0.07)'};
+
+  return (
+    <div>
+      {/* ── ヘッダー ── */}
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h2 className="text-lg font-bold text-gray-800">給与計算スケジュール</h2>
+          <div className="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <button onClick={()=>setSelYear(y=>y-1)}
+              className="px-3 py-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-50 font-bold border-r border-gray-200 transition-colors" title="前の年">←</button>
+            <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))}
+              style={{appearance:'none',WebkitAppearance:'none',background:'transparent',border:'none',
+                fontWeight:'700',color:'#1d4ed8',fontSize:'14px',cursor:'pointer',
+                padding:'6px 12px',outline:'none',textAlign:'center'}}>
+              {YEARS.map(y=><option key={y} value={y}>{y}年</option>)}
+            </select>
+            <button onClick={()=>setSelYear(y=>y+1)}
+              className="px-3 py-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-50 font-bold border-l border-gray-200 transition-colors" title="次の年">→</button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            <button className={`px-4 py-2 text-sm font-semibold transition-colors ${viewMode==='annual'?'bg-blue-600 text-white':'bg-white text-gray-600 hover:bg-gray-50'}`}
+              onClick={()=>setViewMode('annual')}>年間一覧</button>
+            <button className={`px-4 py-2 text-sm font-semibold transition-colors ${viewMode==='monthly'?'bg-blue-600 text-white':'bg-white text-gray-600 hover:bg-gray-50'}`}
+              onClick={()=>setViewMode('monthly')}>月別絞り込み</button>
+          </div>
+          <button className="btn btn-primary" onClick={()=>{setEditCust(null);setShowCustModal(true);}}>＋ 顧問先追加</button>
+        </div>
+      </div>
+
+      {/* ── フィルターバー ── */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap bg-white border border-gray-200 rounded-lg px-3 py-2">
+        <span className="text-xs font-semibold text-gray-500 whitespace-nowrap shrink-0">絞り込み：</span>
+        <div style={{minWidth:'240px',maxWidth:'340px',position:'relative',zIndex:30}}>
+          <SearchableSelect
+            options={customerOptions}
+            value={filterCustomer}
+            onChange={v=>setFilterCustomer(v)}
+            placeholder="顧問先名…"
+          />
+        </div>
+        <select value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)}
+          style={{width:'auto',minWidth:'96px',padding:'7px 10px',fontSize:'14px',fontWeight:'500'}}>
+          <option value="">担当者：全員</option>
+          {assigneeOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}
+          style={{width:'auto',minWidth:'116px',padding:'7px 10px',fontSize:'14px',fontWeight:'500'}}>
+          <option value="all">進捗：すべて</option>
+          <option value="done">✓ 納品済</option>
+          <option value="wip">● 進行中</option>
+          <option value="none">– 未着手</option>
+        </select>
+        <label className="flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
+          <input type="checkbox" checked={showTerminated} onChange={e=>setShowTerminated(e.target.checked)}
+            style={{width:'15px',height:'15px',cursor:'pointer'}} />
+          契約解除済みを表示
+        </label>
+        {hasFilter && (
+          <button onClick={()=>{setFilterCustomer('');setFilterAssignee('');setFilterStatus('all');setShowTerminated(false);}}
+            className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-600 font-semibold whitespace-nowrap transition-colors"
+            style={{fontSize:'13px'}}>
+            クリア
+          </button>
+        )}
+        <span className="ml-auto text-xs text-gray-400 whitespace-nowrap shrink-0">{filteredPayrolls.length} 件表示</span>
+      </div>
+
+      {/* ── 凡例（年間一覧時のみ） ── */}
+      {viewMode==='annual' && (
+        <div className="flex items-center gap-4 mb-3 px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 flex-wrap">
+          <span className="flex items-center gap-1.5 font-semibold text-gray-500">凡例：</span>
+          <span className="flex items-center gap-1.5">
+            <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'20px',height:'20px',borderRadius:'50%',background:'#bbf7d0',color:'#15803d',fontWeight:'700',fontSize:'11px'}}>✓</span>納品済
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'20px',height:'20px',borderRadius:'50%',background:'#fef3c7',color:'#92400e',fontWeight:'700',fontSize:'11px'}}>●</span>進行中
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:'20px',height:'20px',borderRadius:'50%',background:'#f3f4f6',color:'#d1d5db',fontSize:'11px'}}>–</span>未着手
+          </span>
+        </div>
+      )}
+
+      {/* ── 月選択（月別モード） ── */}
+      {viewMode==='monthly' && (
+        <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+          <span className="text-sm font-semibold text-gray-600 mr-1">表示月：</span>
+          {MONTHS.map(m=>(
+            <button key={m}
+              className={`px-3 py-1 rounded-lg text-sm font-semibold border transition-colors ${selMonth===m?'bg-blue-600 text-white border-blue-600':'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'}`}
+              onClick={()=>setSelMonth(m)}>{m}月</button>
+          ))}
+        </div>
+      )}
+
+      {filteredPayrolls.length===0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm text-center py-16 text-gray-400">
+          <div className="text-4xl mb-3">📅</div>
+          <p>{payrolls.length===0?'データがありません':'絞り込み条件に一致するデータがありません'}</p>
+        </div>
+      ) : viewMode==='annual' ? (
+        /* ════ 年間一覧 ════ */
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 340px)'}}>
+          <table className="text-sm border-collapse" style={{minWidth:'100%'}}>
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="px-4 py-3 text-left font-semibold text-gray-600" style={{minWidth:'180px',...stickyTh}}>顧問先名</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600" style={{minWidth:'60px'}}>担当者</th>
+                {MONTHS.map(m=><th key={m} className="px-2 py-3 text-center font-semibold text-gray-600" style={{minWidth:'48px'}}>{m}月</th>)}
+                <th className="px-3 py-3 text-left font-semibold text-gray-600" style={{minWidth:'220px',borderLeft:'2px solid #e5e7eb'}}>固定情報</th>
+                <th className="px-2 py-3 text-center font-semibold text-gray-600" style={{minWidth:'120px'}}>操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredPayrolls.map(p=>{
+                const infoLine1=[
+                  p.締日          && `締日：${p.締日}`,
+                  p.支給日        && `支給：${p.支給日}`,
+                  p.年末調整還付月 && `年調：${p.年末調整還付月}月`,
+                  p.賞与支給月    && `賞与：${p.賞与支給月}`,
+                ].filter(Boolean);
+                const infoLine2=[
+                  p.納品方法   && `納品：${p.納品方法}`,
+                  p.その他メモ && `※${p.その他メモ}`,
+                ].filter(Boolean);
+                return (
+                <tr key={p.id} className={`group ${p.terminated?'bg-gray-50 opacity-60':'hover:bg-blue-50'}`}>
+                  <td className="px-4 py-2.5"
+                    style={{...stickyTd,borderRight:'1px solid #f3f4f6'}}>
+                    <div className="font-semibold text-sm leading-tight" style={{color:p.terminated?'#9ca3af':'#1f2937'}}>
+                      {p.terminated && <span className="inline-block mr-1.5 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">解除</span>}
+                      {p.customerName}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 text-gray-600 text-xs">{p.assignee}</td>
+                  {MONTHS.map(m=>(
+                    <td key={m} className="px-2 py-2.5 text-center">
+                      <button onClick={()=>!p.terminated&&setEditMD({payroll:p,month:m,year:selYear})} className="hover:scale-110 transition-transform" title={`${m}月データを入力`} disabled={p.terminated}>
+                        <Badge status={getStatus(p,selYear,m)} />
+                      </button>
+                    </td>
+                  ))}
+                  <td className="px-3 py-2.5 text-sm text-gray-600" style={{borderLeft:'2px solid #e5e7eb'}}>
+                    {infoLine1.length>0 && <div>{infoLine1.join('　')}</div>}
+                    {infoLine2.length>0 && <div className="text-gray-500 mt-0.5">{infoLine2.join('　')}</div>}
+                  </td>
+                  <td className="px-2 py-2.5">
+                    <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {!p.terminated && <button onClick={()=>{setEditCust(p);setShowCustModal(true);}} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>}
+                      <button onClick={()=>setTermCust(p)} className={`text-xs px-2 py-1 rounded font-medium ${p.terminated?'bg-gray-100 text-gray-400':'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
+                        {p.terminated?'解除済':'契約解除'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        /* ════ 月別絞り込み ════ */
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto" style={{maxHeight:'calc(100vh - 340px)'}}>
+          <table className="w-full text-sm border-collapse" style={{tableLayout:'fixed',minWidth:'900px'}}>
+            <colgroup>
+              <col style={{width:'15%'}} /><col style={{width:'5%'}} />
+              <col style={{width:'6%'}} /><col style={{width:'6%'}} />
+              <col style={{width:'4%'}} /><col style={{width:'7%'}} />
+              <col style={{width:'5%'}} /><col style={{width:'7%'}} />
+              <col /><col style={{width:'56px'}} />
+            </colgroup>
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-3 py-3 text-left font-semibold text-gray-600 text-sm">顧問先名</th>
+                <th className="px-2 py-3 text-left font-semibold text-gray-600 text-sm">担当者</th>
+                <th className="px-2 py-3 text-center font-semibold text-gray-600 text-sm">受取日</th>
+                <th className="px-2 py-3 text-center font-semibold text-gray-600 text-sm">送信日</th>
+                <th className="px-2 py-3 text-center font-semibold text-gray-600 text-sm">人数</th>
+                <th className="px-2 py-3 text-center font-semibold text-gray-600 text-sm">納品日</th>
+                <th className="px-2 py-3 text-center font-semibold text-gray-600 text-sm">賞与人数</th>
+                <th className="px-2 py-3 text-center font-semibold text-gray-600 text-sm">賞与納品日</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600 text-sm" style={{borderLeft:'2px solid #e5e7eb'}}>固定情報</th>
+                <th className="px-2 py-3 text-center font-semibold text-gray-600 text-sm">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredPayrolls.map(p=>{
+                const md=(p.yearData&&p.yearData[selYear]&&p.yearData[selYear][selMonth])||PB();
+                const st=getStatus(p,selYear,selMonth);
+                const rc=st==='done'?'bg-green-50 hover:bg-green-100':st==='wip'?'bg-yellow-50 hover:bg-yellow-100':'hover:bg-gray-50';
+                const infoLine1=[
+                  p.締日          && `締日：${p.締日}`,
+                  p.支給日        && `支給：${p.支給日}`,
+                  p.年末調整還付月 && `年調：${p.年末調整還付月}月`,
+                  p.賞与支給月    && `賞与：${p.賞与支給月}`,
+                ].filter(Boolean);
+                const infoLine2=[
+                  p.納品方法   && `納品：${p.納品方法}`,
+                  p.その他メモ && `※${p.その他メモ}`,
+                ].filter(Boolean);
+                return (
+                  <tr key={p.id} className={rc}>
+                    <td className="px-3 py-2.5 font-semibold text-gray-800 text-sm" style={{wordBreak:'break-word'}}>{p.customerName}</td>
+                    <td className="px-2 py-2.5 text-gray-600 text-sm text-center">{p.assignee}</td>
+                    <td className="px-2 py-2.5 text-gray-700 text-sm text-center">{md.受取日||'—'}</td>
+                    <td className="px-2 py-2.5 text-gray-700 text-sm text-center">{md.送信日||'—'}</td>
+                    <td className="px-2 py-2.5 text-gray-700 text-sm text-center">{md.人数||'—'}</td>
+                    <td className="px-2 py-2.5 text-sm text-center">
+                      {md.納品日
+                        ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">{md.納品日}</span>
+                        : <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="px-2 py-2.5 text-gray-700 text-sm text-center">{md.賞与人数||'—'}</td>
+                    <td className="px-2 py-2.5 text-gray-700 text-sm text-center">{md.賞与納品日||'—'}</td>
+                    <td className="px-3 py-2.5 text-sm text-gray-600" style={{borderLeft:'2px solid #e5e7eb'}}>
+                      {infoLine1.length>0 && <div>{infoLine1.join('　')}</div>}
+                      {infoLine2.length>0 && <div className="text-gray-500 mt-0.5">{infoLine2.join('　')}</div>}
+                    </td>
+                    <td className="px-2 py-2.5 text-center">
+                      <button onClick={()=>setEditMD({payroll:p,month:selMonth,year:selYear})} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">入力</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── 固定情報モーダル ── */}
+      {detailItem && (
+        <div className="modal-overlay" onClick={()=>setDetailItem(null)}>
+          <div className="modal-box" style={{width:'520px'}} onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-800">{detailItem.customerName}</h2>
+              <button onClick={()=>setDetailItem(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {[
+                ['担当者',        detailItem.assignee],
+                ['締日',          detailItem.締日],
+                ['支給日',        detailItem.支給日],
+                ['年末調整還付月', detailItem.年末調整還付月],
+                ['賞与支給月',    detailItem.賞与支給月],
+                ['納品方法',      detailItem.納品方法],
+                ['その他メモ',    detailItem.その他メモ],
+              ].map(([k,v])=>(
+                <div key={k} className="flex gap-3 py-2.5 text-sm">
+                  <span className="font-semibold text-gray-500 whitespace-nowrap w-32 shrink-0">{k}</span>
+                  <span className="text-gray-800">{v||<span className="text-gray-300">—</span>}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end mt-4">
+              <button className="btn btn-secondary" onClick={()=>setDetailItem(null)}>閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── モーダル ── */}
+      {showCustModal && <PayrollCustomerModal item={editCust} onSave={handleSaveCust} onClose={()=>{setShowCustModal(false);setEditCust(null);}} masters={masters} />}
+      {editMD && <PayrollMonthModal payroll={editMD.payroll} month={editMD.month} year={editMD.year} onSave={handleSaveMonth} onClose={()=>setEditMD(null)} />}
+      {termCust && (
+        termCust.terminated
+          ? <ConfirmModal
+              title={`「${termCust.customerName}」の契約解除を取り消しますか？`}
+              body="契約解除フラグを解除し、通常表示に戻します。"
+              confirmLabel="解除を取り消す" confirmClass="btn-primary"
+              note=""
+              onConfirm={()=>{setPayrolls(p=>p.map(x=>x.id===termCust.id?{...x,terminated:false}:x));setTermCust(null);}}
+              onClose={()=>setTermCust(null)} />
+          : <ConfirmModal
+              title={`「${termCust.customerName}」を契約解除しますか？`}
+              body="一覧から非表示になります。フィルターで再表示できます。"
+              confirmLabel="契約解除する" confirmClass="btn-danger"
+              note="データは保持されます。"
+              onConfirm={()=>{setPayrolls(p=>p.map(x=>x.id===termCust.id?{...x,terminated:true}:x));setTermCust(null);}}
+              onClose={()=>setTermCust(null)} />
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   MASTER SCREEN
+══════════════════════════════════════════ */
+function CustomerDetailModal({item, onClose, onEdit}) {
+  const fields = [
+    ['業種',          item.業種],
+    ['代表者名',       item.代表者名],
+    ['代表者メール',   item.代表者メール],
+    ['担当者名',       item.担当者名],
+    ['担当者メール',   item.担当者メール],
+    ['決算月',         item.決算月],
+    ['契約サービス',   (item.契約サービス||[]).join('・')],
+    ['36協定起算日',        item['36協定起算日']],
+    ['その他労使協定の届出', item['その他労使協定の届出']],
+    ['東京SR特別加入',      item['東京SR特別加入']],
+  ];
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal-box" style={{width:'480px'}}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-xs text-gray-400 mb-0.5">No {item.no||'—'}</div>
+            <h2 className="text-lg font-bold text-gray-800">{item.name}</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {fields.map(([k,v])=>(
+            <div key={k} className="flex gap-3 py-2.5 text-sm">
+              <span className="font-semibold text-gray-500 whitespace-nowrap w-36 shrink-0">{k}</span>
+              <span className="text-gray-800 break-all">{v || <span className="text-gray-300">—</span>}</span>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between mt-5">
+          <button className="btn btn-secondary" onClick={onClose}>閉じる</button>
+          {onEdit && <button className="btn btn-primary" onClick={onEdit}>編集する</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MasterItemModal({title, item, onSave, onClose, showNo}) {
+  const defForm = {no:'', name:'', 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
+  const [form, setForm] = useState(item ? {...defForm, ...item} : defForm);
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const toggleSv = sv => {
+    const cur = form.契約サービス || [];
+    set('契約サービス', cur.includes(sv) ? cur.filter(x=>x!==sv) : [...cur, sv]);
+  };
+  const SERVICES = ['労務顧問','給与計算','処遇改善加算'];
+  const MONTHS   = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal-box" style={{width:'520px', maxHeight:'90vh', overflowY:'auto'}}>
+        <h2 className="text-lg font-bold mb-4">{title}</h2>
+        <form onSubmit={e=>{e.preventDefault();if(!form.name.trim()){alert('名称は必須です');return;}onSave(form);}}>
+          {showNo && (
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">No</label>
+              <input value={form.no||''} onChange={e=>set('no',e.target.value)} placeholder="顧問先No" />
+            </div>
+          )}
+          <div className="mb-3">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">名称 <span className="text-red-500">*</span></label>
+            <input value={form.name} onChange={e=>set('name',e.target.value)} placeholder="名称を入力" />
+          </div>
+          {showNo && (<>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">業種</label>
+              <input value={form.業種||''} onChange={e=>set('業種',e.target.value)} placeholder="業種を入力" />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">代表者名</label>
+                <input value={form.代表者名||''} onChange={e=>set('代表者名',e.target.value)} placeholder="代表者名" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">担当者名</label>
+                <input value={form.担当者名||''} onChange={e=>set('担当者名',e.target.value)} placeholder="担当者名" />
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">代表者メール</label>
+              <input value={form.代表者メール||''} onChange={e=>set('代表者メール',e.target.value)} placeholder="代表者メールアドレス" />
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">担当者メール</label>
+              <input value={form.担当者メール||''} onChange={e=>set('担当者メール',e.target.value)} placeholder="担当者メールアドレス" />
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">契約サービス</label>
+              <div className="flex gap-5">
+                {SERVICES.map(sv=>(
+                  <label key={sv} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                    <input type="checkbox"
+                      checked={(form.契約サービス||[]).includes(sv)}
+                      onChange={()=>toggleSv(sv)}
+                      style={{width:'15px',height:'15px',cursor:'pointer'}} />
+                    {sv}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">36協定起算日</label>
+                <input value={form['36協定起算日']||''} onChange={e=>set('36協定起算日',e.target.value)} placeholder="例: 4月1日" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">その他労使協定の届出</label>
+                <select value={form['その他労使協定の届出']||''} onChange={e=>set('その他労使協定の届出',e.target.value)}>
+                  <option value="">—</option>
+                  <option value="あり">あり</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">決算月</label>
+                <select value={form.決算月||''} onChange={e=>set('決算月',e.target.value)}>
+                  {MONTHS.map(m=><option key={m} value={m}>{m||'—'}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">東京SR特別加入</label>
+                <select value={form['東京SR特別加入']||''} onChange={e=>set('東京SR特別加入',e.target.value)}>
+                  <option value="">—</option>
+                  <option value="あり">あり</option>
+                </select>
+              </div>
+            </div>
+          </>)}
+          <div className="flex gap-3 justify-end">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+            <button type="submit" className="btn btn-primary">{item?'保存する':'追加する'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function MasterScreen({masters, setMasters}) {
+  const [tab, setTab]               = useState('顧問先');
+  const [showModal, setShowModal]   = useState(false);
+  const [editItem, setEditItem]     = useState(null);
+  const [viewItem, setViewItem]     = useState(null);
+  const [delItem, setDelItem]       = useState(null);
+  const [showTerminated, setShowTerminated] = useState(false);
+  const [search, setSearch]             = useState('');
+
+  const listKey = tab==='顧問先'?'customers':tab==='担当者'?'assignees':'procedures';
+  const rawList = masters[listKey] || [];
+  const sorted = tab==='顧問先'
+    ? [...rawList].sort((a,b) => {
+        const na = a.no===''||a.no==null ? Infinity : Number(a.no);
+        const nb = b.no===''||b.no==null ? Infinity : Number(b.no);
+        return na - nb;
+      })
+    : rawList;
+  const list = (() => {
+    let arr = (tab==='顧問先' && !showTerminated) ? sorted.filter(i=>!i.terminated) : sorted;
+    if (tab==='顧問先' && search.trim()) {
+      const q = search.trim().toLowerCase();
+      arr = arr.filter(i => i.name.toLowerCase().includes(q));
+    }
+    return arr;
+  })();
+
+  const getNewId = () => (masters.nextId||9000) + 1;
+
+  const handleSave = form => {
+    const newId = getNewId();
+    const update = l => editItem ? l.map(i=>i.id===editItem.id?{...form,id:editItem.id}:i) : [...l,{...form,id:newId}];
+    setMasters(m => ({...m, [listKey]: update(m[listKey]||[]), nextId: editItem ? m.nextId : newId}));
+    setShowModal(false); setEditItem(null);
+  };
+
+  const handleDelete = () => {
+    if(tab==='顧問先'){
+      // 顧問先は契約解除フラグで非表示化（データ保持）
+      const isCurrentlyTerminated = delItem.terminated;
+      setMasters(m=>({...m,[listKey]:(m[listKey]||[]).map(i=>i.id===delItem.id?{...i,terminated:!isCurrentlyTerminated}:i)}));
+    } else {
+      setMasters(m=>({...m,[listKey]:(m[listKey]||[]).filter(i=>i.id!==delItem.id)}));
+    }
+    setDelItem(null);
+  };
+
+  const TABS = ['顧問先','担当者','手続き'];
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-gray-800 mb-4">マスタ管理</h2>
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        {TABS.map(t=>(
+          <button key={t} onClick={()=>{setTab(t);setShowModal(false);setEditItem(null);setShowTerminated(false);setSearch('');}}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab===t?'bg-blue-600 text-white':'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
+            {t}マスタ
+          </button>
+        ))}
+        {tab==='顧問先' && (<>
+          <input
+            value={search} onChange={e=>setSearch(e.target.value)}
+            placeholder="顧問先名で検索…"
+            style={{width:'220px',fontSize:'13px'}}
+            className="ml-2"
+          />
+          {search && (
+            <button onClick={()=>setSearch('')} className="text-gray-400 hover:text-gray-600 text-sm px-1">✕</button>
+          )}
+          <label className="flex items-center gap-1.5 cursor-pointer ml-1" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
+            <input type="checkbox" checked={showTerminated} onChange={e=>setShowTerminated(e.target.checked)}
+              style={{width:'15px',height:'15px',cursor:'pointer'}} />
+            契約解除済みを表示
+          </label>
+        </>)}
+        <button className="btn btn-primary ml-auto" onClick={()=>{setEditItem(null);setShowModal(true);}}>＋ 追加</button>
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 220px)'}}>
+        {list.length===0 ? (
+          <div className="text-center py-12 text-gray-400"><p>データがありません。「追加」ボタンで追加してください。</p></div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                {tab==='顧問先' && <th className="px-4 py-3 text-left font-semibold text-gray-600 w-14">No</th>}
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">名称</th>
+                {tab==='顧問先' && <>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">代表者名</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当者名</th>
+                  <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">36協定起算日</th>
+                  <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">その他労使協定</th>
+                  <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">東京SR</th>
+                </>}
+                <th className="px-4 py-3 text-center font-semibold text-gray-600 w-28">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {list.map(item=>(
+                <tr key={item.id} className={`group ${item.terminated?'bg-gray-50 opacity-60':'hover:bg-gray-50'}`}>
+                  {tab==='顧問先' && <td className="px-4 py-3 text-gray-500 text-sm">{item.no}</td>}
+                  <td className="px-4 py-3 font-medium" style={{color:item.terminated?'#9ca3af':'#1f2937'}}>
+                    {item.terminated && <span className="inline-block mr-1.5 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">解除</span>}
+                    {tab==='顧問先'
+                      ? <button onClick={()=>setViewItem(item)} style={{background:'none',border:'none',padding:0,cursor:'pointer',color:item.terminated?'#9ca3af':'#1f2937',fontWeight:'500',textAlign:'left'}} className="hover:underline">{item.name}</button>
+                      : item.name
+                    }
+                  </td>
+                  {tab==='顧問先' && <>
+                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.代表者名||''}</td>
+                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}</td>
+                    <td className="px-3 py-3 text-sm text-gray-600 text-center whitespace-nowrap">{item['36協定起算日']||''}</td>
+                    <td className="px-3 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
+                      {item['その他労使協定の届出']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">あり</span>}
+                    </td>
+                    <td className="px-3 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
+                      {item['東京SR特別加入']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-700">あり</span>}
+                    </td>
+                  </>}
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {!item.terminated && <button onClick={()=>{setEditItem(item);setShowModal(true);}} className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>}
+                      {tab==='顧問先'
+                        ? <button onClick={()=>setDelItem(item)}
+                            className={`text-xs px-3 py-1 rounded font-medium ${item.terminated?'bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600':'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
+                            {item.terminated?'解除取消':'契約解除'}
+                          </button>
+                        : <button onClick={()=>setDelItem(item)} className="text-xs px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 font-medium">削除</button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {viewItem && (
+        <CustomerDetailModal
+          item={viewItem}
+          onClose={()=>setViewItem(null)}
+          onEdit={viewItem.terminated ? null : ()=>{setEditItem(viewItem);setViewItem(null);setShowModal(true);}}
+        />
+      )}
+      {showModal && (
+        <MasterItemModal
+          title={`${tab}マスタ — ${editItem?'編集':'追加'}`}
+          item={editItem}
+          onSave={handleSave}
+          onClose={()=>{setShowModal(false);setEditItem(null);}}
+          showNo={tab==='顧問先'}
+        />
+      )}
+      {delItem && (
+        tab==='顧問先'
+          ? <ConfirmModal
+              title={delItem.terminated?`「${delItem.name}」の契約解除を取り消しますか？`:`「${delItem.name}」を契約解除しますか？`}
+              body={delItem.terminated?'通常表示に戻します。':'一覧から非表示になります。フィルターで再表示できます。'}
+              confirmLabel={delItem.terminated?'解除を取り消す':'契約解除する'}
+              confirmClass={delItem.terminated?'btn-primary':'btn-danger'}
+              note="データは保持されます。"
+              onConfirm={handleDelete}
+              onClose={()=>setDelItem(null)}
+            />
+          : <ConfirmModal
+              title={`「${delItem.name}」を削除しますか？`}
+              body="※既存の案件データには影響しません。"
+              onConfirm={handleDelete}
+              onClose={()=>setDelItem(null)}
+            />
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   APP
+══════════════════════════════════════════ */
+function App() {
+  const [currentUser, setCurrentUser] = useState(()=>loadAuthUser());
+  const [cases,    setCasesState] = useState(()=>loadCases());
+  const [masters,  setMastersRaw] = useState(()=>loadMasters());
+  const [checks,   setChecksRaw]  = useState(()=>loadChecks());
+  const [payrolls, setPayrollsRaw]= useState(()=>loadPayrolls());
+  const [screen,   setScreen]     = useState('案件管理');
+
+  // syncStatus: 'init' | 'loading' | 'saving' | 'saved' | 'error' | 'noaccess'
+  const [syncStatus, setSyncStatus] = useState('init');
+  const [syncError,  setSyncError]  = useState('');
+
+  // refs — 常に最新値を保持し、非同期コールバック内で安全に参照できる
+  const accessTokenRef  = useRef(null);
+  const tokenClientRef  = useRef(null);
+  const casesRef        = useRef(cases);
+  const saveTimerRef    = useRef(null);
+
+  useEffect(() => { casesRef.current = cases; }, [cases]);
+
+  /* ── 非案件データの永続化 ── */
+  const setMasters  = v => { setMastersRaw(v);  save(SK.masters,  typeof v==='function'?v(masters):v); };
+  const setChecks   = v => { setChecksRaw(v);   const d=typeof v==='function'?v(checks):v;   save(SK.checks,   {version:CHECKS_VERSION,  data:d}); };
+  const setPayrolls = v => { setPayrollsRaw(v); const d=typeof v==='function'?v(payrolls):v; save(SK.payrolls, {version:PAYROLL_VERSION,  data:d}); };
+  useEffect(()=>save(SK.masters,  masters),  [masters]);
+  useEffect(()=>save(SK.checks,   {version:CHECKS_VERSION,  data:checks}),   [checks]);
+  useEffect(()=>save(SK.payrolls, {version:PAYROLL_VERSION, data:payrolls}), [payrolls]);
+
+  /* ── Sheets 読み込み ── */
+  const loadFromSheets = useCallback(async (tokenOverride) => {
+    const token = tokenOverride || accessTokenRef.current;
+    if (!token) return;
+    setSyncStatus('loading');
+    setSyncError('');
+    try {
+      const rows   = await sheetsRead(token);
+      const loaded = rowsToCases(rows);
+      if (loaded && loaded.length > 0) {
+        // Sheetsにデータがあれば読み込む
+        setCasesState(loaded);
+        casesRef.current = loaded;
+        save(SK.cases, loaded);
+      } else {
+        // Sheetsが空なら現在のデータを初期書き込み
+        await sheetsWrite(token, casesRef.current);
+      }
+      setSyncStatus('saved');
+    } catch (e) {
+      if (e.status === 401) {
+        // トークン期限切れ → 再取得
+        tokenClientRef.current?.requestAccessToken({ prompt: '' });
+      } else {
+        setSyncStatus('error');
+        setSyncError('読み込みエラー: ' + e.message);
+      }
+    }
+  }, []);
+
+  /* ── 案件データの更新（localStorage + Sheets debounced保存） ── */
+  const setCases = useCallback((v) => {
+    const next = typeof v === 'function' ? v(casesRef.current) : v;
+    setCasesState(next);
+    casesRef.current = next;
+    save(SK.cases, next);
+
+    clearTimeout(saveTimerRef.current);
+    setSyncStatus('saving');
+    saveTimerRef.current = setTimeout(async () => {
+      const token = accessTokenRef.current;
+      if (!token) { setSyncStatus('error'); setSyncError('Sheetsに未接続です'); return; }
+      try {
+        await sheetsWrite(token, casesRef.current);
+        setSyncStatus('saved');
+      } catch (e) {
+        if (e.status === 401) {
+          tokenClientRef.current?.requestAccessToken({ prompt: '' });
+        } else {
+          setSyncStatus('error');
+          setSyncError('保存エラー: ' + e.message);
+        }
+      }
+    }, 2000);
+  }, []);
+
+  /* ── OAuth2 トークン取得（ログイン後に実行） ── */
+  useEffect(() => {
+    if (!currentUser) return;
+    let timer;
+    function initTokenClient() {
+      if (!window.google?.accounts?.oauth2) { timer = setTimeout(initTokenClient, 300); return; }
+      tokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+        client_id: GSI_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/spreadsheets',
+        callback: (response) => {
+          if (response.error) {
+            setSyncStatus('noaccess');
+            setSyncError('Sheetsへのアクセスが拒否されました。下のボタンで再試行してください。');
+            return;
+          }
+          accessTokenRef.current = response.access_token;
+          loadFromSheets(response.access_token);
+        },
+      });
+      // prompt:'' = 既に許可済みなら無音で取得、初回のみ同意画面を表示
+      tokenClientRef.current.requestAccessToken({ prompt: '' });
+    }
+    initTokenClient();
+    return () => clearTimeout(timer);
+  }, [currentUser?.email, loadFromSheets]);
+
+  /* ── ウィンドウがフォーカスを取り戻したとき最新データを取得 ── */
+  useEffect(() => {
+    const onFocus = () => { if (accessTokenRef.current) loadFromSheets(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [loadFromSheets]);
+
+  function handleManualRefresh() {
+    if (accessTokenRef.current) {
+      loadFromSheets();
+    } else {
+      tokenClientRef.current?.requestAccessToken({ prompt: 'consent' });
+    }
+  }
+
+  function handleLogin(user) { setCurrentUser(user); }
+
+  function handleLogout() {
+    clearTimeout(saveTimerRef.current);
+    saveAuthUser(null);
+    setCurrentUser(null);
+    accessTokenRef.current = null;
+    setSyncStatus('init');
+    if (window.google) window.google.accounts.id.disableAutoSelect();
+  }
+
+  /* ── 同期ステータス表示 ── */
+  function SyncBadge() {
+    const base = {fontSize:'13px', fontWeight:'600', display:'flex', alignItems:'center', gap:'6px'};
+    if (syncStatus === 'init' || syncStatus === 'loading')
+      return <span style={{...base, color:'#6b7280'}}>🔄 {syncStatus==='loading'?'読み込み中...':'接続中...'}</span>;
+    if (syncStatus === 'saving')
+      return <span style={{...base, color:'#6b7280'}}>🔄 保存中...</span>;
+    if (syncStatus === 'saved')
+      return <span style={{...base, color:'#16a34a'}}>✅ 保存済み</span>;
+    if (syncStatus === 'noaccess')
+      return (
+        <button onClick={() => tokenClientRef.current?.requestAccessToken({ prompt: 'consent' })}
+          style={{fontSize:'13px', fontWeight:'700', padding:'4px 10px', borderRadius:'5px', border:'1px solid #f97316', background:'#fff7ed', color:'#c2410c', cursor:'pointer', fontFamily:'inherit'}}>
+          ⚠️ Sheetsと接続
+        </button>
+      );
+    if (syncStatus === 'error')
+      return (
+        <span style={{...base, color:'#dc2626', cursor:'pointer'}} title={syncError} onClick={handleManualRefresh}>
+          ⚠️ エラー（クリックで再試行）
+        </span>
+      );
+    return null;
+  }
+
+  /* ── 未ログイン時はログイン画面のみ表示 ── */
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
+
+  const navItems = [
+    {id:'案件管理',           label:'案件管理',     icon:'📋'},
+    {id:'請求集計',           label:'請求集計',     icon:'💰'},
+    {id:'月変チェック',       label:'月変チェック', icon:'📝'},
+    {id:'給与計算スケジュール',label:'給与計算',    icon:'📅'},
+    {id:'マスタ管理',         label:'マスタ管理',   icon:'⚙️'},
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
+        <div className="px-2 pt-3 pb-0">
+          <div className="flex items-center justify-between mb-2">
+            {/* タイトル */}
+            <div style={{flexShrink:0}}>
+              <h1 className="text-xl font-bold text-gray-800">社労士業務タスク管理システム</h1>
+              <p className="text-xs text-gray-400">社会保険労務士齊藤事務所</p>
+            </div>
+            {/* 同期ステータス（中央） */}
+            <div style={{flex:1, display:'flex', justifyContent:'center', alignItems:'center', gap:'10px', padding:'0 16px'}}>
+              <SyncBadge />
+              <button onClick={handleManualRefresh} title="Sheetsから再読み込み"
+                style={{fontSize:'13px', padding:'3px 10px', borderRadius:'5px', border:'1px solid #d1d5db', background:'#f9fafb', color:'#374151', cursor:'pointer', fontFamily:'inherit', fontWeight:'600'}}>
+                再読込
+              </button>
+            </div>
+            {/* ユーザー情報・ログアウト */}
+            <div style={{display:'flex', alignItems:'center', gap:'12px', flexShrink:0}}>
+              <div style={{textAlign:'right', lineHeight:'1.3'}}>
+                <div style={{fontSize:'15px', fontWeight:'700', color:'#111827'}}>{currentUser.name}</div>
+                <div style={{fontSize:'13px', color:'#6b7280', fontWeight:'500'}}>{currentUser.email}</div>
+              </div>
+              <button onClick={handleLogout}
+                style={{padding:'6px 14px', fontSize:'14px', fontWeight:'700', borderRadius:'6px', border:'1px solid #d1d5db', background:'#f9fafb', color:'#374151', cursor:'pointer', whiteSpace:'nowrap', fontFamily:'inherit'}}
+                onMouseOver={e=>{e.currentTarget.style.background='#f3f4f6';e.currentTarget.style.borderColor='#9ca3af';}}
+                onMouseOut={e=>{e.currentTarget.style.background='#f9fafb';e.currentTarget.style.borderColor='#d1d5db';}}>
+                ログアウト
+              </button>
+            </div>
+          </div>
+          <nav className="flex gap-1 overflow-x-auto">
+            {navItems.map(item=>(
+              <button key={item.id} onClick={()=>setScreen(item.id)}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg whitespace-nowrap transition-colors ${screen===item.id?'nav-active border-b-2 border-blue-600':'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
+                <span className="mr-1">{item.icon}</span>{item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      <div className="px-2 py-4">
+        {screen==='案件管理'            && <CaseListScreen cases={cases} setCases={setCases} masters={masters} />}
+        {screen==='請求集計'            && <BillingSummaryScreen cases={cases} />}
+        {screen==='月変チェック'        && <MonthlyCheckScreen checks={checks} setChecks={setChecks} masters={masters} />}
+        {screen==='給与計算スケジュール'&& <PayrollScheduleScreen payrolls={payrolls} setPayrolls={setPayrolls} masters={masters} />}
+        {screen==='マスタ管理'          && <MasterScreen masters={masters} setMasters={setMasters} />}
+      </div>
+
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
