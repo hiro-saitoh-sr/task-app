@@ -1368,7 +1368,6 @@ function MonthlyCheckScreen({checks, setChecks, masters}) {
    PAYROLL SCHEDULE SCREEN
 ══════════════════════════════════════════ */
 const PB = ()=>({受取日:'',送信日:'',人数:'',納品日:'',賞与人数:'',賞与納品日:''});
-const PM = ()=>Object.fromEntries(Array.from({length:12},(_,i)=>[i+1,PB()]));
 
 function PayrollCustomerModal({item, onSave, onClose, masters}) {
   const blank={customerName:'',assignee:'',締日:'',支給日:'',年末調整還付月:'',賞与支給月:'',納品方法:'',その他メモ:''};
