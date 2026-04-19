@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sheetsインポートツール</title>
+  <script src="initial_data.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body { font-family: 'Meiryo', sans-serif; max-width: 640px; margin: 60px auto; padding: 0 24px; color: #111; }
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    p  { font-size: 14px; color: #555; margin: 4px 0; }
+    .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; margin-top: 24px; }
+    button { padding: 10px 24px; border-radius: 6px; border: none; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    #btnLogin  { background: #2563eb; color: #fff; }
+    #btnImport { background: #16a34a; color: #fff; display: none; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #log { margin-top: 20px; font-size: 13px; background: #1e1e1e; color: #d4d4d4; border-radius: 6px; padding: 16px; min-height: 80px; white-space: pre-wrap; font-family: monospace; }
+    .ok   { color: #4ade80; }
+    .err  { color: #f87171; }
+    .info { color: #93c5fd; }
+  </style>
+</head>
+<body>
+  <h1>📊 Sheetsインポートツール</h1>
+  <p>Excel（2026手続き案件管理台帳）の242件データをGoogleスプレッドシートへ書き込みます。</p>
+  <p style="color:#dc2626;font-weight:600">⚠️ シート「案件データ」の既存データは上書きされます。</p>
+
+  <div class="card">
+    <p style="margin-bottom:12px"><b>手順：</b> ① Googleログイン → ② インポート開始</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <button id="btnLogin"  onclick="startLogin()">① Google でログイン</button>
+      <button id="btnImport" onclick="startImport()">② インポート開始（242件）</button>
+    </div>
+    <p id="userLabel" style="margin-top:10px;font-size:13px;color:#16a34a"></p>
+  </div>
+
+  <div id="log">ログがここに表示されます。</div>
+
+<script>
+const SHEETS_ID    = '1BB3K51Nn8dsIvqttzcaB2VjCqN258eo_ylJlSMm8ezo';
+const SHEET_NAME   = '案件データ';
+const CASES_FIELDS = ['id','no','customerName','procedure','memo','assignee','status','receivedDate','billingAmount','targetMonth'];
+const CLIENT_ID    = '714632380111-0a9qleqctdripon18t664rsdoafiiq9f.apps.googleusercontent.com';
+
+let accessToken = null;
+let tokenClient = null;
+
+const logEl = document.getElementById('log');
+function log(msg, cls='') {
+  const span = document.createElement('span');
+  span.className = cls;
+  span.textContent = msg + '\n';
+  if (logEl.textContent === 'ログがここに表示されます。') logEl.textContent = '';
+  logEl.appendChild(span);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// Google Identity Services の読み込みを待つ
+function waitForGsi(cb) {
+  if (window.google?.accounts?.oauth2) { cb(); return; }
+  setTimeout(() => waitForGsi(cb), 300);
+}
+
+function startLogin() {
+  document.getElementById('btnLogin').disabled = true;
+  log('Google 認証を初期化中...', 'info');
+  waitForGsi(() => {
+    tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      callback: (resp) => {
+        if (resp.error) {
+          log('認証エラー: ' + resp.error, 'err');
+          document.getElementById('btnLogin').disabled = false;
+          return;
+        }
+        accessToken = resp.access_token;
+        log('✓ 認証成功', 'ok');
+        document.getElementById('userLabel').textContent = 'ログイン済み。インポートボタンを押してください。';
+        document.getElementById('btnImport').style.display = 'inline-block';
+        document.getElementById('btnLogin').disabled = false;
+      },
+    });
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  });
+}
+
+async function sheetsRequest(path, method = 'GET', body = null) {
+  const opts = {
+    method,
+    headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+  };
+  if (body !== null) opts.body = JSON.stringify(body);
+  const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + SHEETS_ID + path, opts);
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || 'HTTP ' + res.status);
+  }
+  return res.json();
+}
+
+async function ensureSheet() {
+  const meta = await sheetsRequest('');
+  const exists = (meta.sheets || []).some(s => s.properties.title === SHEET_NAME);
+  if (!exists) {
+    log('シート「' + SHEET_NAME + '」を新規作成します...', 'info');
+    await sheetsRequest(':batchUpdate', 'POST', {
+      requests: [{ addSheet: { properties: { title: SHEET_NAME } } }],
+    });
+    log('✓ シート作成完了', 'ok');
+  } else {
+    log('✓ シート「' + SHEET_NAME + '」を確認', 'ok');
+  }
+}
+
+async function startImport() {
+  if (!accessToken) { log('先にログインしてください。', 'err'); return; }
+
+  const btn = document.getElementById('btnImport');
+  btn.disabled = true;
+  log('\n--- インポート開始 ---', 'info');
+
+  try {
+    // シート確認・作成
+    await ensureSheet();
+
+    // 既存データをクリア
+    log('既存データをクリア中...', 'info');
+    await sheetsRequest('/values/' + encodeURIComponent(SHEET_NAME) + ':clear', 'POST');
+    log('✓ クリア完了', 'ok');
+
+    // データ整形
+    const values = [
+      CASES_FIELDS,
+      ...INITIAL_DATA.map(c => CASES_FIELDS.map(f => (c[f] != null ? String(c[f]) : ''))),
+    ];
+    log('書き込みデータ件数: ' + INITIAL_DATA.length + ' 件（ヘッダー含め ' + values.length + ' 行）', 'info');
+
+    // 書き込み
+    log('Sheetsへ書き込み中...', 'info');
+    await sheetsRequest(
+      '/values/' + encodeURIComponent(SHEET_NAME + '!A1') + '?valueInputOption=RAW',
+      'PUT',
+      { values }
+    );
+
+    log('✓ 書き込み完了！', 'ok');
+    log('  → スプレッドシートを確認してください。', 'ok');
+    log('  URL: https://docs.google.com/spreadsheets/d/' + SHEETS_ID, 'ok');
+    btn.textContent = '✓ インポート完了';
+  } catch (e) {
+    log('エラー: ' + e.message, 'err');
+    if (e.message.includes('401')) {
+      log('→ トークンが失効しました。再度ログインしてください。', 'err');
+      accessToken = null;
+    }
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
