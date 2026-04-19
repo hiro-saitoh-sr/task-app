@@ -1,0 +1,9 @@
+# Excel原本
+*.xlsx
+*.xls
+
+# 一時ファイル・スクリプト
+*.ps1
+*.txt
+*.json
+read_excel.ps1
