@@ -1006,14 +1006,15 @@ function CaseListScreen({cases, setCases, masters}) {
                 {targetMonths.map(m=><option key={m}>{m}</option>)}
               </select>
             </div>
-            <div className="w-full flex items-center justify-between">
-              <label className="flex items-center gap-1.5 cursor-pointer" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
-                <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
-                  style={{width:'15px',height:'15px',cursor:'pointer'}} />
-                取消済みを表示
-              </label>
-              <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>{setFilter({customerName:'',assignee:'',targetMonth:'',status:'',procedure:''});setShowCancelled(false);}}>クリア</button>
-            </div>
+            <label className="flex items-center gap-1.5 cursor-pointer" style={{fontSize:'13px',fontWeight:'500',color:'#374151',alignSelf:'flex-end',paddingBottom:'6px'}}>
+              <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
+                style={{width:'15px',height:'15px',cursor:'pointer'}} />
+              取消済みを表示
+            </label>
+            {hasFilter && (
+              <button className="btn btn-secondary text-xs py-1 px-3" style={{alignSelf:'flex-end',marginBottom:'2px'}}
+                onClick={()=>{setFilter({customerName:'',assignee:'',targetMonth:'',status:'',procedure:''});setShowCancelled(false);}}>クリア</button>
+            )}
           </div>
         )}
       </div>
