@@ -854,7 +854,7 @@ function CaseModal({caseData, onSave, onClose, masters}) {
 function CaseListScreen({cases, setCases, masters}) {
   const [activeTab, setActiveTab] = useState('全件');
   const [search, setSearch]       = useState('');
-  const [filter, setFilter]       = useState({customerName:'',assignee:'',targetMonth:'',status:''});
+  const [filter, setFilter]       = useState({customerName:'',assignee:'',targetMonth:'',status:'',procedure:''});
   const [filterOpen, setFilterOpen] = useState(false);
   const [editCase, setEditCase]     = useState(null);
   const [showNew, setShowNew]       = useState(false);
@@ -886,6 +886,7 @@ function CaseListScreen({cases, setCases, masters}) {
     if(filter.customerName) arr=arr.filter(c=>c.customerName===filter.customerName);
     if(filter.assignee)     arr=arr.filter(c=>c.assignee===filter.assignee);
     if(filter.targetMonth)  arr=arr.filter(c=>c.targetMonth===filter.targetMonth);
+    if(filter.procedure)    arr=arr.filter(c=>c.procedure===filter.procedure);
     if(search.trim()){
       const q=search.trim().toLowerCase();
       arr=arr.filter(c=>(c.customerName||'').toLowerCase().includes(q)||(c.procedure||'').toLowerCase().includes(q)||(c.memo||'').toLowerCase().includes(q));
@@ -904,12 +905,17 @@ function CaseListScreen({cases, setCases, masters}) {
     else { setCases(p=>[...p,{...form,id:nid.current++}]); setShowNew(false); }
   };
 
-  const hasFilter = !!(filter.customerName||filter.assignee||filter.targetMonth||filter.status||showCancelled);
+  const hasFilter = !!(filter.customerName||filter.assignee||filter.targetMonth||filter.status||filter.procedure||showCancelled);
   const isViewOnly = activeTab !== '全件';
 
   const targetMonths = useMemo(()=>{
     const set = new Set(cases.map(c=>c.targetMonth).filter(Boolean));
     return [...set].sort((a,b)=>parseYM(a)-parseYM(b));
+  },[cases]);
+
+  const procedureOptions = useMemo(()=>{
+    const set = new Set(cases.map(c=>c.procedure).filter(Boolean));
+    return [...set].sort();
   },[cases]);
 
   return (
@@ -993,13 +999,20 @@ function CaseListScreen({cases, setCases, masters}) {
                 {targetMonths.map(m=><option key={m}>{m}</option>)}
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">手続き内容</label>
+              <select value={filter.procedure} onChange={e=>setFilter(f=>({...f,procedure:e.target.value}))}>
+                <option value="">すべて</option>
+                {procedureOptions.map(p=><option key={p}>{p}</option>)}
+              </select>
+            </div>
             <div className="col-span-2 md:col-span-4 flex items-center justify-between">
               <label className="flex items-center gap-1.5 cursor-pointer" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
                 <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
                   style={{width:'15px',height:'15px',cursor:'pointer'}} />
                 取消済みを表示
               </label>
-              <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>{setFilter({customerName:'',assignee:'',targetMonth:'',status:''});setShowCancelled(false);}}>クリア</button>
+              <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>{setFilter({customerName:'',assignee:'',targetMonth:'',status:'',procedure:''});setShowCancelled(false);}}>クリア</button>
             </div>
           </div>
         )}
