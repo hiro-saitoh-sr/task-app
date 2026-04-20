@@ -963,8 +963,8 @@ function CaseListScreen({cases, setCases, masters}) {
           <span className="text-gray-400 text-xs">{filterOpen?'▲':'▼'}</span>
         </div>
         {filterOpen && (
-          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div>
+          <div className="mt-3 flex flex-wrap gap-3 items-end">
+            <div style={{flex:'1 1 180px', minWidth:'160px', maxWidth:'240px'}}>
               <label className="block text-xs font-semibold text-gray-500 mb-1">顧客名</label>
               <SearchableSelect
                 value={filter.customerName}
@@ -976,37 +976,37 @@ function CaseListScreen({cases, setCases, masters}) {
                 ]}
               />
             </div>
-            <div>
+            <div style={{flex:'1 1 160px', minWidth:'140px', maxWidth:'220px'}}>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">手続き内容</label>
+              <select value={filter.procedure} onChange={e=>setFilter(f=>({...f,procedure:e.target.value}))} style={{width:'100%'}}>
+                <option value="">すべて</option>
+                {procedureOptions.map(p=><option key={p}>{p}</option>)}
+              </select>
+            </div>
+            <div style={{flex:'0 1 110px', minWidth:'90px'}}>
               <label className="block text-xs font-semibold text-gray-500 mb-1">担当者</label>
-              <select value={filter.assignee} onChange={e=>setFilter(f=>({...f,assignee:e.target.value}))}>
+              <select value={filter.assignee} onChange={e=>setFilter(f=>({...f,assignee:e.target.value}))} style={{width:'100%'}}>
                 <option value="">すべて</option>
                 {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
               </select>
             </div>
             {activeTab==='全件' && (
-              <div>
+              <div style={{flex:'0 1 120px', minWidth:'100px'}}>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">ステータス</label>
-                <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))}>
+                <select value={filter.status} onChange={e=>setFilter(f=>({...f,status:e.target.value}))} style={{width:'100%'}}>
                   <option value="">すべて</option>
                   {STATUSES.map(s=><option key={s}>{s}</option>)}
                 </select>
               </div>
             )}
-            <div>
+            <div style={{flex:'0 1 110px', minWidth:'90px'}}>
               <label className="block text-xs font-semibold text-gray-500 mb-1">対象年月</label>
-              <select value={filter.targetMonth} onChange={e=>setFilter(f=>({...f,targetMonth:e.target.value}))}>
+              <select value={filter.targetMonth} onChange={e=>setFilter(f=>({...f,targetMonth:e.target.value}))} style={{width:'100%'}}>
                 <option value="">すべて</option>
                 {targetMonths.map(m=><option key={m}>{m}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">手続き内容</label>
-              <select value={filter.procedure} onChange={e=>setFilter(f=>({...f,procedure:e.target.value}))}>
-                <option value="">すべて</option>
-                {procedureOptions.map(p=><option key={p}>{p}</option>)}
-              </select>
-            </div>
-            <div className="col-span-2 md:col-span-4 flex items-center justify-between">
+            <div className="w-full flex items-center justify-between">
               <label className="flex items-center gap-1.5 cursor-pointer" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
                 <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
                   style={{width:'15px',height:'15px',cursor:'pointer'}} />
