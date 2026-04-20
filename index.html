@@ -1570,7 +1570,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters}) {
       {/* ── フィルターバー ── */}
       <div className="flex items-center gap-2 mb-3 flex-wrap bg-white border border-gray-200 rounded-lg px-3 py-2">
         <span className="text-xs font-semibold text-gray-500 whitespace-nowrap shrink-0">絞り込み：</span>
-        <div style={{minWidth:'240px',maxWidth:'340px',position:'relative',zIndex:30}}>
+        <div style={{flex:'0 0 380px',position:'relative',zIndex:30}}>
           <SearchableSelect
             options={customerOptions}
             value={filterCustomer}
