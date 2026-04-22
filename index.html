@@ -217,6 +217,131 @@ function rowsToCases(rows) {
 }
 
 /* ══════════════════════════════════════════
+   マスタデータ・月変チェック・給与計算 Sheets連携
+══════════════════════════════════════════ */
+
+/* 汎用: シート名を指定してシートが存在しなければ作成 */
+async function ensureSheetExistsByName(token, sheetName) {
+  const meta = await sheetsRequest(token, '');
+  const exists = (meta.sheets || []).some(s => s.properties.title === sheetName);
+  if (!exists) {
+    await sheetsRequest(token, ':batchUpdate', 'POST', {
+      requests: [{ addSheet: { properties: { title: sheetName } } }],
+    });
+  }
+}
+
+/* ── マスタデータ: JSON blob方式（顧問先・担当者・手続きを一括保存） ── */
+const MASTERS_SHEET = 'マスタデータ';
+
+async function mastersSheetRead(token) {
+  try {
+    const data = await sheetsRequest(token, `/values/${encodeURIComponent(MASTERS_SHEET + '!A1')}`);
+    const val = (data.values || [])[0]?.[0];
+    if (!val) return null;
+    return JSON.parse(val);
+  } catch (e) {
+    if (e.status === 400) return null;
+    throw e;
+  }
+}
+
+async function mastersSheetWrite(token, masters) {
+  await ensureSheetExistsByName(token, MASTERS_SHEET);
+  await sheetsRequest(token, `/values/${encodeURIComponent(MASTERS_SHEET)}:clear`, 'POST');
+  await sheetsRequest(
+    token,
+    `/values/${encodeURIComponent(MASTERS_SHEET + '!A1')}?valueInputOption=RAW`,
+    'PUT',
+    { values: [[JSON.stringify(masters)]] }
+  );
+}
+
+/* ── 月変チェック: tabular形式 ── */
+const CHECKS_SHEET = '月変チェック';
+const CHECKS_SH_FIELDS = ['id','no','customerName','checker','procedureBy','count','assignee','completedDate','targetMonth'];
+
+async function checksSheetRead(token) {
+  try {
+    const data = await sheetsRequest(token, `/values/${encodeURIComponent(CHECKS_SHEET + '!A1:J')}`);
+    const rows = data.values || [];
+    if (rows.length < 2) return null;
+    const [header, ...dataRows] = rows;
+    const result = dataRows
+      .filter(row => row.some(cell => cell !== ''))
+      .map(row => {
+        const obj = {};
+        header.forEach((key, i) => { obj[key] = row[i] ?? ''; });
+        if (obj.id !== '') obj.id = Number(obj.id);
+        return obj;
+      });
+    return result.length > 0 ? result : null;
+  } catch (e) {
+    if (e.status === 400) return null;
+    throw e;
+  }
+}
+
+async function checksSheetWrite(token, checks) {
+  await ensureSheetExistsByName(token, CHECKS_SHEET);
+  const values = [
+    CHECKS_SH_FIELDS,
+    ...checks.map(c => CHECKS_SH_FIELDS.map(f => (c[f] != null ? String(c[f]) : ''))),
+  ];
+  await sheetsRequest(token, `/values/${encodeURIComponent(CHECKS_SHEET)}:clear`, 'POST');
+  await sheetsRequest(
+    token,
+    `/values/${encodeURIComponent(CHECKS_SHEET + '!A1')}?valueInputOption=RAW`,
+    'PUT',
+    { values }
+  );
+}
+
+/* ── 給与計算: tabular形式（yearDataはJSON文字列として保存） ── */
+const PAYROLLS_SHEET = '給与計算';
+const PAYROLLS_SH_FIELDS = ['id','customerName','assignee','締日','支給日','年末調整還付月','賞与支給月','納品方法','その他メモ','yearData'];
+
+async function payrollsSheetRead(token) {
+  try {
+    const data = await sheetsRequest(token, `/values/${encodeURIComponent(PAYROLLS_SHEET + '!A1:K')}`);
+    const rows = data.values || [];
+    if (rows.length < 2) return null;
+    const [header, ...dataRows] = rows;
+    const result = dataRows
+      .filter(row => row.some(cell => cell !== ''))
+      .map(row => {
+        const obj = {};
+        header.forEach((key, i) => { obj[key] = row[i] ?? ''; });
+        if (obj.id !== '') obj.id = Number(obj.id);
+        try { obj.yearData = obj.yearData ? JSON.parse(obj.yearData) : {}; } catch(e) { obj.yearData = {}; }
+        return obj;
+      });
+    return result.length > 0 ? result : null;
+  } catch (e) {
+    if (e.status === 400) return null;
+    throw e;
+  }
+}
+
+async function payrollsSheetWrite(token, payrolls) {
+  await ensureSheetExistsByName(token, PAYROLLS_SHEET);
+  const values = [
+    PAYROLLS_SH_FIELDS,
+    ...payrolls.map(p => PAYROLLS_SH_FIELDS.map(f => {
+      if (f === 'yearData') return JSON.stringify(p.yearData || {});
+      return p[f] != null ? String(p[f]) : '';
+    })),
+  ];
+  await sheetsRequest(token, `/values/${encodeURIComponent(PAYROLLS_SHEET)}:clear`, 'POST');
+  await sheetsRequest(
+    token,
+    `/values/${encodeURIComponent(PAYROLLS_SHEET + '!A1')}?valueInputOption=RAW`,
+    'PUT',
+    { values }
+  );
+}
+
+/* ══════════════════════════════════════════
    ログイン画面
 ══════════════════════════════════════════ */
 function LoginScreen({ onLogin }) {
@@ -2159,43 +2284,123 @@ function App() {
   const [syncError,  setSyncError]  = useState('');
 
   // refs — 常に最新値を保持し、非同期コールバック内で安全に参照できる
-  const accessTokenRef  = useRef(null);
-  const tokenClientRef  = useRef(null);
-  const casesRef        = useRef(cases);
-  const saveTimerRef    = useRef(null);
+  const accessTokenRef   = useRef(null);
+  const tokenClientRef   = useRef(null);
+  const casesRef         = useRef(cases);
+  const mastersRef       = useRef(masters);
+  const checksRef        = useRef(checks);
+  const payrollsRef      = useRef(payrolls);
+  const saveTimerRef     = useRef(null);
+  const mastersTimerRef  = useRef(null);
+  const checksTimerRef   = useRef(null);
+  const payrollsTimerRef = useRef(null);
 
-  useEffect(() => { casesRef.current = cases; }, [cases]);
+  useEffect(() => { casesRef.current    = cases;    }, [cases]);
+  useEffect(() => { mastersRef.current  = masters;  }, [masters]);
+  useEffect(() => { checksRef.current   = checks;   }, [checks]);
+  useEffect(() => { payrollsRef.current = payrolls; }, [payrolls]);
 
-  /* ── 非案件データの永続化 ── */
-  const setMasters  = v => { setMastersRaw(v);  save(SK.masters,  typeof v==='function'?v(masters):v); };
-  const setChecks   = v => { setChecksRaw(v);   const d=typeof v==='function'?v(checks):v;   save(SK.checks,   {version:CHECKS_VERSION,  data:d}); };
-  const setPayrolls = v => { setPayrollsRaw(v); const d=typeof v==='function'?v(payrolls):v; save(SK.payrolls, {version:PAYROLL_VERSION,  data:d}); };
-  useEffect(()=>save(SK.masters,  masters),  [masters]);
-  useEffect(()=>save(SK.checks,   {version:CHECKS_VERSION,  data:checks}),   [checks]);
-  useEffect(()=>save(SK.payrolls, {version:PAYROLL_VERSION, data:payrolls}), [payrolls]);
+  /* ── マスタデータの更新（localStorage + Sheets debounced保存） ── */
+  const setMasters = useCallback((v) => {
+    const next = typeof v === 'function' ? v(mastersRef.current) : v;
+    setMastersRaw(next);
+    mastersRef.current = next;
+    save(SK.masters, next);
+    clearTimeout(mastersTimerRef.current);
+    mastersTimerRef.current = setTimeout(async () => {
+      const token = accessTokenRef.current;
+      if (!token) return;
+      try { await mastersSheetWrite(token, mastersRef.current); }
+      catch (e) { if (e.status === 401) tokenClientRef.current?.requestAccessToken({ prompt: '' }); }
+    }, 2000);
+  }, []);
 
-  /* ── Sheets 読み込み ── */
+  /* ── 月変チェックの更新（localStorage + Sheets debounced保存） ── */
+  const setChecks = useCallback((v) => {
+    const next = typeof v === 'function' ? v(checksRef.current) : v;
+    setChecksRaw(next);
+    checksRef.current = next;
+    save(SK.checks, {version: CHECKS_VERSION, data: next});
+    clearTimeout(checksTimerRef.current);
+    checksTimerRef.current = setTimeout(async () => {
+      const token = accessTokenRef.current;
+      if (!token) return;
+      try { await checksSheetWrite(token, checksRef.current); }
+      catch (e) { if (e.status === 401) tokenClientRef.current?.requestAccessToken({ prompt: '' }); }
+    }, 2000);
+  }, []);
+
+  /* ── 給与計算の更新（localStorage + Sheets debounced保存） ── */
+  const setPayrolls = useCallback((v) => {
+    const next = typeof v === 'function' ? v(payrollsRef.current) : v;
+    setPayrollsRaw(next);
+    payrollsRef.current = next;
+    save(SK.payrolls, {version: PAYROLL_VERSION, data: next});
+    clearTimeout(payrollsTimerRef.current);
+    payrollsTimerRef.current = setTimeout(async () => {
+      const token = accessTokenRef.current;
+      if (!token) return;
+      try { await payrollsSheetWrite(token, payrollsRef.current); }
+      catch (e) { if (e.status === 401) tokenClientRef.current?.requestAccessToken({ prompt: '' }); }
+    }, 2000);
+  }, []);
+
+  /* ── Sheets 読み込み（全シート） ── */
   const loadFromSheets = useCallback(async (tokenOverride) => {
     const token = tokenOverride || accessTokenRef.current;
     if (!token) return;
     setSyncStatus('loading');
     setSyncError('');
     try {
+      // 案件データ
       const rows   = await sheetsRead(token);
       const loaded = rowsToCases(rows);
       if (loaded && loaded.length > 0) {
-        // Sheetsにデータがあれば読み込む
         setCasesState(loaded);
         casesRef.current = loaded;
         save(SK.cases, loaded);
       } else {
-        // Sheetsが空なら現在のデータを初期書き込み
         await sheetsWrite(token, casesRef.current);
       }
+
+      // マスタデータ
+      const mastersLoaded = await mastersSheetRead(token);
+      if (mastersLoaded && mastersLoaded.customers && mastersLoaded.customers.length > 0) {
+        if (mastersLoaded.version === MASTER_VERSION) {
+          setMastersRaw(mastersLoaded);
+          mastersRef.current = mastersLoaded;
+          save(SK.masters, mastersLoaded);
+        } else {
+          // バージョン不一致: ローカルデータでSheetsを上書き
+          await mastersSheetWrite(token, mastersRef.current);
+        }
+      } else {
+        await mastersSheetWrite(token, mastersRef.current);
+      }
+
+      // 月変チェック
+      const checksLoaded = await checksSheetRead(token);
+      if (checksLoaded && checksLoaded.length > 0) {
+        setChecksRaw(checksLoaded);
+        checksRef.current = checksLoaded;
+        save(SK.checks, {version: CHECKS_VERSION, data: checksLoaded});
+      } else {
+        await checksSheetWrite(token, checksRef.current);
+      }
+
+      // 給与計算
+      const payrollsLoaded = await payrollsSheetRead(token);
+      if (payrollsLoaded && payrollsLoaded.length > 0) {
+        setPayrollsRaw(payrollsLoaded);
+        payrollsRef.current = payrollsLoaded;
+        save(SK.payrolls, {version: PAYROLL_VERSION, data: payrollsLoaded});
+      } else {
+        await payrollsSheetWrite(token, payrollsRef.current);
+      }
+
       setSyncStatus('saved');
     } catch (e) {
       if (e.status === 401) {
-        // トークン期限切れ → 再取得
         tokenClientRef.current?.requestAccessToken({ prompt: '' });
       } else {
         setSyncStatus('error');
@@ -2275,6 +2480,9 @@ function App() {
 
   function handleLogout() {
     clearTimeout(saveTimerRef.current);
+    clearTimeout(mastersTimerRef.current);
+    clearTimeout(checksTimerRef.current);
+    clearTimeout(payrollsTimerRef.current);
     saveAuthUser(null);
     setCurrentUser(null);
     accessTokenRef.current = null;
