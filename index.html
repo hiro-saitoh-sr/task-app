@@ -212,6 +212,8 @@ function rowsToCases(rows) {
       const obj = {};
       header.forEach((key, i) => { obj[key] = row[i] ?? ''; });
       if (obj.id !== '') obj.id = Number(obj.id);
+      // Sheetsが「2026年4月」を日付型に変換して返す場合に備えて正規化
+      if (obj.targetMonth) obj.targetMonth = toYearMonth(obj.targetMonth);
       return obj;
     });
 }
@@ -273,6 +275,8 @@ async function checksSheetRead(token) {
         const obj = {};
         header.forEach((key, i) => { obj[key] = row[i] ?? ''; });
         if (obj.id !== '') obj.id = Number(obj.id);
+        // Sheetsが「2026年4月」を日付型に変換して返す場合に備えて正規化
+        if (obj.targetMonth) obj.targetMonth = toYearMonth(obj.targetMonth);
         return obj;
       });
     return result.length > 0 ? result : null;
@@ -339,6 +343,35 @@ async function payrollsSheetWrite(token, payrolls) {
     'PUT',
     { values }
   );
+}
+
+/* targetMonth 列にテキスト書式を適用して日付型への自動変換を防止 */
+async function applyTextFormatToDateFields(token) {
+  const meta = await sheetsRequest(token, '');
+  const sheetMap = Object.fromEntries(
+    (meta.sheets || []).map(s => [s.properties.title, s.properties.sheetId])
+  );
+  const requests = [];
+  const addTextFmt = (sheetName, fields, colNames) => {
+    const sid = sheetMap[sheetName];
+    if (sid == null) return;
+    colNames.forEach(name => {
+      const idx = fields.indexOf(name);
+      if (idx < 0) return;
+      requests.push({
+        repeatCell: {
+          range: { sheetId: sid, startRowIndex: 1, endRowIndex: 10000, startColumnIndex: idx, endColumnIndex: idx + 1 },
+          cell: { userEnteredFormat: { numberFormat: { type: 'TEXT' } } },
+          fields: 'userEnteredFormat.numberFormat',
+        },
+      });
+    });
+  };
+  addTextFmt(SHEET_NAME,   CASES_FIELDS,     ['targetMonth']);
+  addTextFmt(CHECKS_SHEET, CHECKS_SH_FIELDS, ['targetMonth']);
+  if (requests.length > 0) {
+    await sheetsRequest(token, ':batchUpdate', 'POST', { requests });
+  }
 }
 
 /* ══════════════════════════════════════════
@@ -2397,6 +2430,9 @@ function App() {
       } else {
         await payrollsSheetWrite(token, payrollsRef.current);
       }
+
+      // targetMonth 列をテキスト書式に設定（日付型への自動変換を防止）
+      try { await applyTextFormatToDateFields(token); } catch (e) { /* 非致命的エラーは無視 */ }
 
       setSyncStatus('saved');
     } catch (e) {
