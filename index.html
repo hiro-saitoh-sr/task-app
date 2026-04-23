@@ -2327,6 +2327,7 @@ function App() {
   const mastersTimerRef  = useRef(null);
   const checksTimerRef   = useRef(null);
   const payrollsTimerRef = useRef(null);
+  const isSyncingRef     = useRef(false);
 
   useEffect(() => { casesRef.current    = cases;    }, [cases]);
   useEffect(() => { mastersRef.current  = masters;  }, [masters]);
@@ -2380,28 +2381,30 @@ function App() {
 
   /* ── Sheets 読み込み（全シート） ── */
   const loadFromSheets = useCallback(async (tokenOverride) => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
     const token = tokenOverride || accessTokenRef.current;
-    if (!token) return;
+    if (!token) { isSyncingRef.current = false; return; }
     setSyncStatus('loading');
     setSyncError('');
     try {
-      // 案件データ
+      // 案件データ: Sheetsのデータで既存データを完全に置き換え
       const rows   = await sheetsRead(token);
       const loaded = rowsToCases(rows);
       if (loaded && loaded.length > 0) {
-        setCasesState(loaded);
         casesRef.current = loaded;
+        setCasesState(loaded);
         save(SK.cases, loaded);
       } else {
         await sheetsWrite(token, casesRef.current);
       }
 
-      // マスタデータ
+      // マスタデータ: Sheetsのデータで既存データを完全に置き換え
       const mastersLoaded = await mastersSheetRead(token);
       if (mastersLoaded && mastersLoaded.customers && mastersLoaded.customers.length > 0) {
         if (mastersLoaded.version === MASTER_VERSION) {
-          setMastersRaw(mastersLoaded);
           mastersRef.current = mastersLoaded;
+          setMastersRaw(mastersLoaded);
           save(SK.masters, mastersLoaded);
         } else {
           // バージョン不一致: ローカルデータでSheetsを上書き
@@ -2411,21 +2414,21 @@ function App() {
         await mastersSheetWrite(token, mastersRef.current);
       }
 
-      // 月変チェック
+      // 月変チェック: Sheetsのデータで既存データを完全に置き換え
       const checksLoaded = await checksSheetRead(token);
       if (checksLoaded && checksLoaded.length > 0) {
-        setChecksRaw(checksLoaded);
         checksRef.current = checksLoaded;
+        setChecksRaw(checksLoaded);
         save(SK.checks, {version: CHECKS_VERSION, data: checksLoaded});
       } else {
         await checksSheetWrite(token, checksRef.current);
       }
 
-      // 給与計算
+      // 給与計算: Sheetsのデータで既存データを完全に置き換え
       const payrollsLoaded = await payrollsSheetRead(token);
       if (payrollsLoaded && payrollsLoaded.length > 0) {
-        setPayrollsRaw(payrollsLoaded);
         payrollsRef.current = payrollsLoaded;
+        setPayrollsRaw(payrollsLoaded);
         save(SK.payrolls, {version: PAYROLL_VERSION, data: payrollsLoaded});
       } else {
         await payrollsSheetWrite(token, payrollsRef.current);
@@ -2442,6 +2445,8 @@ function App() {
         setSyncStatus('error');
         setSyncError('読み込みエラー: ' + e.message);
       }
+    } finally {
+      isSyncingRef.current = false;
     }
   }, []);
 
