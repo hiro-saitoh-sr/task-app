@@ -139,7 +139,7 @@ function saveAuthUser(user) {
 ══════════════════════════════════════════ */
 const SHEETS_ID   = '1BB3K51Nn8dsIvqttzcaB2VjCqN258eo_ylJlSMm8ezo';
 const SHEET_NAME  = '案件データ';
-const CASES_FIELDS = ['id','no','customerName','procedure','memo','assignee','status','receivedDate','billingAmount','targetMonth'];
+const CASES_FIELDS = ['id','no','customerName','procedure','memo','assignee','status','receivedDate','billingAmount','targetMonth','cancelled'];
 
 /* Sheets REST API 共通リクエスト */
 async function sheetsRequest(token, path, method = 'GET', body = null) {
@@ -214,6 +214,8 @@ function rowsToCases(rows) {
       if (obj.id !== '') obj.id = Number(obj.id);
       // Sheetsが「2026年4月」を日付型に変換して返す場合に備えて正規化
       if (obj.targetMonth) obj.targetMonth = toYearMonth(obj.targetMonth);
+      // 文字列 'true'/'false' を boolean に変換
+      obj.cancelled = obj.cancelled === 'true';
       return obj;
     });
 }
