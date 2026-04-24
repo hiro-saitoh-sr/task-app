@@ -1018,8 +1018,6 @@ function CaseListScreen({cases, setCases, masters}) {
   const [showNew, setShowNew]       = useState(false);
   const [cancelCase, setCancelCase] = useState(null);
   const [showCancelled, setShowCancelled] = useState(false);
-  const nid = useRef(nextId(cases));
-
   const tabCounts = useMemo(()=>{
     const active = cases.filter(c=>!c.cancelled);
     const cnt={'全件':active.length};
@@ -1060,7 +1058,7 @@ function CaseListScreen({cases, setCases, masters}) {
 
   const handleSave = form => {
     if(editCase){ setCases(p=>p.map(c=>c.id===editCase.id?{...form,id:editCase.id}:c)); setEditCase(null); }
-    else { setCases(p=>[...p,{...form,id:nid.current++}]); setShowNew(false); }
+    else { setCases(p=>{ const id=nextId(p); return [...p,{...form,id}]; }); setShowNew(false); }
   };
 
   const hasFilter = !!(filter.customerName||filter.assignee||filter.targetMonth||filter.status||filter.procedure||showCancelled);
@@ -1434,8 +1432,6 @@ function MonthlyCheckScreen({checks, setChecks, masters}) {
   const [cancelItem, setCancelItem]       = useState(null);
   const [filterMonth, setFilterMonth]     = useState('');
   const [showCancelled, setShowCancelled] = useState(false);
-  const nid = useRef(nextId(checks));
-
   const months = useMemo(()=>[...new Set(checks.map(c=>c.targetMonth).filter(Boolean))].sort(),[checks]);
   const rows = useMemo(()=>{
     let arr = showCancelled ? checks : checks.filter(c=>!c.cancelled);
@@ -1445,7 +1441,7 @@ function MonthlyCheckScreen({checks, setChecks, masters}) {
 
   const handleSave = form=>{
     if(editItem){ setChecks(p=>p.map(c=>c.id===editItem.id?{...form,id:editItem.id}:c)); }
-    else         { setChecks(p=>[...p,{...form,id:nid.current++}]); }
+    else         { setChecks(p=>{ const id=nextId(p); return [...p,{...form,id}]; }); }
     setShowModal(false); setEditItem(null);
   };
 
@@ -1638,11 +1634,9 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters}) {
   const [termCust, setTermCust]                 = useState(null);
   const [editMD, setEditMD]                 = useState(null); // {payroll, month, year}
   const [detailItem, setDetailItem]         = useState(null);
-  const nid = useRef(Math.max(0,...payrolls.map(p=>p.id||0))+1);
-
   const handleSaveCust = form => {
     if(editCust){ setPayrolls(p=>p.map(x=>x.id===editCust.id?{...x,...form}:x)); }
-    else        { setPayrolls(p=>[...p,{...form,id:nid.current++,yearData:{[selYear]:PM()}}]); }
+    else        { setPayrolls(p=>{ const id=nextId(p); return [...p,{...form,id,yearData:{[selYear]:PM()}}]; }); }
     setShowCustModal(false); setEditCust(null);
   };
   const handleSaveMonth = form => {
