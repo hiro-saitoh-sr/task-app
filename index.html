@@ -847,7 +847,7 @@ function CaseListScreen({cases, setCases, masters}) {
   },[cases]);
 
   const filtered = useMemo(()=>{
-    let arr = showCancelled ? cases : cases.filter(c=>!c.cancelled);
+    let arr = showCancelled ? cases.filter(c=>c.cancelled) : cases.filter(c=>!c.cancelled);
     const st = filter.status || (activeTab!=='全件' ? activeTab : '');
     if(st) arr=arr.filter(c=>c.status===st);
     if(filter.customerName) arr=arr.filter(c=>c.customerName===filter.customerName);
@@ -1245,7 +1245,7 @@ function MonthlyCheckScreen({checks, setChecks, masters}) {
   const [showCancelled, setShowCancelled] = useState(false);
   const months = useMemo(()=>[...new Set(checks.map(c=>c.targetMonth).filter(Boolean))].sort(),[checks]);
   const rows = useMemo(()=>{
-    let arr = showCancelled ? checks : checks.filter(c=>!c.cancelled);
+    let arr = showCancelled ? checks.filter(c=>c.cancelled) : checks.filter(c=>!c.cancelled);
     if(filterMonth) arr = arr.filter(c=>c.targetMonth===filterMonth);
     return arr;
   },[checks,filterMonth,showCancelled]);
@@ -1479,7 +1479,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters}) {
 
   const filteredPayrolls = useMemo(()=>{
     return payrolls.filter(p=>{
-      if(!showTerminated && p.terminated) return false;
+      if(showTerminated ? !p.terminated : p.terminated) return false;
       if(filterCustomer && p.customerName!==filterCustomer) return false;
       if(filterAssignee && p.assignee!==filterAssignee) return false;
       if(filterStatus!=='all'){
@@ -1951,7 +1951,7 @@ function MasterScreen({masters, setMasters}) {
       })
     : rawList;
   const list = (() => {
-    let arr = (tab==='顧問先' && !showTerminated) ? sorted.filter(i=>!i.terminated) : sorted;
+    let arr = tab==='顧問先' ? (showTerminated ? sorted.filter(i=>i.terminated) : sorted.filter(i=>!i.terminated)) : sorted;
     if (tab==='顧問先' && search.trim()) {
       const q = search.trim().toLowerCase();
       arr = arr.filter(i => i.name.toLowerCase().includes(q));
