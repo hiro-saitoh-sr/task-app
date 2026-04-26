@@ -938,7 +938,7 @@ function CaseListScreen({cases, setCases, masters}) {
                 placeholder="すべて"
                 options={[
                   {value:'', label:'すべて'},
-                  ...masters.customers.map(c=>({value:c.name, label:c.name})),
+                  ...masters.customers.filter(c=>!c.terminated).map(c=>({value:c.name, label:c.name})),
                 ]}
               />
             </div>
