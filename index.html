@@ -881,9 +881,8 @@ function CaseListScreen({cases, setCases, masters}) {
   },[cases]);
 
   const procedureOptions = useMemo(()=>{
-    const set = new Set(cases.map(c=>c.procedure).filter(Boolean));
-    return [...set].sort();
-  },[cases]);
+    return masters.procedures.map(p=>p.name).filter(Boolean);
+  },[masters.procedures]);
 
   return (
     <div>
