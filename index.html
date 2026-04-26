@@ -698,8 +698,7 @@ function CaseModal({caseData, onSave, onClose, masters}) {
     else { const c=masters.customers.find(x=>x.name===v); set('customerName',v); if(c) set('no',c.no); }
   };
   const handleProcSelect = v => {
-    if (v==='__text__') { setProcMode('text'); set('procedure',''); }
-    else set('procedure',v);
+    set('procedure',v);
   };
 
   const handleSubmit = e => {
@@ -761,7 +760,6 @@ function CaseModal({caseData, onSave, onClose, masters}) {
               <select value={form.procedure} onChange={e=>handleProcSelect(e.target.value)}>
                 <option value="">選択してください</option>
                 {masters.procedures.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
-                <option value="__text__">その他（直接入力）</option>
               </select>
             ) : (
               <div className="flex gap-2">
