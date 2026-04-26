@@ -688,6 +688,9 @@ function CaseModal({caseData, onSave, onClose, masters}) {
     return /^\d{4}年\d{1,2}月$/.test(toYearMonth(str.trim()));
   };
 
+  const [tmYear,  setTmYear]  = useState((caseData?.targetMonth?.match(/^(\d{4})年/)||[])[1]||'');
+  const [tmMonth, setTmMonth] = useState((caseData?.targetMonth?.match(/年(\d{1,2})月$/)||[])[1]||'');
+
   const custInMaster = masters.customers.some(c=>c.name===form.customerName);
   const procInMaster = masters.procedures.some(p=>p.name===form.procedure);
   const [custMode, setCustMode] = useState(!isNew && !custInMaster && masters.customers.length>0 ? 'text' : 'select');
@@ -711,9 +714,10 @@ function CaseModal({caseData, onSave, onClose, masters}) {
     }
     const newErrors = {receivedDate:'', targetMonth:''};
     if (!validateDateInput(form.receivedDate)) newErrors.receivedDate='正しい日付を入力してください（例：2026/4/1）';
-    if (!validateYM(form.targetMonth))         newErrors.targetMonth='正しい年月を入力してください（例：2026/4）';
+    const targetMonthVal = tmYear && tmMonth ? `${tmYear}年${tmMonth}月` : '';
+    if (!targetMonthVal) newErrors.targetMonth='対象年月を選択してください';
     if (newErrors.receivedDate || newErrors.targetMonth) { setErrors(newErrors); return; }
-    onSave({...form, billingAmount: amt, receivedDate: formatDate(form.receivedDate)});
+    onSave({...form, targetMonth: targetMonthVal, billingAmount: amt, receivedDate: formatDate(form.receivedDate)});
   };
 
   return (
@@ -800,7 +804,16 @@ function CaseModal({caseData, onSave, onClose, masters}) {
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">対象年月 <span className="text-red-500">*</span></label>
-              <input value={form.targetMonth} onChange={e=>{set('targetMonth',e.target.value);clearErr('targetMonth');}} onBlur={e=>set('targetMonth',toYearMonth(e.target.value))} placeholder="2026/4（または 2026年4月）" style={errors.targetMonth?{borderColor:'#ef4444'}:{}} />
+              <div className="flex gap-2">
+                <select value={tmYear} onChange={e=>{setTmYear(e.target.value);clearErr('targetMonth');}} style={{flex:'1', ...(errors.targetMonth&&!tmYear?{borderColor:'#ef4444'}:{})}}>
+                  <option value="">年を選択</option>
+                  {[2025,2026,2027,2028,2029,2030].map(y=><option key={y} value={String(y)}>{y}年</option>)}
+                </select>
+                <select value={tmMonth} onChange={e=>{setTmMonth(e.target.value);clearErr('targetMonth');}} style={{flex:'1', ...(errors.targetMonth&&!tmMonth?{borderColor:'#ef4444'}:{})}}>
+                  <option value="">月を選択</option>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(m=><option key={m} value={String(m)}>{m}月</option>)}
+                </select>
+              </div>
               {errors.targetMonth && <p className="text-red-500 text-xs mt-1">{errors.targetMonth}</p>}
             </div>
           </div>
@@ -821,7 +834,7 @@ function CaseModal({caseData, onSave, onClose, masters}) {
 function CaseListScreen({cases, setCases, masters}) {
   const [activeTab, setActiveTab] = useState('全件');
   const [search, setSearch]       = useState('');
-  const [filter, setFilter]       = useState({customerName:'',assignee:'',targetMonth:'',status:'',procedure:''});
+  const [filter, setFilter]       = useState({customerName:'',assignee:'',targetYear:'',targetMonthNum:'',status:'',procedure:''});
   const [filterOpen, setFilterOpen] = useState(false);
   const [editCase, setEditCase]     = useState(null);
   const [showNew, setShowNew]       = useState(false);
@@ -850,7 +863,8 @@ function CaseListScreen({cases, setCases, masters}) {
     if(st) arr=arr.filter(c=>c.status===st);
     if(filter.customerName) arr=arr.filter(c=>c.customerName===filter.customerName);
     if(filter.assignee)     arr=arr.filter(c=>c.assignee===filter.assignee);
-    if(filter.targetMonth)  arr=arr.filter(c=>c.targetMonth===filter.targetMonth);
+    const _ym = filter.targetYear && filter.targetMonthNum ? `${filter.targetYear}年${filter.targetMonthNum}月` : '';
+    if(_ym) arr=arr.filter(c=>c.targetMonth===_ym);
     if(filter.procedure)    arr=arr.filter(c=>c.procedure===filter.procedure);
     if(search.trim()){
       const q=search.trim().toLowerCase();
@@ -870,13 +884,8 @@ function CaseListScreen({cases, setCases, masters}) {
     else { setCases(p=>{ const id=nextId(p); return [...p,{...form,id}]; }); setShowNew(false); }
   };
 
-  const hasFilter = !!(filter.customerName||filter.assignee||filter.targetMonth||filter.status||filter.procedure||showCancelled);
+  const hasFilter = !!(filter.customerName||filter.assignee||filter.targetYear||filter.targetMonthNum||filter.status||filter.procedure||showCancelled);
   const isViewOnly = activeTab !== '全件';
-
-  const targetMonths = useMemo(()=>{
-    const set = new Set(cases.map(c=>c.targetMonth).filter(Boolean));
-    return [...set].sort((a,b)=>parseYM(a)-parseYM(b));
-  },[cases]);
 
   const procedureOptions = useMemo(()=>{
     return masters.procedures.map(p=>p.name).filter(Boolean);
@@ -942,10 +951,12 @@ function CaseListScreen({cases, setCases, masters}) {
             </div>
             <div style={{flex:'1 1 130px', maxWidth:'308px'}}>
               <label className="block text-xs font-semibold text-gray-500 mb-1">手続き内容</label>
-              <select value={filter.procedure} onChange={e=>setFilter(f=>({...f,procedure:e.target.value}))} style={{width:'100%'}}>
-                <option value="">すべて</option>
-                {procedureOptions.map(p=><option key={p}>{p}</option>)}
-              </select>
+              <SearchableSelect
+                value={filter.procedure}
+                onChange={v => setFilter(f=>({...f, procedure: v}))}
+                placeholder="すべて"
+                options={[{value:'', label:'すべて'}, ...procedureOptions.map(p=>({value:p, label:p}))]}
+              />
             </div>
             <div style={{flex:'1 1 95px', maxWidth:'120px'}}>
               <label className="block text-xs font-semibold text-gray-500 mb-1">担当者</label>
@@ -963,12 +974,18 @@ function CaseListScreen({cases, setCases, masters}) {
                 </select>
               </div>
             )}
-            <div style={{flex:'1 1 95px', maxWidth:'150px'}}>
+            <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">対象年月</label>
-              <select value={filter.targetMonth} onChange={e=>setFilter(f=>({...f,targetMonth:e.target.value}))} style={{width:'100%'}}>
-                <option value="">すべて</option>
-                {targetMonths.map(m=><option key={m}>{m}</option>)}
-              </select>
+              <div style={{display:'flex', gap:'4px'}}>
+                <select value={filter.targetYear} onChange={e=>setFilter(f=>({...f,targetYear:e.target.value}))} style={{width:'90px'}}>
+                  <option value="">年</option>
+                  {[2025,2026,2027,2028,2029,2030].map(y=><option key={y} value={String(y)}>{y}年</option>)}
+                </select>
+                <select value={filter.targetMonthNum} onChange={e=>setFilter(f=>({...f,targetMonthNum:e.target.value}))} style={{width:'65px'}}>
+                  <option value="">月</option>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(m=><option key={m} value={String(m)}>{m}月</option>)}
+                </select>
+              </div>
             </div>
             <label className="flex items-center gap-1.5 cursor-pointer" style={{fontSize:'13px',fontWeight:'500',color:'#374151',alignSelf:'flex-end',paddingBottom:'6px'}}>
               <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
@@ -977,7 +994,7 @@ function CaseListScreen({cases, setCases, masters}) {
             </label>
             {hasFilter && (
               <button className="btn btn-secondary text-xs py-1 px-3" style={{alignSelf:'flex-end',marginBottom:'2px'}}
-                onClick={()=>{setFilter({customerName:'',assignee:'',targetMonth:'',status:'',procedure:''});setShowCancelled(false);}}>クリア</button>
+                onClick={()=>{setFilter({customerName:'',assignee:'',targetYear:'',targetMonthNum:'',status:'',procedure:''});setShowCancelled(false);}}>クリア</button>
             )}
           </div>
         )}
@@ -1187,14 +1204,28 @@ function MonthlyCheckModal({item, onSave, onClose, masters}) {
   const blank = {no:'',customerName:'',checker:'',procedureBy:'',count:'',assignee:'',completedDate:'',targetMonth:''};
   const [form, setForm] = useState(item?{...item}:blank);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const [tmYear,  setTmYear]  = useState((item?.targetMonth?.match(/^(\d{4})年/)||[])[1]||'');
+  const [tmMonth, setTmMonth] = useState((item?.targetMonth?.match(/年(\d{1,2})月$/)||[])[1]||'');
   return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="modal-box">
         <h2 className="text-xl font-bold mb-6">{item?'編集':'新規追加'} — 月額変更届チェック</h2>
-        <form onSubmit={e=>{e.preventDefault();onSave(form);}}>
+        <form onSubmit={e=>{e.preventDefault();onSave({...form,targetMonth:tmYear&&tmMonth?`${tmYear}年${tmMonth}月`:''});}}>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div><label className="block text-sm font-semibold text-gray-600 mb-1">No</label><input value={form.no} onChange={e=>set('no',e.target.value)} /></div>
-            <div><label className="block text-sm font-semibold text-gray-600 mb-1">月変対象年月</label><input value={form.targetMonth} onChange={e=>set('targetMonth',e.target.value)} onBlur={e=>set('targetMonth',toYearMonth(e.target.value))} placeholder="2026年5月" /></div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">月変対象年月</label>
+              <div className="flex gap-2">
+                <select value={tmYear} onChange={e=>setTmYear(e.target.value)} style={{flex:'1'}}>
+                  <option value="">年を選択</option>
+                  {[2025,2026,2027,2028,2029,2030].map(y=><option key={y} value={String(y)}>{y}年</option>)}
+                </select>
+                <select value={tmMonth} onChange={e=>setTmMonth(e.target.value)} style={{flex:'1'}}>
+                  <option value="">月を選択</option>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(m=><option key={m} value={String(m)}>{m}月</option>)}
+                </select>
+              </div>
+            </div>
           </div>
           <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-600 mb-1">顧客名</label>
@@ -1238,14 +1269,15 @@ function MonthlyCheckScreen({checks, setChecks, masters}) {
   const [showModal, setShowModal]         = useState(false);
   const [editItem, setEditItem]           = useState(null);
   const [cancelItem, setCancelItem]       = useState(null);
-  const [filterMonth, setFilterMonth]     = useState('');
-  const [showCancelled, setShowCancelled] = useState(false);
-  const months = useMemo(()=>[...new Set(checks.map(c=>c.targetMonth).filter(Boolean))].sort(),[checks]);
+  const [filterYear, setFilterYear]         = useState('');
+  const [filterMonthNum, setFilterMonthNum] = useState('');
+  const [showCancelled, setShowCancelled]   = useState(false);
   const rows = useMemo(()=>{
     let arr = showCancelled ? checks.filter(c=>c.cancelled) : checks.filter(c=>!c.cancelled);
-    if(filterMonth) arr = arr.filter(c=>c.targetMonth===filterMonth);
+    const _ym = filterYear && filterMonthNum ? `${filterYear}年${filterMonthNum}月` : '';
+    if(_ym) arr = arr.filter(c=>c.targetMonth===_ym);
     return arr;
-  },[checks,filterMonth,showCancelled]);
+  },[checks,filterYear,filterMonthNum,showCancelled]);
 
   const handleSave = form=>{
     if(editItem){ setChecks(p=>p.map(c=>c.id===editItem.id?{...form,id:editItem.id}:c)); }
@@ -1261,11 +1293,15 @@ function MonthlyCheckScreen({checks, setChecks, masters}) {
       </div>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <label className="text-sm font-semibold text-gray-600">月変対象年月：</label>
-        <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{width:'auto'}}>
-          <option value="">すべて</option>
-          {months.map(m=><option key={m}>{m}</option>)}
+        <select value={filterYear} onChange={e=>setFilterYear(e.target.value)} style={{width:'auto'}}>
+          <option value="">年</option>
+          {[2025,2026,2027,2028,2029,2030].map(y=><option key={y} value={String(y)}>{y}年</option>)}
         </select>
-        {filterMonth && <button className="text-xs text-gray-400 hover:text-gray-600" onClick={()=>setFilterMonth('')}>クリア</button>}
+        <select value={filterMonthNum} onChange={e=>setFilterMonthNum(e.target.value)} style={{width:'auto'}}>
+          <option value="">月</option>
+          {[1,2,3,4,5,6,7,8,9,10,11,12].map(m=><option key={m} value={String(m)}>{m}月</option>)}
+        </select>
+        {(filterYear||filterMonthNum) && <button className="text-xs text-gray-400 hover:text-gray-600" onClick={()=>{setFilterYear('');setFilterMonthNum('');}}>クリア</button>}
         <label className="flex items-center gap-1.5 cursor-pointer ml-2" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
           <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
             style={{width:'15px',height:'15px',cursor:'pointer'}} />
