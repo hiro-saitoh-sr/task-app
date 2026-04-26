@@ -2207,9 +2207,12 @@ function App() {
     mastersRef.current = next;
     save(SK.masters, next);
     clearTimeout(mastersTimerRef.current);
+    setSyncStatus('saving');
     mastersTimerRef.current = setTimeout(() => {
       mastersTimerRef.current = null;
-      db.ref('masters').set(next).catch(e => console.error('masters保存エラー', e));
+      db.ref('masters').set(next)
+        .then(() => setSyncStatus('saved'))
+        .catch(e => { setSyncStatus('error'); setSyncError('保存エラー: ' + e.message); });
     }, 2000);
   }, []);
 
@@ -2220,9 +2223,12 @@ function App() {
     checksRef.current = next;
     save(SK.checks, {version: CHECKS_VERSION, data: next});
     clearTimeout(checksTimerRef.current);
+    setSyncStatus('saving');
     checksTimerRef.current = setTimeout(() => {
       checksTimerRef.current = null;
-      db.ref('checks').set(arrToFbObj(next)).catch(e => console.error('checks保存エラー', e));
+      db.ref('checks').set(arrToFbObj(next))
+        .then(() => setSyncStatus('saved'))
+        .catch(e => { setSyncStatus('error'); setSyncError('保存エラー: ' + e.message); });
     }, 2000);
   }, []);
 
@@ -2233,9 +2239,12 @@ function App() {
     payrollsRef.current = next;
     save(SK.payrolls, {version: PAYROLL_VERSION, data: next});
     clearTimeout(payrollsTimerRef.current);
+    setSyncStatus('saving');
     payrollsTimerRef.current = setTimeout(() => {
       payrollsTimerRef.current = null;
-      db.ref('payrolls').set(arrToFbObj(next)).catch(e => console.error('payrolls保存エラー', e));
+      db.ref('payrolls').set(arrToFbObj(next))
+        .then(() => setSyncStatus('saved'))
+        .catch(e => { setSyncStatus('error'); setSyncError('保存エラー: ' + e.message); });
     }, 2000);
   }, []);
 
