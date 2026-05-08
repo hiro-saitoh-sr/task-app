@@ -1199,7 +1199,7 @@ function CaseListScreen({cases, setCases, masters}) {
 /* ══════════════════════════════════════════
    BILLING SUMMARY SCREEN
 ══════════════════════════════════════════ */
-function BillingSummaryScreen({cases}) {
+function BillingSummaryScreen({cases, masters}) {
   const [sel, setSel] = useState('');
 
   const rows = useMemo(()=>{
@@ -1210,8 +1210,9 @@ function BillingSummaryScreen({cases}) {
       map[c.customerName].count++;
       map[c.customerName].total+=Number(c.billingAmount)||0;
     });
-    return Object.values(map).sort((a,b)=>a.name.localeCompare(b.name,'ja'));
-  },[cases,sel]);
+    const noMap = Object.fromEntries((masters.customers||[]).map(c=>[c.name, c.no===''||c.no==null ? Infinity : Number(c.no)]));
+    return Object.values(map).sort((a,b)=>(noMap[a.name]??Infinity)-(noMap[b.name]??Infinity));
+  },[cases,sel,masters]);
 
   const grandCount = rows.reduce((s,r)=>s+r.count,0);
   const grandTotal = rows.reduce((s,r)=>s+r.total,0);
@@ -2459,7 +2460,7 @@ function App() {
 
       <div className="px-2 py-4">
         {screen==='案件管理'            && <CaseListScreen cases={cases} setCases={setCases} masters={masters} />}
-        {screen==='請求集計'            && <BillingSummaryScreen cases={cases} />}
+        {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} />}
         {screen==='月変チェック'        && <MonthlyCheckScreen checks={checks} setChecks={setChecks} masters={masters} />}
         {screen==='給与計算スケジュール'&& <PayrollScheduleScreen payrolls={payrolls} setPayrolls={setPayrolls} masters={masters} />}
         {screen==='マスタ管理'          && <MasterScreen masters={masters} setMasters={setMasters} />}
