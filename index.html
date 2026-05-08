@@ -1210,8 +1210,14 @@ function BillingSummaryScreen({cases, masters}) {
       map[c.customerName].count++;
       map[c.customerName].total+=Number(c.billingAmount)||0;
     });
-    const noMap = Object.fromEntries((masters.customers||[]).map(c=>[c.name, c.no===''||c.no==null ? Infinity : Number(c.no)]));
-    return Object.values(map).sort((a,b)=>(noMap[a.name]??Infinity)-(noMap[b.name]??Infinity));
+    const custMap = Object.fromEntries((masters.customers||[]).map(c=>[c.name, c]));
+    return Object.values(map)
+      .map(r=>({...r, no: custMap[r.name]?.no??''}))
+      .sort((a,b)=>{
+        const na = a.no===''||a.no==null ? Infinity : Number(a.no);
+        const nb = b.no===''||b.no==null ? Infinity : Number(b.no);
+        return na-nb;
+      });
   },[cases,sel,masters]);
 
   const grandCount = rows.reduce((s,r)=>s+r.count,0);
@@ -1234,12 +1240,13 @@ function BillingSummaryScreen({cases, masters}) {
         <div className="text-center py-20 text-gray-400"><p>該当する案件がありません</p></div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 200px)'}}>
-          <table className="text-sm" style={{tableLayout:'fixed',width:'600px'}}>
+          <table className="text-sm" style={{tableLayout:'fixed',width:'660px'}}>
             <colgroup>
-              <col /><col style={{width:'80px'}} /><col style={{width:'160px'}} />
+              <col style={{width:'60px'}} /><col /><col style={{width:'80px'}} /><col style={{width:'160px'}} />
             </colgroup>
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-3 py-3 text-right font-semibold text-gray-600">No</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">顧客名</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">件数</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">合計請求金額</th>
@@ -1248,6 +1255,7 @@ function BillingSummaryScreen({cases, masters}) {
             <tbody className="divide-y divide-gray-100">
               {rows.map(r=>(
                 <tr key={r.name} className="hover:bg-gray-50">
+                  <td className="px-3 py-3 text-right text-gray-400 text-xs">{r.no}</td>
                   <td className="px-4 py-3 font-medium text-gray-800">{r.name}</td>
                   <td className="px-4 py-3 text-right text-gray-700">{r.count}件</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{`¥${r.total.toLocaleString()}`}</td>
@@ -1256,6 +1264,7 @@ function BillingSummaryScreen({cases, masters}) {
             </tbody>
             <tfoot>
               <tr className="bg-blue-50 border-t-2 border-blue-200 font-bold">
+                <td className="px-3 py-3"></td>
                 <td className="px-4 py-3 text-blue-800">合計</td>
                 <td className="px-4 py-3 text-right text-blue-800">{grandCount}件</td>
                 <td className="px-4 py-3 text-right text-blue-800">¥{grandTotal.toLocaleString()}</td>
