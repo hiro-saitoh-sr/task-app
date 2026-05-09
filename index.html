@@ -667,6 +667,7 @@ function SearchableSelect({ options, value, onChange, placeholder }) {
 ══════════════════════════════════════════ */
 function YearMonthPicker({ value, onChange, placeholder, placeholderDark, style, yearOnly }) {
   const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const [navYear, setNavYear] = useState(() => {
     if (yearOnly) return value || new Date().getFullYear();
     const m = (value||'').match(/^(\d{4})年/);
@@ -707,13 +708,21 @@ function YearMonthPicker({ value, onChange, placeholder, placeholderDark, style,
 
   return (
     <div ref={wrapRef} style={{position:'relative', width:'100%'}}>
-      <div style={triggerStyle} onClick={() => setOpen(o => !o)}>
+      <div style={triggerStyle} onClick={() => {
+        if (!open && wrapRef.current) {
+          const rect = wrapRef.current.getBoundingClientRect();
+          setDropUp(rect.top > window.innerHeight / 2);
+        }
+        setOpen(o => !o);
+      }}>
         <span>{displayText}</span>
         <span style={{color:'#9ca3af',fontSize:'11px',marginLeft:'8px'}}>▼</span>
       </div>
       {open && (
         <div style={{
-          position:'absolute', bottom:'calc(100% + 4px)', left:0, zIndex:400,
+          position:'absolute',
+          ...(dropUp ? { bottom:'calc(100% + 4px)', top:'auto' } : { top:'calc(100% + 4px)', bottom:'auto' }),
+          left:0, zIndex:400,
           background:'white', border:'1px solid #d1d5db', borderRadius:'10px',
           boxShadow:'0 8px 24px rgba(0,0,0,0.15)', padding:'12px', minWidth:'216px',
         }}>
