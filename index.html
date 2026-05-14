@@ -364,7 +364,6 @@ function initMasters() {
     代表者メール: m1||'', 担当者メール: m2||'',
     決算月: km||'', 契約サービス: sv||[],
     '36協定起算日': '', 'その他労使協定の届出': '', '東京SR特別加入': '',
-    '単価_20以下': '', '単価_21_50': '', '単価_51_100': '', '単価_101_300': '', '単価_301以上': '',
   });
   const customers = [
     c(1,  '',   'スポット'),
@@ -1215,7 +1214,49 @@ function CaseListScreen({cases, setCases, masters}) {
 /* ══════════════════════════════════════════
    BILLING SUMMARY SCREEN
 ══════════════════════════════════════════ */
-function getUnitPrice(cust, count) {
+const PAYROLL_RATE_TIERS = [
+  ['〜20人',    '単価_20以下'],
+  ['21〜50人',  '単価_21_50'],
+  ['51〜100人', '単価_51_100'],
+  ['101〜300人','単価_101_300'],
+  ['301人〜',  '単価_301以上'],
+];
+
+function PayrollRateModal({customerName, rates, onSave, onClose}) {
+  const [form, setForm] = useState(
+    Object.fromEntries(PAYROLL_RATE_TIERS.map(([,key])=>[key, rates?.[key]!=null?String(rates[key]):'']))
+  );
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal-box" style={{width:'560px'}}>
+        <h2 className="text-lg font-bold mb-1">給与単価設定</h2>
+        <p className="text-sm text-gray-500 mb-5">{customerName}</p>
+        <form onSubmit={e=>{
+          e.preventDefault();
+          const data = {};
+          PAYROLL_RATE_TIERS.forEach(([,key])=>{ if(form[key]!=='') data[key]=Number(form[key]); });
+          onSave(data);
+        }}>
+          <div className="grid grid-cols-5 gap-3 mb-6">
+            {PAYROLL_RATE_TIERS.map(([lbl,key])=>(
+              <div key={key}>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">{lbl}</label>
+                <input type="number" value={form[key]} onChange={e=>set(key,e.target.value)} placeholder="未設定" />
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+            <button type="submit" className="btn btn-primary">保存する</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function getUnitPrice(rateData, count) {
   const n = Number(count) || 0;
   let key;
   if      (n <= 20)  key = '単価_20以下';
@@ -1223,14 +1264,15 @@ function getUnitPrice(cust, count) {
   else if (n <= 100) key = '単価_51_100';
   else if (n <= 300) key = '単価_101_300';
   else               key = '単価_301以上';
-  const v = cust?.[key];
+  const v = rateData?.[key];
   if (v === '' || v == null) return null;
   const p = Number(v);
   return isNaN(p) ? null : p;
 }
 
-function BillingSummaryScreen({cases, masters, payrolls}) {
+function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrollRates}) {
   const [sel, setSel] = useState('');
+  const [rateModal, setRateModal] = useState(null);
 
   const rows = useMemo(()=>{
     if(!sel) return [];
@@ -1256,16 +1298,16 @@ function BillingSummaryScreen({cases, masters, payrolls}) {
         if(人数===0 && 賞与人===0) return;
         const name = p.customerName;
         if(!map[name]) map[name]=blankRow(name);
-        const cust = custMap[name];
+        const rateData = (payrollRates||{})[name];
         if(人数>0){
           map[name].給与人数 = 人数;
-          const price = getUnitPrice(cust, 人数);
+          const price = getUnitPrice(rateData, 人数);
           map[name].給与請求額 = price != null ? 人数 * price : null;
         }
         if(賞与人>0){
           map[name].賞与人数 = 賞与人;
           const tierN = 人数>0 ? 人数 : 賞与人;
-          const price = getUnitPrice(cust, tierN);
+          const price = getUnitPrice(rateData, tierN);
           map[name].賞与請求額 = price != null ? 賞与人 * price : null;
         }
       });
@@ -1278,7 +1320,7 @@ function BillingSummaryScreen({cases, masters, payrolls}) {
         const nb = b.no===''||b.no==null ? Infinity : Number(b.no);
         return na-nb;
       });
-  },[cases,payrolls,sel,masters]);
+  },[cases,payrolls,payrollRates,sel,masters]);
 
   const grandCount        = rows.reduce((s,r)=>s+r.count,0);
   const grandTotal        = rows.reduce((s,r)=>s+r.total,0);
@@ -1288,6 +1330,12 @@ function BillingSummaryScreen({cases, masters, payrolls}) {
   const grandBonusAmt     = rows.reduce((s,r)=>r.賞与請求額!=null?s+r.賞与請求額:s, 0);
   const hasPayrollAmt     = rows.some(r=>r.給与請求額!=null);
   const hasBonusAmt       = rows.some(r=>r.賞与請求額!=null);
+
+  const handleSaveRate = (name, data) => {
+    const next = {...(payrollRates||{}), [name]: data};
+    setPayrollRates(next);
+    setRateModal(null);
+  };
 
   return (
     <div>
@@ -1333,7 +1381,12 @@ function BillingSummaryScreen({cases, masters, payrolls}) {
               {rows.map(r=>(
                 <tr key={r.name} className="hover:bg-gray-50">
                   <td className="px-3 py-3 text-right text-gray-400 text-xs">{r.no}</td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{r.name}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={()=>setRateModal({name:r.name})}
+                      style={{background:'none',border:'none',padding:0,cursor:'pointer',textAlign:'left',fontWeight:'500',color:'#1f2937',textDecoration:'underline',textDecorationColor:'#d1d5db',fontFamily:'inherit',fontSize:'inherit'}}
+                    >{r.name}</button>
+                  </td>
                   <td className="px-3 py-3 text-right text-gray-700">{r.count>0?`${r.count}件`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.total>0?`¥${r.total.toLocaleString()}`:'—'}</td>
                   <td className="px-3 py-3 text-right text-gray-700">{r.給与人数>0?`${r.給与人数}人`:'—'}</td>
@@ -1357,6 +1410,14 @@ function BillingSummaryScreen({cases, masters, payrolls}) {
             </tfoot>
           </table>
         </div>
+      )}
+      {rateModal && (
+        <PayrollRateModal
+          customerName={rateModal.name}
+          rates={(payrollRates||{})[rateModal.name]}
+          onSave={data=>handleSaveRate(rateModal.name, data)}
+          onClose={()=>setRateModal(null)}
+        />
       )}
     </div>
   );
@@ -2025,7 +2086,7 @@ function CustomerDetailModal({item, onClose, onEdit}) {
 }
 
 function MasterItemModal({title, item, onSave, onClose, showNo}) {
-  const defForm = {no:'', name:'', 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':'', '単価_20以下':'', '単価_21_50':'', '単価_51_100':'', '単価_101_300':'', '単価_301以上':''};
+  const defForm = {no:'', name:'', 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
   const [form, setForm] = useState(item ? {...defForm, ...item} : defForm);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const toggleSv = sv => {
@@ -2112,17 +2173,6 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
                   <option value="">—</option>
                   <option value="あり">あり</option>
                 </select>
-              </div>
-            </div>
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-600 mb-2">給与計算 段階単価</label>
-              <div className="grid grid-cols-5 gap-2">
-                {[['〜20人','単価_20以下'],['21〜50人','単価_21_50'],['51〜100人','単価_51_100'],['101〜300人','単価_101_300'],['301人〜','単価_301以上']].map(([lbl,key])=>(
-                  <div key={key}>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">{lbl}</label>
-                    <input type="number" value={form[key]||''} onChange={e=>set(key,e.target.value)} />
-                  </div>
-                ))}
               </div>
             </div>
           </>)}
@@ -2318,8 +2368,9 @@ function App() {
   const [cases,    setCasesState] = useState(()=>loadCases());
   const [masters,  setMastersRaw] = useState(()=>loadMasters());
   const [checks,   setChecksRaw]  = useState(()=>loadChecks());
-  const [payrolls, setPayrollsRaw]= useState(()=>loadPayrolls());
-  const [screen,   setScreen]     = useState('案件管理');
+  const [payrolls,     setPayrollsRaw]    = useState(()=>loadPayrolls());
+  const [payrollRates, setPayrollRatesRaw]= useState({});
+  const [screen,       setScreen]         = useState('案件管理');
 
   // syncStatus: 'init' | 'loading' | 'saving' | 'saved' | 'error' | 'noaccess'
   const [syncStatus, setSyncStatus] = useState('init');
@@ -2330,16 +2381,19 @@ function App() {
   const mastersRef       = useRef(masters);
   const checksRef        = useRef(checks);
   const payrollsRef      = useRef(payrolls);
+  const payrollRatesRef  = useRef({});
   const saveTimerRef     = useRef(null);
   const mastersTimerRef  = useRef(null);
   const checksTimerRef   = useRef(null);
   const payrollsTimerRef = useRef(null);
+  const ratesTimerRef    = useRef(null);
   const isSyncingRef     = useRef(false);
 
-  useEffect(() => { casesRef.current    = cases;    }, [cases]);
-  useEffect(() => { mastersRef.current  = masters;  }, [masters]);
-  useEffect(() => { checksRef.current   = checks;   }, [checks]);
-  useEffect(() => { payrollsRef.current = payrolls; }, [payrolls]);
+  useEffect(() => { casesRef.current         = cases;        }, [cases]);
+  useEffect(() => { mastersRef.current       = masters;      }, [masters]);
+  useEffect(() => { checksRef.current        = checks;       }, [checks]);
+  useEffect(() => { payrollsRef.current      = payrolls;     }, [payrolls]);
+  useEffect(() => { payrollRatesRef.current  = payrollRates; }, [payrollRates]);
 
   /* ── Firebase DB から全データを一括読み込み（手動リフレッシュ用） ── */
   const loadFromDB = useCallback(() => {
@@ -2352,7 +2406,8 @@ function App() {
       db.ref('masters').once('value'),
       db.ref('checks').once('value'),
       db.ref('payrolls').once('value'),
-    ]).then(([csSnap, msSnap, ckSnap, prSnap]) => {
+      db.ref('payrollRates').once('value'),
+    ]).then(([csSnap, msSnap, ckSnap, prSnap, ratesSnap]) => {
       const loadedCases = fbToCases(csSnap.val());
       if (loadedCases && loadedCases.length > 0) {
         casesRef.current = loadedCases; setCasesState(loadedCases); save(SK.cases, loadedCases);
@@ -2380,6 +2435,9 @@ function App() {
       } else {
         db.ref('payrolls').set(arrToFbObj(payrollsRef.current));
       }
+
+      const loadedRates = ratesSnap.val() || {};
+      payrollRatesRef.current = loadedRates; setPayrollRatesRaw(loadedRates);
 
       setSyncStatus('saved');
     }).catch(e => {
@@ -2452,6 +2510,21 @@ function App() {
     }, 2000);
   }, []);
 
+  /* ── 給与単価の更新（Firebase即時保存） ── */
+  const setPayrollRates = useCallback((v) => {
+    const next = typeof v === 'function' ? v(payrollRatesRef.current) : v;
+    setPayrollRatesRaw(next);
+    payrollRatesRef.current = next;
+    clearTimeout(ratesTimerRef.current);
+    setSyncStatus('saving');
+    ratesTimerRef.current = setTimeout(() => {
+      ratesTimerRef.current = null;
+      db.ref('payrollRates').set(next)
+        .then(() => setSyncStatus('saved'))
+        .catch(e => { setSyncStatus('error'); setSyncError('保存エラー: ' + e.message); });
+    }, 2000);
+  }, []);
+
   /* ── Firebase onValue リスナー（ログイン中のみ有効） ── */
   useEffect(() => {
     if (!currentUser) return;
@@ -2484,12 +2557,18 @@ function App() {
         const loaded = fbToPayrolls(snap.val());
         if (loaded && loaded.length > 0) { payrollsRef.current = loaded; setPayrollsRaw(loaded); save(SK.payrolls, {version: PAYROLL_VERSION, data: loaded}); }
       });
+      const cbRates = db.ref('payrollRates').on('value', (snap) => {
+        if (ratesTimerRef.current !== null) return;
+        const val = snap.val() || {};
+        payrollRatesRef.current = val; setPayrollRatesRaw(val);
+      });
 
       cleanupListeners = () => {
         db.ref('cases').off('value', cbCases);
         db.ref('masters').off('value', cbMasters);
         db.ref('checks').off('value', cbChecks);
         db.ref('payrolls').off('value', cbPayrolls);
+        db.ref('payrollRates').off('value', cbRates);
       };
     });
 
@@ -2512,6 +2591,7 @@ function App() {
     clearTimeout(mastersTimerRef.current);
     clearTimeout(checksTimerRef.current);
     clearTimeout(payrollsTimerRef.current);
+    clearTimeout(ratesTimerRef.current);
     saveAuthUser(null);
     setCurrentUser(null);
     setSyncStatus('init');
@@ -2589,7 +2669,7 @@ function App() {
 
       <div className="px-2 py-4">
         {screen==='案件管理'            && <CaseListScreen cases={cases} setCases={setCases} masters={masters} />}
-        {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} payrolls={payrolls} />}
+        {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} payrolls={payrolls} payrollRates={payrollRates} setPayrollRates={setPayrollRates} />}
         {screen==='月変チェック'        && <MonthlyCheckScreen checks={checks} setChecks={setChecks} masters={masters} />}
         {screen==='給与計算スケジュール'&& <PayrollScheduleScreen payrolls={payrolls} setPayrolls={setPayrolls} masters={masters} />}
         {screen==='マスタ管理'          && <MasterScreen masters={masters} setMasters={setMasters} />}
