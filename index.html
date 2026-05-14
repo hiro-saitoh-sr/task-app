@@ -364,6 +364,7 @@ function initMasters() {
     代表者メール: m1||'', 担当者メール: m2||'',
     決算月: km||'', 契約サービス: sv||[],
     '36協定起算日': '', 'その他労使協定の届出': '', '東京SR特別加入': '',
+    '単価_20以下': '', '単価_21_50': '', '単価_51_100': '', '単価_101_300': '', '単価_301以上': '',
   });
   const customers = [
     c(1,  '',   'スポット'),
@@ -1208,29 +1209,69 @@ function CaseListScreen({cases, setCases, masters}) {
 /* ══════════════════════════════════════════
    BILLING SUMMARY SCREEN
 ══════════════════════════════════════════ */
-function BillingSummaryScreen({cases, masters}) {
+function getUnitPrice(cust, count) {
+  const n = Number(count) || 0;
+  if (n <= 20)  return Number(cust?.['単価_20以下'])  || 1300;
+  if (n <= 50)  return Number(cust?.['単価_21_50'])   || 1100;
+  if (n <= 100) return Number(cust?.['単価_51_100'])  || 900;
+  if (n <= 300) return Number(cust?.['単価_101_300']) || 700;
+  return Number(cust?.['単価_301以上']) || 500;
+}
+
+function BillingSummaryScreen({cases, masters, payrolls}) {
   const [sel, setSel] = useState('');
 
   const rows = useMemo(()=>{
     if(!sel) return [];
-    const map={};
+    const custMap = Object.fromEntries((masters.customers||[]).map(c=>[c.name,c]));
+    const ym = sel.match(/(\d+)年(\d+)月/);
+    const year  = ym ? Number(ym[1]) : null;
+    const month = ym ? Number(ym[2]) : null;
+
+    const map = {};
     cases.filter(c=>c.targetMonth===sel && c.status==='請求済' && c.billingAmount!=='請求なし').forEach(c=>{
-      if(!map[c.customerName]) map[c.customerName]={name:c.customerName,count:0,total:0};
+      if(!map[c.customerName]) map[c.customerName]={name:c.customerName,count:0,total:0,給与人数:0,給与請求額:0,賞与人数:0,賞与請求額:0};
       map[c.customerName].count++;
       map[c.customerName].total+=Number(c.billingAmount)||0;
     });
-    const custMap = Object.fromEntries((masters.customers||[]).map(c=>[c.name, c]));
+
+    if(year && month){
+      (payrolls||[]).forEach(p=>{
+        const md = p.yearData?.[year]?.[month];
+        if(!md) return;
+        const 人数 = Number(md.人数)||0;
+        const 賞与人 = Number(md.賞与人数)||0;
+        if(人数===0 && 賞与人===0) return;
+        const name = p.customerName;
+        if(!map[name]) map[name]={name,count:0,total:0,給与人数:0,給与請求額:0,賞与人数:0,賞与請求額:0};
+        const cust = custMap[name];
+        if(人数>0){
+          map[name].給与人数  = 人数;
+          map[name].給与請求額 = 人数 * getUnitPrice(cust, 人数);
+        }
+        if(賞与人>0){
+          const tierN = 人数>0 ? 人数 : 賞与人;
+          map[name].賞与人数  = 賞与人;
+          map[name].賞与請求額 = 賞与人 * getUnitPrice(cust, tierN);
+        }
+      });
+    }
+
     return Object.values(map)
-      .map(r=>({...r, no: custMap[r.name]?.no??''}))
+      .map(r=>({...r, no:custMap[r.name]?.no??''}))
       .sort((a,b)=>{
         const na = a.no===''||a.no==null ? Infinity : Number(a.no);
         const nb = b.no===''||b.no==null ? Infinity : Number(b.no);
         return na-nb;
       });
-  },[cases,sel,masters]);
+  },[cases,payrolls,sel,masters]);
 
-  const grandCount = rows.reduce((s,r)=>s+r.count,0);
-  const grandTotal = rows.reduce((s,r)=>s+r.total,0);
+  const grandCount       = rows.reduce((s,r)=>s+r.count,0);
+  const grandTotal       = rows.reduce((s,r)=>s+r.total,0);
+  const grandPayrollCount = rows.reduce((s,r)=>s+r.給与人数,0);
+  const grandPayrollAmt   = rows.reduce((s,r)=>s+r.給与請求額,0);
+  const grandBonusCount   = rows.reduce((s,r)=>s+r.賞与人数,0);
+  const grandBonusAmt     = rows.reduce((s,r)=>s+r.賞与請求額,0);
 
   return (
     <div>
@@ -1249,16 +1290,27 @@ function BillingSummaryScreen({cases, masters}) {
         <div className="text-center py-20 text-gray-400"><p>該当する案件がありません</p></div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 200px)'}}>
-          <table className="text-sm" style={{tableLayout:'fixed',width:'660px'}}>
+          <table className="text-sm" style={{tableLayout:'fixed',width:'1020px'}}>
             <colgroup>
-              <col style={{width:'60px'}} /><col /><col style={{width:'80px'}} /><col style={{width:'160px'}} />
+              <col style={{width:'50px'}} />
+              <col />
+              <col style={{width:'60px'}} />
+              <col style={{width:'130px'}} />
+              <col style={{width:'70px'}} />
+              <col style={{width:'120px'}} />
+              <col style={{width:'70px'}} />
+              <col style={{width:'120px'}} />
             </colgroup>
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-3 py-3 text-right font-semibold text-gray-600">No</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">顧客名</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">件数</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600">件数</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600">合計請求金額</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600">給与人数</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600">給与請求額</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600">賞与人数</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600">賞与請求額</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1266,8 +1318,12 @@ function BillingSummaryScreen({cases, masters}) {
                 <tr key={r.name} className="hover:bg-gray-50">
                   <td className="px-3 py-3 text-right text-gray-400 text-xs">{r.no}</td>
                   <td className="px-4 py-3 font-medium text-gray-800">{r.name}</td>
-                  <td className="px-4 py-3 text-right text-gray-700">{r.count}件</td>
-                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{`¥${r.total.toLocaleString()}`}</td>
+                  <td className="px-3 py-3 text-right text-gray-700">{r.count>0?`${r.count}件`:'—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.total>0?`¥${r.total.toLocaleString()}`:'—'}</td>
+                  <td className="px-3 py-3 text-right text-gray-700">{r.給与人数>0?`${r.給与人数}人`:'—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.給与請求額>0?`¥${r.給与請求額.toLocaleString()}`:'—'}</td>
+                  <td className="px-3 py-3 text-right text-gray-700">{r.賞与人数>0?`${r.賞与人数}人`:'—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.賞与請求額>0?`¥${r.賞与請求額.toLocaleString()}`:'—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -1275,8 +1331,12 @@ function BillingSummaryScreen({cases, masters}) {
               <tr className="bg-blue-50 border-t-2 border-blue-200 font-bold">
                 <td className="px-3 py-3"></td>
                 <td className="px-4 py-3 text-blue-800">合計</td>
-                <td className="px-4 py-3 text-right text-blue-800">{grandCount}件</td>
-                <td className="px-4 py-3 text-right text-blue-800">¥{grandTotal.toLocaleString()}</td>
+                <td className="px-3 py-3 text-right text-blue-800">{grandCount>0?`${grandCount}件`:''}</td>
+                <td className="px-4 py-3 text-right text-blue-800">{grandTotal>0?`¥${grandTotal.toLocaleString()}`:''}</td>
+                <td className="px-3 py-3 text-right text-blue-800">{grandPayrollCount>0?`${grandPayrollCount}人`:''}</td>
+                <td className="px-4 py-3 text-right text-blue-800">{grandPayrollAmt>0?`¥${grandPayrollAmt.toLocaleString()}`:''}</td>
+                <td className="px-3 py-3 text-right text-blue-800">{grandBonusCount>0?`${grandBonusCount}人`:''}</td>
+                <td className="px-4 py-3 text-right text-blue-800">{grandBonusAmt>0?`¥${grandBonusAmt.toLocaleString()}`:''}</td>
               </tr>
             </tfoot>
           </table>
@@ -1885,6 +1945,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters}) {
    MASTER SCREEN
 ══════════════════════════════════════════ */
 function CustomerDetailModal({item, onClose, onEdit}) {
+  const fmtPrice = (val, def) => val ? `${Number(val).toLocaleString()}円` : `${def.toLocaleString()}円（デフォルト）`;
   const fields = [
     ['業種',          item.業種],
     ['代表者名',       item.代表者名],
@@ -1896,6 +1957,11 @@ function CustomerDetailModal({item, onClose, onEdit}) {
     ['36協定起算日',        item['36協定起算日']],
     ['その他労使協定の届出', item['その他労使協定の届出']],
     ['東京SR特別加入',      item['東京SR特別加入']],
+    ['給与単価（〜20人）',    fmtPrice(item['単価_20以下'],  1300)],
+    ['給与単価（21〜50人）',  fmtPrice(item['単価_21_50'],   1100)],
+    ['給与単価（51〜100人）', fmtPrice(item['単価_51_100'],   900)],
+    ['給与単価（101〜300人）',fmtPrice(item['単価_101_300'],  700)],
+    ['給与単価（301人〜）',   fmtPrice(item['単価_301以上'],  500)],
   ];
   return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -1925,7 +1991,7 @@ function CustomerDetailModal({item, onClose, onEdit}) {
 }
 
 function MasterItemModal({title, item, onSave, onClose, showNo}) {
-  const defForm = {no:'', name:'', 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
+  const defForm = {no:'', name:'', 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':'', '単価_20以下':'', '単価_21_50':'', '単価_51_100':'', '単価_101_300':'', '単価_301以上':''};
   const [form, setForm] = useState(item ? {...defForm, ...item} : defForm);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const toggleSv = sv => {
@@ -1999,7 +2065,7 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="block text-sm font-semibold text-gray-600 mb-1">決算月</label>
                 <select value={form.決算月||''} onChange={e=>set('決算月',e.target.value)}>
@@ -2012,6 +2078,17 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
                   <option value="">—</option>
                   <option value="あり">あり</option>
                 </select>
+              </div>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-600 mb-2">給与計算 段階単価（空欄＝デフォルト値）</label>
+              <div className="grid grid-cols-5 gap-2">
+                {[['〜20人','単価_20以下',1300],['21〜50人','単価_21_50',1100],['51〜100人','単価_51_100',900],['101〜300人','単価_101_300',700],['301人〜','単価_301以上',500]].map(([lbl,key,def])=>(
+                  <div key={key}>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">{lbl}</label>
+                    <input type="number" value={form[key]||''} onChange={e=>set(key,e.target.value)} placeholder={String(def)} />
+                  </div>
+                ))}
               </div>
             </div>
           </>)}
@@ -2478,7 +2555,7 @@ function App() {
 
       <div className="px-2 py-4">
         {screen==='案件管理'            && <CaseListScreen cases={cases} setCases={setCases} masters={masters} />}
-        {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} />}
+        {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} payrolls={payrolls} />}
         {screen==='月変チェック'        && <MonthlyCheckScreen checks={checks} setChecks={setChecks} masters={masters} />}
         {screen==='給与計算スケジュール'&& <PayrollScheduleScreen payrolls={payrolls} setPayrolls={setPayrolls} masters={masters} />}
         {screen==='マスタ管理'          && <MasterScreen masters={masters} setMasters={setMasters} />}
