@@ -839,9 +839,12 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">ステータス <span className="text-red-500">*</span></label>
-              <select value={form.status} onChange={e=>set('status',e.target.value)}>
-                {STATUSES.filter(s=>s!=='請求済'||isHiro).map(s=><option key={s}>{s}</option>)}
-              </select>
+              {(!isHiro&&form.status==='請求済')
+                ? <div className={`status-${form.status} text-xs font-semibold px-2 py-1 rounded-full inline-block`}>{form.status}</div>
+                : <select value={form.status} onChange={e=>set('status',e.target.value)}>
+                    {STATUSES.filter(s=>s!=='請求済'||isHiro).map(s=><option key={s}>{s}</option>)}
+                  </select>
+              }
             </div>
           </div>
 
@@ -1158,7 +1161,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
                     }
                   </td>
                   <td className="px-3 py-2.5">
-                    {(isViewOnly||c.cancelled)
+                    {(isViewOnly||c.cancelled||(c.status==='請求済'&&!isHiro))
                       ? <StatusBadge status={c.status} />
                       : <select value={c.status} onChange={e=>setCases(p=>p.map(x=>x.id===c.id?{...x,status:e.target.value}:x))}
                           className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer`}
