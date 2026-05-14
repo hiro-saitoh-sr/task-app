@@ -1796,7 +1796,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters}) {
                 ].filter(Boolean);
                 const infoLine2=[
                   p.納品方法   && `納品：${p.納品方法}`,
-                  p.その他メモ && `※${p.その他メモ}`,
+                  p.その他メモ && p.その他メモ,
                 ].filter(Boolean);
                 return (
                 <tr key={p.id} className={`group ${p.terminated?'bg-gray-50 opacity-60':'hover:bg-blue-50'}`}>
@@ -1871,7 +1871,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters}) {
                 ].filter(Boolean);
                 const infoLine2=[
                   p.納品方法   && `納品：${p.納品方法}`,
-                  p.その他メモ && `※${p.その他メモ}`,
+                  p.その他メモ && p.その他メモ,
                 ].filter(Boolean);
                 return (
                   <tr key={p.id} className={rc}>
