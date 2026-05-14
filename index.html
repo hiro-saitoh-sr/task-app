@@ -1290,27 +1290,27 @@ function BillingSummaryScreen({cases, masters, payrolls}) {
         <div className="text-center py-20 text-gray-400"><p>該当する案件がありません</p></div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 200px)'}}>
-          <table className="text-sm" style={{tableLayout:'fixed',width:'1020px'}}>
+          <table className="text-sm" style={{tableLayout:'fixed',width:'1060px'}}>
             <colgroup>
               <col style={{width:'50px'}} />
               <col />
-              <col style={{width:'60px'}} />
-              <col style={{width:'130px'}} />
-              <col style={{width:'70px'}} />
-              <col style={{width:'120px'}} />
-              <col style={{width:'70px'}} />
-              <col style={{width:'120px'}} />
+              <col style={{width:'85px'}} />
+              <col style={{width:'165px'}} />
+              <col style={{width:'90px'}} />
+              <col style={{width:'125px'}} />
+              <col style={{width:'90px'}} />
+              <col style={{width:'125px'}} />
             </colgroup>
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-3 py-3 text-right font-semibold text-gray-600">No</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">顧客名</th>
-                <th className="px-3 py-3 text-right font-semibold text-gray-600">件数</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">合計請求金額</th>
-                <th className="px-3 py-3 text-right font-semibold text-gray-600">給与人数</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">給与請求額</th>
-                <th className="px-3 py-3 text-right font-semibold text-gray-600">賞与人数</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600">賞与請求額</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">No</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">顧客名</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">件数</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">合計請求金額</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">給与人数</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">給与請求額</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">賞与人数</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">賞与請求額</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -2002,7 +2002,7 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
   const MONTHS   = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
   return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="modal-box" style={{width:'520px', maxHeight:'90vh', overflowY:'auto'}}>
+      <div className="modal-box" style={{width:'760px', maxHeight:'90vh', overflowY:'auto'}}>
         <h2 className="text-lg font-bold mb-4">{title}</h2>
         <form onSubmit={e=>{e.preventDefault();if(!form.name.trim()){alert('名称は必須です');return;}onSave(form);}}>
           {showNo && (
