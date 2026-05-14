@@ -2091,12 +2091,12 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
               </div>
             </div>
             <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-600 mb-2">給与計算 段階単価（空欄＝デフォルト値）</label>
+              <label className="block text-sm font-semibold text-gray-600 mb-2">給与計算 段階単価</label>
               <div className="grid grid-cols-5 gap-2">
-                {[['〜20人','単価_20以下',1300],['21〜50人','単価_21_50',1100],['51〜100人','単価_51_100',900],['101〜300人','単価_101_300',700],['301人〜','単価_301以上',500]].map(([lbl,key,def])=>(
+                {[['〜20人','単価_20以下'],['21〜50人','単価_21_50'],['51〜100人','単価_51_100'],['101〜300人','単価_101_300'],['301人〜','単価_301以上']].map(([lbl,key])=>(
                   <div key={key}>
                     <label className="block text-xs font-semibold text-gray-500 mb-1">{lbl}</label>
-                    <input type="number" value={form[key]||''} onChange={e=>set(key,e.target.value)} placeholder={String(def)} />
+                    <input type="number" value={form[key]||''} onChange={e=>set(key,e.target.value)} />
                   </div>
                 ))}
               </div>
