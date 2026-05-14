@@ -840,7 +840,8 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">ステータス <span className="text-red-500">*</span></label>
               {(!isHiro&&form.status==='請求済')
-                ? <div className={`status-${form.status} text-xs font-semibold px-2 py-1 rounded-full inline-block`}>{form.status}</div>
+                ? <span className={`status-${form.status} text-xs font-semibold px-2 py-1 rounded-full`}
+                         style={{display:'block',textAlign:'center'}}>{form.status}</span>
                 : <select value={form.status} onChange={e=>set('status',e.target.value)}>
                     {STATUSES.filter(s=>s!=='請求済'||isHiro).map(s=><option key={s}>{s}</option>)}
                   </select>
@@ -1161,13 +1162,16 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
                     }
                   </td>
                   <td className="px-3 py-2.5">
-                    {(isViewOnly||c.cancelled||(c.status==='請求済'&&!isHiro))
+                    {(isViewOnly||c.cancelled)
                       ? <StatusBadge status={c.status} />
-                      : <select value={c.status} onChange={e=>setCases(p=>p.map(x=>x.id===c.id?{...x,status:e.target.value}:x))}
-                          className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer`}
-                          style={{appearance:'none',textAlign:'center',width:'100%'}}>
-                          {STATUSES.filter(s=>s!=='請求済'||isHiro).map(s=><option key={s}>{s}</option>)}
-                        </select>
+                      : (c.status==='請求済'&&!isHiro)
+                        ? <span className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full`}
+                                style={{display:'block',textAlign:'center'}}>{c.status}</span>
+                        : <select value={c.status} onChange={e=>setCases(p=>p.map(x=>x.id===c.id?{...x,status:e.target.value}:x))}
+                            className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer`}
+                            style={{appearance:'none',textAlign:'center',width:'100%'}}>
+                            {STATUSES.filter(s=>s!=='請求済'||isHiro).map(s=><option key={s}>{s}</option>)}
+                          </select>
                     }
                   </td>
                   <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{formatDate(c.receivedDate)}</td>
