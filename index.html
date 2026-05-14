@@ -1954,24 +1954,38 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters}) {
 /* ══════════════════════════════════════════
    MASTER SCREEN
 ══════════════════════════════════════════ */
+function CopyButton({text}) {
+  const [copied, setCopied] = useState(false);
+  const handle = () => {
+    navigator.clipboard.writeText(text).then(()=>{
+      setCopied(true);
+      setTimeout(()=>setCopied(false), 2000);
+    });
+  };
+  return (
+    <button onClick={handle} style={{
+      flexShrink:0, padding:'2px 8px', fontSize:'13px', fontWeight:'600',
+      borderRadius:'4px', border:'1px solid #d1d5db', background: copied?'#d1fae5':'#f9fafb',
+      color: copied?'#065f46':'#374151', cursor:'pointer', whiteSpace:'nowrap', fontFamily:'inherit',
+      transition:'background 0.15s, color 0.15s',
+    }}>
+      {copied ? '✓ コピー済み' : 'コピー'}
+    </button>
+  );
+}
+
 function CustomerDetailModal({item, onClose, onEdit}) {
-  const fmtPrice = (val, def) => val ? `${Number(val).toLocaleString()}円` : `${def.toLocaleString()}円（デフォルト）`;
   const fields = [
-    ['業種',          item.業種],
-    ['代表者名',       item.代表者名],
-    ['代表者メール',   item.代表者メール],
-    ['担当者名',       item.担当者名],
-    ['担当者メール',   item.担当者メール],
-    ['決算月',         item.決算月],
-    ['契約サービス',   (item.契約サービス||[]).join('・')],
-    ['36協定起算日',        item['36協定起算日']],
-    ['その他労使協定の届出', item['その他労使協定の届出']],
-    ['東京SR特別加入',      item['東京SR特別加入']],
-    ['給与単価（〜20人）',    fmtPrice(item['単価_20以下'],  1300)],
-    ['給与単価（21〜50人）',  fmtPrice(item['単価_21_50'],   1100)],
-    ['給与単価（51〜100人）', fmtPrice(item['単価_51_100'],   900)],
-    ['給与単価（101〜300人）',fmtPrice(item['単価_101_300'],  700)],
-    ['給与単価（301人〜）',   fmtPrice(item['単価_301以上'],  500)],
+    {k:'業種',                v:item.業種},
+    {k:'代表者名',             v:item.代表者名},
+    {k:'代表者メール',         v:item.代表者メール,         copy:true},
+    {k:'担当者名',             v:item.担当者名},
+    {k:'担当者メール',         v:item.担当者メール,         copy:true},
+    {k:'決算月',               v:item.決算月},
+    {k:'契約サービス',         v:(item.契約サービス||[]).join('・')},
+    {k:'36協定起算日',         v:item['36協定起算日']},
+    {k:'その他労使協定の届出', v:item['その他労使協定の届出']},
+    {k:'東京SR特別加入',       v:item['東京SR特別加入']},
   ];
   return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -1984,10 +1998,11 @@ function CustomerDetailModal({item, onClose, onEdit}) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </div>
         <div className="divide-y divide-gray-100">
-          {fields.map(([k,v])=>(
-            <div key={k} className="flex gap-3 py-2.5 text-sm">
+          {fields.map(({k,v,copy})=>(
+            <div key={k} className="flex items-center gap-3 py-2.5 text-sm">
               <span className="font-semibold text-gray-500 whitespace-nowrap w-36 shrink-0">{k}</span>
-              <span className="text-gray-800 break-all">{v || <span className="text-gray-300">—</span>}</span>
+              <span className="text-gray-800 break-all flex-1">{v || <span className="text-gray-300">—</span>}</span>
+              {copy && v && <CopyButton text={v} />}
             </div>
           ))}
         </div>
