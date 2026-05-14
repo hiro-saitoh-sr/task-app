@@ -985,6 +985,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
 
   const hasFilter = !!(filter.customerName||filter.assignee||filter.targetMonth||filter.status||filter.procedure||showCancelled);
   const isViewOnly = activeTab !== '全件';
+  const isHiro = currentUser?.email === 'hiro@saitoh-sr.com';
 
   const procedureOptions = useMemo(()=>{
     return masters.procedures.map(p=>p.name).filter(Boolean);
@@ -1118,6 +1119,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
               <col style={{width:'104px'}} />
               <col style={{width:'92px'}} />
               <col style={{width:'92px'}} />
+              {isHiro && <col style={{width:'116px'}} />}
               <col style={{width:'116px'}} />
               {!isViewOnly && <col style={{width:'92px'}} />}
             </colgroup>
@@ -1130,7 +1132,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
                 <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">担当者</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">ステータス</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">受付日</th>
-                <th className="px-3 py-3 text-right font-semibold text-gray-600 bg-gray-50">請求金額</th>
+                {isHiro && <th className="px-3 py-3 text-right font-semibold text-gray-600 bg-gray-50">請求金額</th>}
                 <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">対象年月</th>
                 {!isViewOnly && <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">操作</th>}
               </tr>
@@ -1161,18 +1163,20 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
                       : <select value={c.status} onChange={e=>setCases(p=>p.map(x=>x.id===c.id?{...x,status:e.target.value}:x))}
                           className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer`}
                           style={{appearance:'none',textAlign:'center',width:'100%'}}>
-                          {STATUSES.map(s=><option key={s}>{s}</option>)}
+                          {STATUSES.filter(s=>s!=='請求済'||isHiro).map(s=><option key={s}>{s}</option>)}
                         </select>
                     }
                   </td>
                   <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{formatDate(c.receivedDate)}</td>
-                  <td className="px-3 py-2.5 text-gray-700 text-sm text-right">
-                    {c.billingAmount==='請求なし'
-                      ? <span className="text-gray-400 text-xs">請求なし</span>
-                      : c.billingAmount!==''&&c.billingAmount!=null
-                        ? `¥${Number(c.billingAmount).toLocaleString()}`
-                        : ''}
-                  </td>
+                  {isHiro && (
+                    <td className="px-3 py-2.5 text-gray-700 text-sm text-right">
+                      {c.billingAmount==='請求なし'
+                        ? <span className="text-gray-400 text-xs">請求なし</span>
+                        : c.billingAmount!==''&&c.billingAmount!=null
+                          ? `¥${Number(c.billingAmount).toLocaleString()}`
+                          : ''}
+                    </td>
+                  )}
                   <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{c.targetMonth}</td>
                   {!isViewOnly && (
                     <td className="px-3 py-2.5">
