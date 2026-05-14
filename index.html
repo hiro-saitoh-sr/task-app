@@ -840,8 +840,9 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">ステータス <span className="text-red-500">*</span></label>
               {(!isHiro&&form.status==='請求済')
-                ? <span className={`status-${form.status} text-xs font-semibold px-2 py-1 rounded-full`}
-                         style={{display:'block',textAlign:'center'}}>{form.status}</span>
+                ? <select value={form.status} disabled style={{opacity:1,cursor:'default'}}>
+                    <option value={form.status}>{form.status}</option>
+                  </select>
                 : <select value={form.status} onChange={e=>set('status',e.target.value)}>
                     {STATUSES.filter(s=>s!=='請求済'||isHiro).map(s=><option key={s}>{s}</option>)}
                   </select>
@@ -1116,12 +1117,11 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
           <table className="w-full text-sm border-collapse" style={{tableLayout:'fixed'}}>
             <colgroup>
               <col style={{width:'52px'}} />
-              <col style={{width:'168px'}} />
+              <col style={{width:'200px'}} />
               <col style={{width:'220px'}} />
               <col style={{width:'316px'}} />
               <col style={{width:'88px'}} />
               <col style={{width:'104px'}} />
-              <col style={{width:'92px'}} />
               <col style={{width:'92px'}} />
               {isHiro && <col style={{width:'116px'}} />}
               <col style={{width:'116px'}} />
@@ -1164,13 +1164,12 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
                   <td className="px-3 py-2.5">
                     {(isViewOnly||c.cancelled)
                       ? <StatusBadge status={c.status} />
-                      : (c.status==='請求済'&&!isHiro)
-                        ? <span className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full`}
-                                style={{display:'block',textAlign:'center'}}>{c.status}</span>
-                        : <select value={c.status} onChange={e=>setCases(p=>p.map(x=>x.id===c.id?{...x,status:e.target.value}:x))}
-                            className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer`}
-                            style={{appearance:'none',textAlign:'center',width:'100%'}}>
-                            {STATUSES.filter(s=>s!=='請求済'||isHiro).map(s=><option key={s}>{s}</option>)}
+                      : <select value={c.status}
+                            onChange={!isHiro&&c.status==='請求済' ? undefined : e=>setCases(p=>p.map(x=>x.id===c.id?{...x,status:e.target.value}:x))}
+                            disabled={!isHiro&&c.status==='請求済'}
+                            className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full border-0 ${!isHiro&&c.status==='請求済'?'':'cursor-pointer'}`}
+                            style={{appearance:'none',textAlign:'center',width:'100%',opacity:1}}>
+                            {STATUSES.filter(s=>s!=='請求済'||isHiro||s===c.status).map(s=><option key={s}>{s}</option>)}
                           </select>
                     }
                   </td>
