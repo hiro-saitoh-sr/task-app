@@ -1993,7 +1993,10 @@ function CustomerDetailModal({item, onClose, onEdit}) {
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="text-xs text-gray-400 mb-0.5">No {item.no||'—'}</div>
-            <h2 className="text-lg font-bold text-gray-800">{item.name}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-800">{item.name}</h2>
+              <CopyButton text={`${item.name}　様`} />
+            </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </div>
