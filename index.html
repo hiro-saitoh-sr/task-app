@@ -2542,7 +2542,7 @@ function App() {
 
   const navItems = [
     {id:'案件管理',           label:'案件管理',     icon:'📋'},
-    {id:'請求集計',           label:'請求集計',     icon:'💰'},
+    ...(currentUser?.email==='hiro@saitoh-sr.com' ? [{id:'請求集計', label:'請求集計', icon:'💰'}] : []),
     {id:'月変チェック',       label:'月変チェック', icon:'📝'},
     {id:'給与計算スケジュール',label:'給与計算',    icon:'📅'},
     {id:'マスタ管理',         label:'マスタ管理',   icon:'⚙️'},
