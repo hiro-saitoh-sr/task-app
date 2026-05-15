@@ -1445,7 +1445,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
           <table className="text-sm" style={{tableLayout:'fixed',width:'1230px'}}>
             <colgroup>
               <col style={{width:'50px'}} />
-              <col style={{width:'220px'}} />
+              <col style={{width:'220px', minWidth:'220px'}} />
               <col style={{width:'120px'}} />
               <col style={{width:'120px'}} />
               <col style={{width:'120px'}} />
@@ -1473,7 +1473,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
               {rows.map(r=>(
                 <tr key={r.name} className="hover:bg-gray-50">
                   <td className="px-3 py-3 text-right text-gray-400 text-xs">{r.no}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" style={{minWidth:'220px',whiteSpace:'nowrap'}}>
                     {isConfirmed
                       ? <span style={{fontWeight:'500',color:'#1f2937'}}>{r.name}</span>
                       : <button onClick={()=>setRateModal({name:r.name})}
