@@ -2085,9 +2085,6 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
           <option value="">すべて</option>
           {monthOptions.map(m=><option key={m} value={m}>{m}</option>)}
         </select>
-        {filterMonth && (
-          <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>setFilterMonth('')}>クリア</button>
-        )}
         <label className="flex items-center gap-1.5 cursor-pointer ml-2" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
           <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
             style={{width:'15px',height:'15px',cursor:'pointer'}} />
