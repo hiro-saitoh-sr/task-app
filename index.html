@@ -1645,11 +1645,11 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{
         background:'white', borderRadius:'12px', width:'640px', maxWidth:'95vw',
-        maxHeight:'90vh', display:'flex', flexDirection:'column',
+        maxHeight:'95vh', display:'flex', flexDirection:'column',
         boxShadow:'0 20px 60px rgba(0,0,0,0.35)',
       }}>
-        {/* ①〜⑤ — スクロールしない固定エリア */}
-        <div style={{padding:'28px 32px 0', flexShrink:0}}>
+        {/* コンテンツエリア（①〜⑥）— 画面が小さい場合のみスクロール */}
+        <div style={{flex:'1 1 auto', minHeight:0, overflowY:'auto', padding:'24px 32px 16px'}}>
           <h2 className="text-xl font-bold mb-4">一括登録</h2>
 
           {/* ① 手続き名 */}
@@ -1693,32 +1693,30 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
               <textarea value={memo} onChange={e=>setMemo(e.target.value)} rows={1} placeholder="全顧問先共通のメモ..." style={{resize:'none'}} />
             </div>
           </div>
-        </div>
 
-        {/* ⑥ 顧問先選択 — flex:1 で残り高さを占有、リストのみ内部スクロール */}
-        {showList ? (
-          <div style={{flex:'1 1 0', minHeight:0, padding:'0 32px', display:'flex', flexDirection:'column', overflow:'hidden'}}>
-            <div className="flex items-center gap-2 mb-2" style={{flexShrink:0}}>
-              <span className="text-sm font-semibold text-gray-600 mr-2">⑥ 顧問先を選択：</span>
-              <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(true)}>全て選択</button>
-              <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(false)}>全て解除</button>
-            </div>
-            <div style={{flex:'1 1 0', minHeight:0, overflowY:'auto', border:'1px solid #e5e7eb', borderRadius:'8px', marginBottom:'4px'}}>
-              {availableCustomers.length === 0
-                ? <p className="text-center py-8 text-gray-400 text-sm">登録可能な顧問先がありません（全て登録済み）</p>
-                : availableCustomers.map(c=>(
-                    <label key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0">
-                      <input type="checkbox" checked={!!selected[c.id]} onChange={e=>setSelected(prev=>({...prev,[c.id]:e.target.checked}))} style={{width:'16px',height:'16px',cursor:'pointer',flexShrink:0}} />
-                      <span className="text-sm">{c.no ? `${c.no}. ` : ''}{c.name}</span>
-                    </label>
-                  ))
-              }
-            </div>
-            <p className="text-xs text-gray-400" style={{flexShrink:0}}>※{targetYear}年度の「{procedure}」ですでに登録済みの顧問先は除外しています</p>
-          </div>
-        ) : (
-          <div style={{flex:'1 1 0'}} />
-        )}
+          {/* ⑥ 顧問先選択 — リストのみ内部スクロール */}
+          {showList && (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-semibold text-gray-600 mr-2">⑥ 顧問先を選択：</span>
+                <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(true)}>全て選択</button>
+                <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(false)}>全て解除</button>
+              </div>
+              <div style={{maxHeight:'220px', overflowY:'auto', border:'1px solid #e5e7eb', borderRadius:'8px', marginBottom:'4px'}}>
+                {availableCustomers.length === 0
+                  ? <p className="text-center py-8 text-gray-400 text-sm">登録可能な顧問先がありません（全て登録済み）</p>
+                  : availableCustomers.map(c=>(
+                      <label key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0">
+                        <input type="checkbox" checked={!!selected[c.id]} onChange={e=>setSelected(prev=>({...prev,[c.id]:e.target.checked}))} style={{width:'16px',height:'16px',cursor:'pointer',flexShrink:0}} />
+                        <span className="text-sm">{c.no ? `${c.no}. ` : ''}{c.name}</span>
+                      </label>
+                    ))
+                }
+              </div>
+              <p className="text-xs text-gray-400">※{targetYear}年度の「{procedure}」ですでに登録済みの顧問先は除外しています</p>
+            </>
+          )}
+        </div>
 
         {/* ⑦ フッター — 常に下部に固定 */}
         <div style={{padding:'12px 32px 20px', flexShrink:0, borderTop:'1px solid #f3f4f6'}}>
