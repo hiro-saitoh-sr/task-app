@@ -1595,17 +1595,24 @@ function MonthlyCheckModal({item, onSave, onClose, masters}) {
 const ANNUAL_PROCEDURES = ['算定基礎届', '年度更新'];
 
 function AnnualBulkModal({cases, masters, onRegister, onClose}) {
+  const currentYear = new Date().getFullYear();
   const [procedure, setProcedure] = useState('');
+  const [targetYear, setTargetYear] = useState(String(currentYear));
   const [selected, setSelected] = useState({});
 
   const registeredCustomers = useMemo(() => {
-    if (!procedure) return new Set();
-    return new Set(cases.filter(c => !c.cancelled && c.procedure === procedure).map(c => c.customerName));
-  }, [cases, procedure]);
+    if (!procedure || !targetYear) return new Set();
+    return new Set(
+      cases.filter(c => !c.cancelled && c.procedure === procedure && c.annualTargetYear === targetYear)
+           .map(c => c.customerName)
+    );
+  }, [cases, procedure, targetYear]);
 
   const availableCustomers = useMemo(() => {
     return masters.customers.filter(c => c.id !== 1 && !c.terminated && !registeredCustomers.has(c.name));
   }, [masters.customers, registeredCustomers]);
+
+  const showList = procedure && targetYear;
 
   const toggleAll = (v) => {
     const next = {};
@@ -1615,6 +1622,7 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
 
   const handleRegister = () => {
     if (!procedure) { alert('手続き名を選択してください'); return; }
+    if (!targetYear || isNaN(Number(targetYear))) { alert('対象年度を入力してください（例：2026）'); return; }
     const selectedCustomers = availableCustomers.filter(c => selected[c.id]);
     if (selectedCustomers.length === 0) { alert('顧問先を選択してください'); return; }
     const today = new Date();
@@ -1623,30 +1631,42 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
       no: c.no, customerName: c.name, procedure: procedure,
       memo: '', assignee: '', status: '依頼受付',
       receivedDate: todayStr, targetMonth: '', cancelled: false,
-      billingAmount: '', annualTargetCount: '',
+      billingAmount: '', annualTargetCount: '', annualTargetYear: targetYear,
     }));
     onRegister(newCases);
   };
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-box" style={{width:'600px'}}>
+      <div className="modal-box" style={{width:'620px'}}>
         <h2 className="text-xl font-bold mb-5">一括登録</h2>
-        <div className="mb-5">
-          <label className="block text-sm font-semibold text-gray-600 mb-1">手続き名 <span className="text-red-500">*</span></label>
+
+        {/* ① 手続き名 */}
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-gray-600 mb-1">① 手続き名 <span className="text-red-500">*</span></label>
           <select value={procedure} onChange={e=>{setProcedure(e.target.value);setSelected({});}}>
             <option value="">選択してください</option>
             {ANNUAL_PROCEDURES.map(p=><option key={p} value={p}>{p}</option>)}
           </select>
         </div>
-        {procedure && (
+
+        {/* ② 対象年度 */}
+        <div className="mb-5">
+          <label className="block text-sm font-semibold text-gray-600 mb-1">② 対象年度（手続きの対象となる年度） <span className="text-red-500">*</span></label>
+          <input type="number" value={targetYear} onChange={e=>{setTargetYear(e.target.value);setSelected({});}}
+            placeholder="例：2026" style={{width:'160px'}} />
+          <p className="text-xs text-gray-400 mt-1">※作業する年月（対象年月）とは異なります。算定・年更の対象となる年度を入力してください。</p>
+        </div>
+
+        {/* ③ 顧問先選択 */}
+        {showList && (
           <>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-semibold text-gray-600 mr-2">顧問先を選択：</span>
+              <span className="text-sm font-semibold text-gray-600 mr-2">③ 顧問先を選択：</span>
               <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(true)}>全て選択</button>
               <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(false)}>全て解除</button>
             </div>
-            <div style={{maxHeight:'360px',overflowY:'auto',border:'1px solid #e5e7eb',borderRadius:'8px',marginBottom:'4px'}}>
+            <div style={{maxHeight:'320px',overflowY:'auto',border:'1px solid #e5e7eb',borderRadius:'8px',marginBottom:'4px'}}>
               {availableCustomers.length === 0
                 ? <p className="text-center py-8 text-gray-400 text-sm">登録可能な顧問先がありません（全て登録済み）</p>
                 : availableCustomers.map(c=>(
@@ -1657,9 +1677,10 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
                   ))
               }
             </div>
-            <p className="text-xs text-gray-400 mb-2">※すでに「{procedure}」で登録済みの顧問先は除外しています</p>
+            <p className="text-xs text-gray-400 mb-2">※{targetYear}年度の「{procedure}」ですでに登録済みの顧問先は除外しています</p>
           </>
         )}
+
         <div className="flex gap-3 justify-end mt-4">
           <button className="btn btn-secondary" onClick={onClose}>キャンセル</button>
           <button className="btn btn-primary" onClick={handleRegister}>登録実行</button>
@@ -1675,31 +1696,57 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
   const [editingCountId, setEditingCountId] = useState(null);
   const [editingCountValue, setEditingCountValue] = useState('');
   const [cancelCase, setCancelCase] = useState(null);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
   const [showCancelled, setShowCancelled] = useState(false);
+
+  /* ── フィルター状態 ── */
+  const [filterProcedure, setFilterProcedure] = useState('');
+  const [filterYear,      setFilterYear]      = useState('');
+  const [filterTargetMonth, setFilterTargetMonth] = useState('');
+  const [filterCustomerName, setFilterCustomerName] = useState('');
+
+  /* ── 絞り込み選択肢（動的生成） ── */
+  const annualCases = useMemo(() =>
+    cases.filter(c => ANNUAL_PROCEDURES.includes(c.procedure)),
+    [cases]);
+
+  const yearOptions = useMemo(() => {
+    const s = new Set(annualCases.map(c => c.annualTargetYear).filter(Boolean));
+    return [...s].sort((a,b) => Number(b)-Number(a));
+  }, [annualCases]);
+
+  const targetMonthOptions = useMemo(() => {
+    const s = new Set(annualCases.map(c => c.targetMonth).filter(Boolean));
+    return [...s].sort((a,b) => parseYM(b)-parseYM(a));
+  }, [annualCases]);
+
+  const customerOptions = useMemo(() => {
+    const s = new Set(annualCases.map(c => c.customerName).filter(Boolean));
+    return [...s].sort();
+  }, [annualCases]);
+
+  const hasFilter = !!(filterProcedure||filterYear||filterTargetMonth||filterCustomerName);
+
+  const clearFilter = () => {
+    setFilterProcedure(''); setFilterYear('');
+    setFilterTargetMonth(''); setFilterCustomerName('');
+  };
 
   const filtered = useMemo(() => {
     let arr = showCancelled
       ? cases.filter(c => c.cancelled && ANNUAL_PROCEDURES.includes(c.procedure))
       : cases.filter(c => !c.cancelled && ANNUAL_PROCEDURES.includes(c.procedure));
-    if (filterStatus) arr = arr.filter(c => c.status === filterStatus);
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      arr = arr.filter(c =>
-        (c.customerName||'').toLowerCase().includes(q) ||
-        (c.procedure||'').toLowerCase().includes(q) ||
-        (c.memo||'').toLowerCase().includes(q)
-      );
-    }
+    if (filterProcedure)    arr = arr.filter(c => c.procedure === filterProcedure);
+    if (filterYear)         arr = arr.filter(c => c.annualTargetYear === filterYear);
+    if (filterTargetMonth)  arr = arr.filter(c => c.targetMonth === filterTargetMonth);
+    if (filterCustomerName) arr = arr.filter(c => c.customerName === filterCustomerName);
+    /* 対象年月の新しい順（修正4） */
     arr = [...arr].sort((a,b) => {
-      const da = parseDate(a.receivedDate), db = parseDate(b.receivedDate);
-      const ta = da?da.getTime():0, tb = db?db.getTime():0;
-      if (tb !== ta) return tb - ta;
+      const ym = parseYM(b.targetMonth) - parseYM(a.targetMonth);
+      if (ym !== 0) return ym;
       return (b.id||0)-(a.id||0);
     });
     return arr;
-  }, [cases, filterStatus, search, showCancelled]);
+  }, [cases, filterProcedure, filterYear, filterTargetMonth, filterCustomerName, showCancelled]);
 
   const calcBilling = (count) => {
     const n = Number(count);
@@ -1727,55 +1774,71 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
     setShowBulkModal(false);
   };
 
+  const selStyle = {width:'auto',padding:'7px 10px',fontSize:'15px',fontWeight:'500'};
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h2 className="text-lg font-bold text-gray-800">年更・算定案件管理</h2>
-        <button className="btn btn-primary" onClick={()=>setShowBulkModal(true)}>一括登録</button>
-      </div>
-      <div className="flex items-center gap-3 mb-3 flex-wrap">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 flex items-center gap-3 flex-1" style={{minWidth:'200px'}}>
-          <span className="text-gray-400">🔍</span>
-          <input type="text" value={search} onChange={e=>setSearch(e.target.value)}
-            placeholder="顧客名・手続き・メモで検索..."
-            style={{border:'none',boxShadow:'none',padding:'0'}}
-            className="flex-1 border-none outline-none text-sm bg-transparent" />
-          {search && <button onClick={()=>setSearch('')} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>}
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 cursor-pointer" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
+            <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)} style={{width:'15px',height:'15px',cursor:'pointer'}} />
+            取消済みを表示
+          </label>
+          <button className="btn btn-primary" onClick={()=>setShowBulkModal(true)}>一括登録</button>
         </div>
-        <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}
-          style={{width:'auto',minWidth:'120px',padding:'8px 12px',fontSize:'17px',fontWeight:'500'}}>
-          <option value="">ステータス：全て</option>
-          {STATUSES.map(s=><option key={s}>{s}</option>)}
-        </select>
-        <label className="flex items-center gap-1.5 cursor-pointer" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
-          <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)} style={{width:'15px',height:'15px',cursor:'pointer'}} />
-          取消済みを表示
-        </label>
-        <span className="text-sm text-gray-400">{filtered.length}件</span>
       </div>
+
+      {/* ── 絞り込みフィルター ── */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 mb-3 flex items-center flex-wrap gap-2">
+        <span className="text-xs font-semibold text-gray-500 whitespace-nowrap shrink-0">絞り込み：</span>
+        <select value={filterProcedure} onChange={e=>setFilterProcedure(e.target.value)} style={selStyle}>
+          <option value="">手続き名：すべて</option>
+          {ANNUAL_PROCEDURES.map(p=><option key={p} value={p}>{p}</option>)}
+        </select>
+        <select value={filterYear} onChange={e=>setFilterYear(e.target.value)} style={selStyle}>
+          <option value="">対象年度：すべて</option>
+          {yearOptions.map(y=><option key={y} value={y}>{y}年度</option>)}
+        </select>
+        <select value={filterTargetMonth} onChange={e=>setFilterTargetMonth(e.target.value)} style={selStyle}>
+          <option value="">対象年月：すべて</option>
+          {targetMonthOptions.map(m=><option key={m} value={m}>{m}</option>)}
+        </select>
+        <select value={filterCustomerName} onChange={e=>setFilterCustomerName(e.target.value)} style={{...selStyle,minWidth:'160px'}}>
+          <option value="">顧問先名：すべて</option>
+          {customerOptions.map(n=><option key={n} value={n}>{n}</option>)}
+        </select>
+        {hasFilter && (
+          <button className="btn btn-secondary text-xs py-1 px-3" onClick={clearFilter}>クリア</button>
+        )}
+        <span className="text-sm text-gray-400 ml-auto">{filtered.length}件</span>
+      </div>
+
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm table-wrap">
         {filtered.length === 0
           ? <div className="text-center py-16 text-gray-400"><div className="text-4xl mb-3">📊</div><p>該当する案件がありません</p></div>
           : (
             <table className="w-full text-sm border-collapse" style={{tableLayout:'fixed'}}>
               <colgroup>
-                <col style={{width:'52px'}} />
-                <col style={{width:'190px'}} />
-                <col style={{width:'110px'}} />
-                <col style={{width:'240px'}} />
-                <col style={{width:'80px'}} />
-                <col style={{width:'90px'}} />
-                <col style={{width:'80px'}} />
-                <col style={{width:'80px'}} />
-                {isHiro && <col style={{width:'100px'}} />}
-                <col style={{width:'96px'}} />
-                <col style={{width:'60px'}} />
+                <col style={{width:'44px'}} />
+                <col style={{width:'180px'}} />
+                <col style={{width:'108px'}} />
+                <col style={{width:'72px'}} />
+                <col style={{width:'200px'}} />
+                <col style={{width:'76px'}} />
+                <col style={{width:'88px'}} />
+                <col style={{width:'76px'}} />
+                <col style={{width:'76px'}} />
+                {isHiro && <col style={{width:'92px'}} />}
+                <col style={{width:'88px'}} />
+                <col style={{width:'56px'}} />
               </colgroup>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">No</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">顧客名</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">手続き名</th>
+                  <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">対象年度</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">メモ</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">担当者</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">ステータス</th>
@@ -1797,6 +1860,7 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
                         {c.customerName}
                       </td>
                       <td className="px-3 py-2.5 text-gray-700 text-xs">{c.procedure}</td>
+                      <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.annualTargetYear ? `${c.annualTargetYear}年度` : '—'}</td>
                       <td className="px-3 py-2.5 text-gray-500 text-xs" style={{wordBreak:'break-word',verticalAlign:'middle'}}>{renderMemo(c.memo)}</td>
                       <td className="px-3 py-2.5">
                         {c.cancelled
@@ -1958,9 +2022,22 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
   const [filterMonth, setFilterMonth]       = useState('');
   const [showCancelled, setShowCancelled]   = useState(false);
   const [showCopyModal, setShowCopyModal]   = useState(false);
+
+  /* 登録済みデータから対象年月の選択肢を動的生成 */
+  const monthOptions = useMemo(() => {
+    const s = new Set(checks.map(c=>c.targetMonth).filter(Boolean));
+    return [...s].sort((a,b)=>parseYM(b)-parseYM(a));
+  }, [checks]);
+
   const rows = useMemo(()=>{
     let arr = showCancelled ? checks.filter(c=>c.cancelled) : checks.filter(c=>!c.cancelled);
     if(filterMonth) arr = arr.filter(c=>c.targetMonth===filterMonth);
+    /* 対象年月の新しい順（修正4） */
+    arr = [...arr].sort((a,b)=>{
+      const ym = parseYM(b.targetMonth)-parseYM(a.targetMonth);
+      if(ym!==0) return ym;
+      return (b.id||0)-(a.id||0);
+    });
     return arr;
   },[checks,filterMonth,showCancelled]);
 
@@ -2003,9 +2080,14 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
       </div>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <label className="text-sm font-semibold text-gray-600 whitespace-nowrap">月変対象年月：</label>
-        <div style={{width:'180px'}}>
-          <YearMonthPicker value={filterMonth} onChange={v=>setFilterMonth(v)} placeholder="すべて" placeholderDark />
-        </div>
+        <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)}
+          style={{width:'auto',minWidth:'150px',padding:'7px 10px',fontSize:'17px',fontWeight:'500'}}>
+          <option value="">すべて</option>
+          {monthOptions.map(m=><option key={m} value={m}>{m}</option>)}
+        </select>
+        {filterMonth && (
+          <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>setFilterMonth('')}>クリア</button>
+        )}
         <label className="flex items-center gap-1.5 cursor-pointer ml-2" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
           <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
             style={{width:'15px',height:'15px',cursor:'pointer'}} />
