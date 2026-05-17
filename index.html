@@ -1595,11 +1595,12 @@ function MonthlyCheckModal({item, onSave, onClose, masters}) {
 const ANNUAL_PROCEDURES = ['算定基礎届', '年度更新'];
 
 function AnnualBulkModal({cases, masters, onRegister, onClose}) {
-  const currentYear = new Date().getFullYear();
-  const [procedure, setProcedure] = useState('');
-  const [targetYear, setTargetYear] = useState(currentYear);
+  const [procedure,   setProcedure]   = useState('');
+  const [targetYear,  setTargetYear]  = useState(null);   /* 修正1: 初期値をnullに */
   const [targetMonth, setTargetMonth] = useState('');
-  const [selected, setSelected] = useState({});
+  const [assignee,    setAssignee]    = useState('');     /* 修正3: 担当者 */
+  const [memo,        setMemo]        = useState('');     /* 修正3: メモ */
+  const [selected,    setSelected]    = useState({});
 
   const registeredCustomers = useMemo(() => {
     if (!procedure || !targetYear) return new Set();
@@ -1609,8 +1610,9 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
     );
   }, [cases, procedure, targetYear]);
 
+  /* 修正2: id:1（スポット）を除外しない */
   const availableCustomers = useMemo(() => {
-    return masters.customers.filter(c => c.id !== 1 && !c.terminated && !registeredCustomers.has(c.name));
+    return masters.customers.filter(c => !c.terminated && !registeredCustomers.has(c.name));
   }, [masters.customers, registeredCustomers]);
 
   const showList = !!(procedure && targetYear && targetMonth);
@@ -1622,16 +1624,16 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
   };
 
   const handleRegister = () => {
-    if (!procedure)    { alert('① 手続き名を選択してください'); return; }
-    if (!targetYear)   { alert('② 対象年度を選択してください'); return; }
-    if (!targetMonth)  { alert('③ 対象年月を選択してください'); return; }
+    if (!procedure)   { alert('① 手続き名を選択してください'); return; }
+    if (!targetYear)  { alert('② 対象年度を選択してください'); return; }
+    if (!targetMonth) { alert('③ 対象年月を選択してください'); return; }
     const selectedCustomers = availableCustomers.filter(c => selected[c.id]);
-    if (selectedCustomers.length === 0) { alert('④ 顧問先を選択してください'); return; }
+    if (selectedCustomers.length === 0) { alert('⑥ 顧問先を選択してください'); return; }
     const today = new Date();
     const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
     const newCases = selectedCustomers.map(c => ({
       no: c.no, customerName: c.name, procedure: procedure,
-      memo: '', assignee: '', status: '依頼受付',
+      memo: memo, assignee: assignee, status: '依頼受付',
       receivedDate: todayStr, targetMonth: targetMonth, cancelled: false,
       billingAmount: '', annualTargetCount: '', annualTargetYear: String(targetYear),
     }));
@@ -1656,7 +1658,8 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
         <div className="mb-5">
           <label className="block text-sm font-semibold text-gray-600 mb-1">② 対象年度（手続きの対象となる年度） <span className="text-red-500">*</span></label>
           <div style={{width:'200px'}}>
-            <YearMonthPicker value={targetYear} onChange={v=>{setTargetYear(v);setSelected({});}} yearOnly />
+            {/* 修正1: placeholder="年度を選択" でグレー表示 */}
+            <YearMonthPicker value={targetYear} onChange={v=>{setTargetYear(v);setSelected({});}} yearOnly placeholder="年度を選択" />
           </div>
           <p className="text-xs text-gray-400 mt-1">※作業する年月（対象年月）とは異なります。算定・年更の対象となる年度を選択してください。</p>
         </div>
@@ -1670,15 +1673,30 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
           <p className="text-xs text-gray-400 mt-1">※対象年度とは異なります。手続きを実際に行う年月（例：2026年6月）を選択してください。</p>
         </div>
 
-        {/* ④ 顧問先選択 */}
+        {/* ④ 担当者 */}
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-gray-600 mb-1">④ 担当者</label>
+          <select value={assignee} onChange={e=>setAssignee(e.target.value)} style={{width:'200px'}}>
+            <option value="">選択してください</option>
+            {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+          </select>
+        </div>
+
+        {/* ⑤ メモ */}
+        <div className="mb-5">
+          <label className="block text-sm font-semibold text-gray-600 mb-1">⑤ メモ（任意）</label>
+          <textarea value={memo} onChange={e=>setMemo(e.target.value)} rows={2} placeholder="全顧問先共通のメモを入力..." />
+        </div>
+
+        {/* ⑥ 顧問先選択 */}
         {showList && (
           <>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-semibold text-gray-600 mr-2">④ 顧問先を選択：</span>
+              <span className="text-sm font-semibold text-gray-600 mr-2">⑥ 顧問先を選択：</span>
               <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(true)}>全て選択</button>
               <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(false)}>全て解除</button>
             </div>
-            <div style={{maxHeight:'280px',overflowY:'auto',border:'1px solid #e5e7eb',borderRadius:'8px',marginBottom:'4px'}}>
+            <div style={{maxHeight:'260px',overflowY:'auto',border:'1px solid #e5e7eb',borderRadius:'8px',marginBottom:'4px'}}>
               {availableCustomers.length === 0
                 ? <p className="text-center py-8 text-gray-400 text-sm">登録可能な顧問先がありません（全て登録済み）</p>
                 : availableCustomers.map(c=>(
@@ -1695,7 +1713,7 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
 
         <div className="flex gap-3 justify-end mt-4">
           <button className="btn btn-secondary" onClick={onClose}>キャンセル</button>
-          <button className="btn btn-primary" onClick={handleRegister}>登録実行</button>
+          <button className="btn btn-primary" onClick={handleRegister}>⑦ 登録実行</button>
         </div>
       </div>
     </div>
