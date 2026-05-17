@@ -946,7 +946,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
   const [cancelCase, setCancelCase] = useState(null);
   const [showCancelled, setShowCancelled] = useState(false);
   const tabCounts = useMemo(()=>{
-    const active = cases.filter(c=>!c.cancelled);
+    const active = cases.filter(c=>!c.cancelled&&!c.isAnnualOnly);
     const cnt={'全件':active.length};
     STATUSES.forEach(s=>{ cnt[s]=active.filter(x=>x.status===s).length; });
     return cnt;
@@ -954,7 +954,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
 
   const alertCounts = useMemo(()=>{
     let danger=0, warning=0;
-    cases.filter(c=>!c.cancelled).forEach(c=>{
+    cases.filter(c=>!c.cancelled&&!c.isAnnualOnly).forEach(c=>{
       if(c.status!=='依頼受付') return;
       const d=daysSince(c.receivedDate); if(d===null) return;
       if(d>=30) danger++; else if(d>=14) warning++;
@@ -963,7 +963,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
   },[cases]);
 
   const filtered = useMemo(()=>{
-    let arr = showCancelled ? cases.filter(c=>c.cancelled) : cases.filter(c=>!c.cancelled);
+    let arr = showCancelled ? cases.filter(c=>c.cancelled&&!c.isAnnualOnly) : cases.filter(c=>!c.cancelled&&!c.isAnnualOnly);
     const st = filter.status || (activeTab!=='全件' ? activeTab : '');
     if(st) arr=arr.filter(c=>c.status===st);
     if(filter.customerName) arr=arr.filter(c=>c.customerName===filter.customerName);
@@ -1636,6 +1636,7 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
       memo: memo, assignee: assignee, status: '依頼受付',
       receivedDate: todayStr, targetMonth: targetMonth, cancelled: false,
       billingAmount: '', annualTargetCount: '', annualTargetYear: String(targetYear),
+      isAnnualOnly: true,
     }));
     onRegister(newCases);
   };
@@ -2129,7 +2130,6 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
         <h2 className="text-lg font-bold text-gray-800">月額変更届チェック管理</h2>
         <div className="flex gap-2">
           <button className="btn btn-secondary" onClick={()=>setShowCopyModal(true)}>案件管理からコピー</button>
-          <button className="btn btn-primary" onClick={()=>{setEditItem(null);setShowModal(true);}}>＋ 新規追加</button>
         </div>
       </div>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
