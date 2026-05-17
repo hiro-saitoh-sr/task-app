@@ -1597,13 +1597,14 @@ const ANNUAL_PROCEDURES = ['算定基礎届', '年度更新'];
 function AnnualBulkModal({cases, masters, onRegister, onClose}) {
   const currentYear = new Date().getFullYear();
   const [procedure, setProcedure] = useState('');
-  const [targetYear, setTargetYear] = useState(String(currentYear));
+  const [targetYear, setTargetYear] = useState(currentYear);
+  const [targetMonth, setTargetMonth] = useState('');
   const [selected, setSelected] = useState({});
 
   const registeredCustomers = useMemo(() => {
     if (!procedure || !targetYear) return new Set();
     return new Set(
-      cases.filter(c => !c.cancelled && c.procedure === procedure && c.annualTargetYear === targetYear)
+      cases.filter(c => !c.cancelled && c.procedure === procedure && c.annualTargetYear === String(targetYear))
            .map(c => c.customerName)
     );
   }, [cases, procedure, targetYear]);
@@ -1612,7 +1613,7 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
     return masters.customers.filter(c => c.id !== 1 && !c.terminated && !registeredCustomers.has(c.name));
   }, [masters.customers, registeredCustomers]);
 
-  const showList = procedure && targetYear;
+  const showList = !!(procedure && targetYear && targetMonth);
 
   const toggleAll = (v) => {
     const next = {};
@@ -1621,28 +1622,29 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
   };
 
   const handleRegister = () => {
-    if (!procedure) { alert('手続き名を選択してください'); return; }
-    if (!targetYear || isNaN(Number(targetYear))) { alert('対象年度を入力してください（例：2026）'); return; }
+    if (!procedure)    { alert('① 手続き名を選択してください'); return; }
+    if (!targetYear)   { alert('② 対象年度を選択してください'); return; }
+    if (!targetMonth)  { alert('③ 対象年月を選択してください'); return; }
     const selectedCustomers = availableCustomers.filter(c => selected[c.id]);
-    if (selectedCustomers.length === 0) { alert('顧問先を選択してください'); return; }
+    if (selectedCustomers.length === 0) { alert('④ 顧問先を選択してください'); return; }
     const today = new Date();
     const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
     const newCases = selectedCustomers.map(c => ({
       no: c.no, customerName: c.name, procedure: procedure,
       memo: '', assignee: '', status: '依頼受付',
-      receivedDate: todayStr, targetMonth: '', cancelled: false,
-      billingAmount: '', annualTargetCount: '', annualTargetYear: targetYear,
+      receivedDate: todayStr, targetMonth: targetMonth, cancelled: false,
+      billingAmount: '', annualTargetCount: '', annualTargetYear: String(targetYear),
     }));
     onRegister(newCases);
   };
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-box" style={{width:'620px'}}>
+      <div className="modal-box" style={{width:'640px'}}>
         <h2 className="text-xl font-bold mb-5">一括登録</h2>
 
         {/* ① 手続き名 */}
-        <div className="mb-4">
+        <div className="mb-5">
           <label className="block text-sm font-semibold text-gray-600 mb-1">① 手続き名 <span className="text-red-500">*</span></label>
           <select value={procedure} onChange={e=>{setProcedure(e.target.value);setSelected({});}}>
             <option value="">選択してください</option>
@@ -1653,33 +1655,30 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
         {/* ② 対象年度 */}
         <div className="mb-5">
           <label className="block text-sm font-semibold text-gray-600 mb-1">② 対象年度（手続きの対象となる年度） <span className="text-red-500">*</span></label>
-          <div className="flex gap-2 flex-wrap mt-1">
-            {Array.from({length:7}, (_,i) => String(currentYear - 3 + i)).map(y => (
-              <button key={y} type="button"
-                onClick={()=>{setTargetYear(y);setSelected({});}}
-                style={{
-                  padding:'8px 18px', borderRadius:'6px', fontSize:'17px', fontWeight:'700',
-                  border: targetYear===y ? '2px solid #2563eb' : '2px solid #e5e7eb',
-                  background: targetYear===y ? '#2563eb' : 'white',
-                  color: targetYear===y ? 'white' : '#374151',
-                  cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s',
-                }}>
-                {y}
-              </button>
-            ))}
+          <div style={{width:'200px'}}>
+            <YearMonthPicker value={targetYear} onChange={v=>{setTargetYear(v);setSelected({});}} yearOnly />
           </div>
-          <p className="text-xs text-gray-400 mt-2">※作業する年月（対象年月）とは異なります。算定・年更の対象となる年度を選択してください。</p>
+          <p className="text-xs text-gray-400 mt-1">※作業する年月（対象年月）とは異なります。算定・年更の対象となる年度を選択してください。</p>
         </div>
 
-        {/* ③ 顧問先選択 */}
+        {/* ③ 対象年月 */}
+        <div className="mb-5">
+          <label className="block text-sm font-semibold text-gray-600 mb-1">③ 対象年月（実際に作業する年月） <span className="text-red-500">*</span></label>
+          <div style={{width:'200px'}}>
+            <YearMonthPicker value={targetMonth} onChange={v=>{setTargetMonth(v);setSelected({});}} placeholder="年月を選択" />
+          </div>
+          <p className="text-xs text-gray-400 mt-1">※対象年度とは異なります。手続きを実際に行う年月（例：2026年6月）を選択してください。</p>
+        </div>
+
+        {/* ④ 顧問先選択 */}
         {showList && (
           <>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-semibold text-gray-600 mr-2">③ 顧問先を選択：</span>
+              <span className="text-sm font-semibold text-gray-600 mr-2">④ 顧問先を選択：</span>
               <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(true)}>全て選択</button>
               <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(false)}>全て解除</button>
             </div>
-            <div style={{maxHeight:'320px',overflowY:'auto',border:'1px solid #e5e7eb',borderRadius:'8px',marginBottom:'4px'}}>
+            <div style={{maxHeight:'280px',overflowY:'auto',border:'1px solid #e5e7eb',borderRadius:'8px',marginBottom:'4px'}}>
               {availableCustomers.length === 0
                 ? <p className="text-center py-8 text-gray-400 text-sm">登録可能な顧問先がありません（全て登録済み）</p>
                 : availableCustomers.map(c=>(
