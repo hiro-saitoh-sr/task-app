@@ -1643,61 +1643,67 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-box" style={{width:'640px'}}>
-        <h2 className="text-xl font-bold mb-5">一括登録</h2>
+      <div style={{
+        background:'white', borderRadius:'12px', width:'640px', maxWidth:'95vw',
+        maxHeight:'90vh', display:'flex', flexDirection:'column',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.35)',
+      }}>
+        {/* ①〜⑤ — スクロールしない固定エリア */}
+        <div style={{padding:'28px 32px 0', flexShrink:0}}>
+          <h2 className="text-xl font-bold mb-4">一括登録</h2>
 
-        {/* ① 手続き名 */}
-        <div className="mb-5">
-          <label className="block text-sm font-semibold text-gray-600 mb-1">① 手続き名 <span className="text-red-500">*</span></label>
-          <select value={procedure} onChange={e=>{setProcedure(e.target.value);setSelected({});}}>
-            <option value="">選択してください</option>
-            {ANNUAL_PROCEDURES.map(p=><option key={p} value={p}>{p}</option>)}
-          </select>
-        </div>
-
-        {/* ② 対象年度 */}
-        <div className="mb-5">
-          <label className="block text-sm font-semibold text-gray-600 mb-1">② 対象年度（手続きの対象となる年度） <span className="text-red-500">*</span></label>
-          <div style={{width:'200px'}}>
-            {/* 修正1: placeholder="年度を選択" でグレー表示 */}
-            <YearMonthPicker value={targetYear} onChange={v=>{setTargetYear(v);setSelected({});}} yearOnly placeholder="年度を選択" />
+          {/* ① 手続き名 */}
+          <div className="mb-3">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">① 手続き名 <span className="text-red-500">*</span></label>
+            <select value={procedure} onChange={e=>{setProcedure(e.target.value);setSelected({});}}>
+              <option value="">選択してください</option>
+              {ANNUAL_PROCEDURES.map(p=><option key={p} value={p}>{p}</option>)}
+            </select>
           </div>
-          <p className="text-xs text-gray-400 mt-1">※作業する年月（対象年月）とは異なります。算定・年更の対象となる年度を選択してください。</p>
-        </div>
 
-        {/* ③ 対象年月 */}
-        <div className="mb-5">
-          <label className="block text-sm font-semibold text-gray-600 mb-1">③ 対象年月（実際に作業する年月） <span className="text-red-500">*</span></label>
-          <div style={{width:'200px'}}>
-            <YearMonthPicker value={targetMonth} onChange={v=>{setTargetMonth(v);setSelected({});}} placeholder="年月を選択" />
+          {/* ② 対象年度 */}
+          <div className="mb-3">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">② 対象年度（手続きの対象となる年度） <span className="text-red-500">*</span></label>
+            <div style={{width:'200px'}}>
+              <YearMonthPicker value={targetYear} onChange={v=>{setTargetYear(v);setSelected({});}} yearOnly placeholder="年度を選択" />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">※算定・年更の対象となる年度を選択してください。</p>
           </div>
-          <p className="text-xs text-gray-400 mt-1">※対象年度とは異なります。手続きを実際に行う年月（例：2026年6月）を選択してください。</p>
+
+          {/* ③ 対象年月 */}
+          <div className="mb-3">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">③ 対象年月（実際に作業する年月） <span className="text-red-500">*</span></label>
+            <div style={{width:'200px'}}>
+              <YearMonthPicker value={targetMonth} onChange={v=>{setTargetMonth(v);setSelected({});}} placeholder="年月を選択" />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">※手続きを実際に行う年月（例：2026年6月）を選択してください。</p>
+          </div>
+
+          {/* ④⑤ 担当者・メモ */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">④ 担当者</label>
+              <select value={assignee} onChange={e=>setAssignee(e.target.value)}>
+                <option value="">選択してください</option>
+                {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">⑤ メモ（任意）</label>
+              <textarea value={memo} onChange={e=>setMemo(e.target.value)} rows={1} placeholder="全顧問先共通のメモ..." style={{resize:'none'}} />
+            </div>
+          </div>
         </div>
 
-        {/* ④ 担当者 */}
-        <div className="mb-4">
-          <label className="block text-sm font-semibold text-gray-600 mb-1">④ 担当者</label>
-          <select value={assignee} onChange={e=>setAssignee(e.target.value)} style={{width:'200px'}}>
-            <option value="">選択してください</option>
-            {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
-          </select>
-        </div>
-
-        {/* ⑤ メモ */}
-        <div className="mb-5">
-          <label className="block text-sm font-semibold text-gray-600 mb-1">⑤ メモ（任意）</label>
-          <textarea value={memo} onChange={e=>setMemo(e.target.value)} rows={2} placeholder="全顧問先共通のメモを入力..." />
-        </div>
-
-        {/* ⑥ 顧問先選択 */}
-        {showList && (
-          <>
-            <div className="flex items-center gap-2 mb-2">
+        {/* ⑥ 顧問先選択 — flex:1 で残り高さを占有、リストのみ内部スクロール */}
+        {showList ? (
+          <div style={{flex:'1 1 0', minHeight:0, padding:'0 32px', display:'flex', flexDirection:'column', overflow:'hidden'}}>
+            <div className="flex items-center gap-2 mb-2" style={{flexShrink:0}}>
               <span className="text-sm font-semibold text-gray-600 mr-2">⑥ 顧問先を選択：</span>
               <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(true)}>全て選択</button>
               <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(false)}>全て解除</button>
             </div>
-            <div style={{maxHeight:'260px',overflowY:'auto',border:'1px solid #e5e7eb',borderRadius:'8px',marginBottom:'4px'}}>
+            <div style={{flex:'1 1 0', minHeight:0, overflowY:'auto', border:'1px solid #e5e7eb', borderRadius:'8px', marginBottom:'4px'}}>
               {availableCustomers.length === 0
                 ? <p className="text-center py-8 text-gray-400 text-sm">登録可能な顧問先がありません（全て登録済み）</p>
                 : availableCustomers.map(c=>(
@@ -1708,13 +1714,18 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
                   ))
               }
             </div>
-            <p className="text-xs text-gray-400 mb-2">※{targetYear}年度の「{procedure}」ですでに登録済みの顧問先は除外しています</p>
-          </>
+            <p className="text-xs text-gray-400" style={{flexShrink:0}}>※{targetYear}年度の「{procedure}」ですでに登録済みの顧問先は除外しています</p>
+          </div>
+        ) : (
+          <div style={{flex:'1 1 0'}} />
         )}
 
-        <div className="flex gap-3 justify-end mt-4">
-          <button className="btn btn-secondary" onClick={onClose}>キャンセル</button>
-          <button className="btn btn-primary" onClick={handleRegister}>⑦ 登録実行</button>
+        {/* ⑦ フッター — 常に下部に固定 */}
+        <div style={{padding:'12px 32px 20px', flexShrink:0, borderTop:'1px solid #f3f4f6'}}>
+          <div className="flex gap-3 justify-end">
+            <button className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+            <button className="btn btn-primary" onClick={handleRegister}>⑦ 登録実行</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1731,6 +1742,7 @@ function AnnualEditModal({caseData, onSave, onClose, masters, currentUser}) {
     status:            caseData.status || '依頼受付',
     memo:              caseData.memo || '',
     annualTargetCount: caseData.annualTargetCount != null ? String(caseData.annualTargetCount) : '',
+    receivedDate:      caseData.receivedDate ? caseData.receivedDate.replace(/\//g, '-') : '',
   });
   const set = (k, v) => setForm(f => ({...f, [k]: v}));
 
@@ -1747,6 +1759,7 @@ function AnnualEditModal({caseData, onSave, onClose, masters, currentUser}) {
       status:            form.status,
       memo:              form.memo,
       annualTargetCount: form.annualTargetCount,
+      receivedDate:      form.receivedDate ? form.receivedDate.replace(/-/g, '/') : '',
     });
   };
 
@@ -1799,6 +1812,13 @@ function AnnualEditModal({caseData, onSave, onClose, masters, currentUser}) {
                 : <input value={form.assignee} onChange={e => set('assignee', e.target.value)} placeholder="担当者名" />
               }
             </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">受付日</label>
+              <input type="date" value={form.receivedDate} onChange={e => set('receivedDate', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">対象人数</label>
               <input type="number" value={form.annualTargetCount} onChange={e => set('annualTargetCount', e.target.value)} placeholder="人数を入力" min="0" />
