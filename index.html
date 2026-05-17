@@ -2047,17 +2047,10 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
                         {c.customerName}
                       </td>
                       <td className="px-3 py-2.5 text-gray-700 text-xs">{c.procedure}</td>
-                      <td className="px-3 py-2.5 text-xs text-center" style={{cursor:c.cancelled?'default':'pointer'}} onClick={()=>!c.cancelled&&handleYearClick(c)}>
-                        {editingYearId === c.id
-                          ? <input type="number" autoFocus value={editingYearValue}
-                              onChange={e=>setEditingYearValue(e.target.value)}
-                              onBlur={()=>handleYearSave(c.id)}
-                              onKeyDown={e=>{if(e.key==='Enter')handleYearSave(c.id);if(e.key==='Escape')setEditingYearId(null);}}
-                              style={{width:'72px',textAlign:'center',padding:'4px 6px',fontSize:'15px'}} />
-                          : <span className="text-xs px-2 py-1 rounded" style={{background:c.annualTargetYear?'#f0fdf4':'#f3f4f6',color:c.annualTargetYear?'#15803d':'#9ca3af'}}>
-                              {c.annualTargetYear ? `${c.annualTargetYear}年度` : '—'}
-                            </span>
-                        }
+                      <td className="px-3 py-2.5 text-xs text-center">
+                        <span className="text-xs px-2 py-1 rounded" style={{background:c.annualTargetYear?'#f0fdf4':'#f3f4f6',color:c.annualTargetYear?'#15803d':'#9ca3af'}}>
+                          {c.annualTargetYear ? `${c.annualTargetYear}年度` : '—'}
+                        </span>
                       </td>
                       <td className="px-3 py-2.5 text-gray-500 text-xs" style={{wordBreak:'break-word',verticalAlign:'middle'}}>{renderMemo(c.memo)}</td>
                       <td className="px-3 py-2.5">
