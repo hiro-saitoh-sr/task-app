@@ -1589,12 +1589,375 @@ function MonthlyCheckModal({item, onSave, onClose, masters}) {
   );
 }
 
-function MonthlyCheckScreen({checks, setChecks, masters}) {
+/* ══════════════════════════════════════════
+   ANNUAL UPDATE SCREEN (年更・算定案件管理)
+══════════════════════════════════════════ */
+const ANNUAL_PROCEDURES = ['算定基礎届', '年度更新'];
+
+function AnnualBulkModal({cases, masters, onRegister, onClose}) {
+  const [procedure, setProcedure] = useState('');
+  const [selected, setSelected] = useState({});
+
+  const registeredCustomers = useMemo(() => {
+    if (!procedure) return new Set();
+    return new Set(cases.filter(c => !c.cancelled && c.procedure === procedure).map(c => c.customerName));
+  }, [cases, procedure]);
+
+  const availableCustomers = useMemo(() => {
+    return masters.customers.filter(c => c.id !== 1 && !c.terminated && !registeredCustomers.has(c.name));
+  }, [masters.customers, registeredCustomers]);
+
+  const toggleAll = (v) => {
+    const next = {};
+    availableCustomers.forEach(c => { next[c.id] = v; });
+    setSelected(next);
+  };
+
+  const handleRegister = () => {
+    if (!procedure) { alert('手続き名を選択してください'); return; }
+    const selectedCustomers = availableCustomers.filter(c => selected[c.id]);
+    if (selectedCustomers.length === 0) { alert('顧問先を選択してください'); return; }
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
+    const newCases = selectedCustomers.map(c => ({
+      no: c.no, customerName: c.name, procedure: procedure,
+      memo: '', assignee: '', status: '依頼受付',
+      receivedDate: todayStr, targetMonth: '', cancelled: false,
+      billingAmount: '', annualTargetCount: '',
+    }));
+    onRegister(newCases);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-box" style={{width:'600px'}}>
+        <h2 className="text-xl font-bold mb-5">一括登録</h2>
+        <div className="mb-5">
+          <label className="block text-sm font-semibold text-gray-600 mb-1">手続き名 <span className="text-red-500">*</span></label>
+          <select value={procedure} onChange={e=>{setProcedure(e.target.value);setSelected({});}}>
+            <option value="">選択してください</option>
+            {ANNUAL_PROCEDURES.map(p=><option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+        {procedure && (
+          <>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-gray-600 mr-2">顧問先を選択：</span>
+              <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(true)}>全て選択</button>
+              <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(false)}>全て解除</button>
+            </div>
+            <div style={{maxHeight:'360px',overflowY:'auto',border:'1px solid #e5e7eb',borderRadius:'8px',marginBottom:'4px'}}>
+              {availableCustomers.length === 0
+                ? <p className="text-center py-8 text-gray-400 text-sm">登録可能な顧問先がありません（全て登録済み）</p>
+                : availableCustomers.map(c=>(
+                    <label key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0">
+                      <input type="checkbox" checked={!!selected[c.id]} onChange={e=>setSelected(prev=>({...prev,[c.id]:e.target.checked}))} style={{width:'16px',height:'16px',cursor:'pointer',flexShrink:0}} />
+                      <span className="text-sm">{c.no ? `${c.no}. ` : ''}{c.name}</span>
+                    </label>
+                  ))
+              }
+            </div>
+            <p className="text-xs text-gray-400 mb-2">※すでに「{procedure}」で登録済みの顧問先は除外しています</p>
+          </>
+        )}
+        <div className="flex gap-3 justify-end mt-4">
+          <button className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+          <button className="btn btn-primary" onClick={handleRegister}>登録実行</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
+  const isHiro = currentUser?.email === 'hiro@saitoh-sr.com';
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [editingCountId, setEditingCountId] = useState(null);
+  const [editingCountValue, setEditingCountValue] = useState('');
+  const [cancelCase, setCancelCase] = useState(null);
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [showCancelled, setShowCancelled] = useState(false);
+
+  const filtered = useMemo(() => {
+    let arr = showCancelled
+      ? cases.filter(c => c.cancelled && ANNUAL_PROCEDURES.includes(c.procedure))
+      : cases.filter(c => !c.cancelled && ANNUAL_PROCEDURES.includes(c.procedure));
+    if (filterStatus) arr = arr.filter(c => c.status === filterStatus);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      arr = arr.filter(c =>
+        (c.customerName||'').toLowerCase().includes(q) ||
+        (c.procedure||'').toLowerCase().includes(q) ||
+        (c.memo||'').toLowerCase().includes(q)
+      );
+    }
+    arr = [...arr].sort((a,b) => {
+      const da = parseDate(a.receivedDate), db = parseDate(b.receivedDate);
+      const ta = da?da.getTime():0, tb = db?db.getTime():0;
+      if (tb !== ta) return tb - ta;
+      return (b.id||0)-(a.id||0);
+    });
+    return arr;
+  }, [cases, filterStatus, search, showCancelled]);
+
+  const calcBilling = (count) => {
+    const n = Number(count);
+    if (count === '' || count == null || isNaN(n)) return '';
+    return 13000 + n * 200;
+  };
+
+  const handleCountClick = (c) => {
+    setEditingCountId(c.id);
+    setEditingCountValue(c.annualTargetCount != null ? String(c.annualTargetCount) : '');
+  };
+
+  const handleCountSave = (caseId) => {
+    const val = editingCountValue;
+    setCases(p => p.map(c => c.id === caseId ? {...c, annualTargetCount: val} : c));
+    setEditingCountId(null);
+  };
+
+  const handleBulkRegister = (newCases) => {
+    setCases(p => {
+      let next = [...p];
+      newCases.forEach(nc => { const id = nextId(next); next = [...next, {...nc, id}]; });
+      return next;
+    });
+    setShowBulkModal(false);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="text-lg font-bold text-gray-800">年更・算定案件管理</h2>
+        <button className="btn btn-primary" onClick={()=>setShowBulkModal(true)}>一括登録</button>
+      </div>
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 flex items-center gap-3 flex-1" style={{minWidth:'200px'}}>
+          <span className="text-gray-400">🔍</span>
+          <input type="text" value={search} onChange={e=>setSearch(e.target.value)}
+            placeholder="顧客名・手続き・メモで検索..."
+            style={{border:'none',boxShadow:'none',padding:'0'}}
+            className="flex-1 border-none outline-none text-sm bg-transparent" />
+          {search && <button onClick={()=>setSearch('')} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>}
+        </div>
+        <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}
+          style={{width:'auto',minWidth:'120px',padding:'8px 12px',fontSize:'17px',fontWeight:'500'}}>
+          <option value="">ステータス：全て</option>
+          {STATUSES.map(s=><option key={s}>{s}</option>)}
+        </select>
+        <label className="flex items-center gap-1.5 cursor-pointer" style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>
+          <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)} style={{width:'15px',height:'15px',cursor:'pointer'}} />
+          取消済みを表示
+        </label>
+        <span className="text-sm text-gray-400">{filtered.length}件</span>
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm table-wrap">
+        {filtered.length === 0
+          ? <div className="text-center py-16 text-gray-400"><div className="text-4xl mb-3">📊</div><p>該当する案件がありません</p></div>
+          : (
+            <table className="w-full text-sm border-collapse" style={{tableLayout:'fixed'}}>
+              <colgroup>
+                <col style={{width:'52px'}} />
+                <col style={{width:'190px'}} />
+                <col style={{width:'110px'}} />
+                <col style={{width:'240px'}} />
+                <col style={{width:'80px'}} />
+                <col style={{width:'90px'}} />
+                <col style={{width:'80px'}} />
+                <col style={{width:'80px'}} />
+                {isHiro && <col style={{width:'100px'}} />}
+                <col style={{width:'96px'}} />
+                <col style={{width:'60px'}} />
+              </colgroup>
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">No</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">顧客名</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">手続き名</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">メモ</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">担当者</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">ステータス</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">受付日</th>
+                  <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">対象人数</th>
+                  {isHiro && <th className="px-3 py-3 text-right font-semibold text-gray-600 bg-gray-50">請求額</th>}
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">対象年月</th>
+                  <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map(c => {
+                  const billing = calcBilling(c.annualTargetCount);
+                  return (
+                    <tr key={c.id} className={`group ${c.cancelled?'opacity-50 bg-gray-50':''}`}>
+                      <td className="px-3 py-2.5 text-gray-500 text-center text-xs">{c.no}</td>
+                      <td className="px-3 py-2.5 font-medium text-xs" style={{color:c.cancelled?'#9ca3af':'#1f2937'}}>
+                        {c.cancelled && <span className="inline-block mr-1 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">取消</span>}
+                        {c.customerName}
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-700 text-xs">{c.procedure}</td>
+                      <td className="px-3 py-2.5 text-gray-500 text-xs" style={{wordBreak:'break-word',verticalAlign:'middle'}}>{renderMemo(c.memo)}</td>
+                      <td className="px-3 py-2.5">
+                        {c.cancelled
+                          ? <span className="text-gray-600 text-xs">{c.assignee}</span>
+                          : <select value={c.assignee||''} onChange={e=>setCases(p=>p.map(x=>x.id===c.id?{...x,assignee:e.target.value}:x))}
+                              className="text-xs border border-gray-200 rounded px-1 py-0.5 text-gray-700 bg-white cursor-pointer w-full">
+                              <option value=""></option>
+                              {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+                            </select>
+                        }
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {c.cancelled
+                          ? <StatusBadge status={c.status} />
+                          : <select value={c.status} onChange={e=>setCases(p=>p.map(x=>x.id===c.id?{...x,status:e.target.value}:x))}
+                              className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer`}
+                              style={{appearance:'none',textAlign:'center',width:'100%',opacity:1}}>
+                              {STATUSES.map(s=><option key={s}>{s}</option>)}
+                            </select>
+                        }
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{formatDate(c.receivedDate)}</td>
+                      <td className="px-3 py-2.5 text-center" style={{cursor:c.cancelled?'default':'pointer'}} onClick={()=>!c.cancelled&&handleCountClick(c)}>
+                        {editingCountId === c.id
+                          ? <input type="number" autoFocus value={editingCountValue}
+                              onChange={e=>setEditingCountValue(e.target.value)}
+                              onBlur={()=>handleCountSave(c.id)}
+                              onKeyDown={e=>{if(e.key==='Enter')handleCountSave(c.id);if(e.key==='Escape')setEditingCountId(null);}}
+                              style={{width:'68px',textAlign:'center',padding:'4px 6px',fontSize:'15px'}} />
+                          : <span className="text-xs px-2 py-1 rounded" style={{background:c.annualTargetCount!=null&&c.annualTargetCount!==''?'#dbeafe':'#f3f4f6',color:c.annualTargetCount!=null&&c.annualTargetCount!==''?'#1e40af':'#9ca3af'}}>
+                              {c.annualTargetCount != null && c.annualTargetCount !== '' ? `${c.annualTargetCount}人` : '—'}
+                            </span>
+                        }
+                      </td>
+                      {isHiro && (
+                        <td className="px-3 py-2.5 text-right text-sm">
+                          {billing !== '' ? `¥${billing.toLocaleString()}` : ''}
+                        </td>
+                      )}
+                      <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{c.targetMonth}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={()=>setCancelCase(c)}
+                            className={`text-xs px-2 py-1 rounded font-medium ${c.cancelled?'bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-600':'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
+                            {c.cancelled?'取消解除':'取消'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )
+        }
+      </div>
+      {showBulkModal && <AnnualBulkModal cases={cases} masters={masters} onRegister={handleBulkRegister} onClose={()=>setShowBulkModal(false)} />}
+      {cancelCase && (
+        cancelCase.cancelled
+          ? <ConfirmModal
+              title={`「${cancelCase.procedure}」の取消を解除しますか？`}
+              body={`${cancelCase.customerName} — 案件を通常表示に戻します。`}
+              confirmLabel="取消を解除する" confirmClass="btn-primary" note=""
+              onConfirm={()=>{setCases(p=>p.map(c=>c.id===cancelCase.id?{...c,cancelled:false}:c));setCancelCase(null);}}
+              onClose={()=>setCancelCase(null)} />
+          : <ConfirmModal
+              title={`「${cancelCase.procedure}」を取消しますか？`}
+              body={`${cancelCase.customerName} — 一覧から非表示になります。`}
+              confirmLabel="取消する" confirmClass="btn-danger"
+              note="データは保持されます。フィルターで再表示できます。"
+              onConfirm={()=>{setCases(p=>p.map(c=>c.id===cancelCase.id?{...c,cancelled:true}:c));setCancelCase(null);}}
+              onClose={()=>setCancelCase(null)} />
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   COPY FROM CASES MODAL (月変チェック用)
+══════════════════════════════════════════ */
+function CopyFromCasesModal({cases, checks, onCopy, onClose}) {
+  const eligible = useMemo(() => {
+    const registeredKey = new Set(
+      checks.filter(c => !c.cancelled).map(c => `${c.customerName}__${c.targetMonth}`)
+    );
+    return cases.filter(c =>
+      !c.cancelled &&
+      c.procedure === '月額変更届' &&
+      !registeredKey.has(`${c.customerName}__${c.targetMonth}`)
+    );
+  }, [cases, checks]);
+
+  const [selected, setSelected] = useState({});
+
+  const toggleAll = (v) => {
+    const next = {};
+    eligible.forEach(c => { next[c.id] = v; });
+    setSelected(next);
+  };
+
+  const handleCopy = () => {
+    const sel = eligible.filter(c => selected[c.id]);
+    if (sel.length === 0) { alert('コピーする案件を選択してください'); return; }
+    onCopy(sel);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-box" style={{width:'660px'}}>
+        <h2 className="text-xl font-bold mb-3">案件管理からコピー</h2>
+        <p className="text-sm text-gray-500 mb-4">「月額変更届」の案件を月変チェックに追加します。同じ顧問先・同じ対象年月がすでに登録済みの場合は除外しています。</p>
+        {eligible.length === 0
+          ? <p className="text-center py-8 text-gray-400">コピー可能な案件がありません（全て登録済み）</p>
+          : <>
+              <div className="flex gap-2 mb-2">
+                <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(true)}>全て選択</button>
+                <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(false)}>全て解除</button>
+              </div>
+              <div style={{maxHeight:'380px',overflowY:'auto',border:'1px solid #e5e7eb',borderRadius:'8px',marginBottom:'8px'}}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="px-3 py-2 text-left" style={{width:'40px'}}></th>
+                      <th className="px-3 py-2 text-left font-semibold text-gray-600">顧問先名</th>
+                      <th className="px-3 py-2 text-left font-semibold text-gray-600" style={{width:'110px'}}>対象年月</th>
+                      <th className="px-3 py-2 text-left font-semibold text-gray-600">メモ（月変チェック者に設定）</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {eligible.map(c=>(
+                      <tr key={c.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2.5">
+                          <input type="checkbox" checked={!!selected[c.id]} onChange={e=>setSelected(prev=>({...prev,[c.id]:e.target.checked}))} style={{width:'16px',height:'16px',cursor:'pointer'}} />
+                        </td>
+                        <td className="px-3 py-2.5 font-medium text-xs">{c.customerName}</td>
+                        <td className="px-3 py-2.5 text-xs text-gray-500">{c.targetMonth}</td>
+                        <td className="px-3 py-2.5 text-xs text-gray-500" style={{whiteSpace:'pre-wrap',maxWidth:'200px'}}>{c.memo}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+        }
+        <div className="flex gap-3 justify-end mt-4">
+          <button className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+          {eligible.length > 0 && <button className="btn btn-primary" onClick={handleCopy}>コピー実行</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
+  const isHiro = currentUser?.email === 'hiro@saitoh-sr.com';
   const [showModal, setShowModal]         = useState(false);
   const [editItem, setEditItem]           = useState(null);
   const [cancelItem, setCancelItem]       = useState(null);
   const [filterMonth, setFilterMonth]       = useState('');
   const [showCancelled, setShowCancelled]   = useState(false);
+  const [showCopyModal, setShowCopyModal]   = useState(false);
   const rows = useMemo(()=>{
     let arr = showCancelled ? checks.filter(c=>c.cancelled) : checks.filter(c=>!c.cancelled);
     if(filterMonth) arr = arr.filter(c=>c.targetMonth===filterMonth);
@@ -1607,11 +1970,36 @@ function MonthlyCheckScreen({checks, setChecks, masters}) {
     setShowModal(false); setEditItem(null);
   };
 
+  const handleCopy = (selectedCases) => {
+    setChecks(p => {
+      let next = [...p];
+      selectedCases.forEach(sc => {
+        const id = nextId(next);
+        next = [...next, {
+          id,
+          no: sc.no || '',
+          customerName: sc.customerName,
+          checker: sc.memo || '',
+          procedureBy: '',
+          count: '',
+          assignee: '',
+          completedDate: '',
+          targetMonth: sc.targetMonth || '',
+        }];
+      });
+      return next;
+    });
+    setShowCopyModal(false);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-lg font-bold text-gray-800">月額変更届チェック管理</h2>
-        <button className="btn btn-primary" onClick={()=>{setEditItem(null);setShowModal(true);}}>＋ 新規追加</button>
+        <div className="flex gap-2">
+          <button className="btn btn-secondary" onClick={()=>setShowCopyModal(true)}>案件管理からコピー</button>
+          <button className="btn btn-primary" onClick={()=>{setEditItem(null);setShowModal(true);}}>＋ 新規追加</button>
+        </div>
       </div>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <label className="text-sm font-semibold text-gray-600 whitespace-nowrap">月変対象年月：</label>
@@ -1636,6 +2024,7 @@ function MonthlyCheckScreen({checks, setChecks, masters}) {
                 <th className="px-3 py-3 text-left font-semibold text-gray-600">月変チェック者</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600">月変手続きした人</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">月変人数</th>
+                {isHiro && <th className="px-3 py-3 text-right font-semibold text-gray-600">請求額</th>}
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">担当者</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">チェック完了日</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">月変対象年月</th>
@@ -1643,35 +2032,46 @@ function MonthlyCheckScreen({checks, setChecks, masters}) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map(c=>(
-                <tr key={c.id} className={`group ${c.cancelled?'bg-gray-50 opacity-50':'hover:bg-gray-50'}`}>
-                  <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.no}</td>
-                  <td className="px-3 py-2.5 font-medium text-xs" style={{color:c.cancelled?'#9ca3af':'#1f2937'}}>
-                    {c.cancelled && <span className="inline-block mr-1 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">取消</span>}
-                    {c.customerName}
-                  </td>
-                  <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.checker}</td>
-                  <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.procedureBy}</td>
-                  <td className="px-3 py-2.5 text-gray-700 text-xs text-center">{c.count}</td>
-                  <td className="px-3 py-2.5 text-gray-600 text-xs text-center">{c.assignee}</td>
-                  <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.completedDate}</td>
-                  <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.targetMonth}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      {!c.cancelled && <button onClick={()=>{setEditItem(c);setShowModal(true);}} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>}
-                      <button onClick={()=>setCancelItem(c)}
-                        className={`text-xs px-2 py-1 rounded font-medium ${c.cancelled?'bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-600':'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
-                        {c.cancelled?'取消解除':'取消'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {rows.map(c=>{
+                const countNum = Number(c.count);
+                const billing = c.count && !isNaN(countNum) && countNum > 0
+                  ? 2500 + countNum * 200 : null;
+                return (
+                  <tr key={c.id} className={`group ${c.cancelled?'bg-gray-50 opacity-50':'hover:bg-gray-50'}`}>
+                    <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.no}</td>
+                    <td className="px-3 py-2.5 font-medium text-xs" style={{color:c.cancelled?'#9ca3af':'#1f2937'}}>
+                      {c.cancelled && <span className="inline-block mr-1 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">取消</span>}
+                      {c.customerName}
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.checker}</td>
+                    <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.procedureBy}</td>
+                    <td className="px-3 py-2.5 text-gray-700 text-xs text-center">{c.count}</td>
+                    {isHiro && (
+                      <td className="px-3 py-2.5 text-sm text-right">
+                        {billing != null ? `¥${billing.toLocaleString()}` : ''}
+                      </td>
+                    )}
+                    <td className="px-3 py-2.5 text-gray-600 text-xs text-center">{c.assignee}</td>
+                    <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.completedDate}</td>
+                    <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.targetMonth}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        {!c.cancelled && <button onClick={()=>{setEditItem(c);setShowModal(true);}} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>}
+                        <button onClick={()=>setCancelItem(c)}
+                          className={`text-xs px-2 py-1 rounded font-medium ${c.cancelled?'bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-600':'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
+                          {c.cancelled?'取消解除':'取消'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
       {showModal && <MonthlyCheckModal item={editItem} onSave={handleSave} onClose={()=>{setShowModal(false);setEditItem(null);}} masters={masters} />}
+      {showCopyModal && <CopyFromCasesModal cases={cases||[]} checks={checks} onCopy={handleCopy} onClose={()=>setShowCopyModal(false)} />}
       {cancelItem && (
         cancelItem.cancelled
           ? <ConfirmModal
@@ -2766,11 +3166,12 @@ function App() {
   if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
 
   const navItems = [
-    {id:'案件管理',           label:'案件管理',     icon:'📋'},
+    {id:'案件管理',           label:'案件管理',         icon:'📋'},
     ...(currentUser?.email==='hiro@saitoh-sr.com' ? [{id:'請求集計', label:'請求集計', icon:'💰'}] : []),
-    {id:'月変チェック',       label:'月変チェック', icon:'📝'},
-    {id:'給与計算スケジュール',label:'給与計算',    icon:'📅'},
-    {id:'マスタ管理',         label:'マスタ管理',   icon:'⚙️'},
+    {id:'月変チェック',       label:'月変チェック',     icon:'📝'},
+    {id:'年更・算定案件管理', label:'年更・算定案件管理', icon:'📊'},
+    {id:'給与計算スケジュール',label:'給与計算',         icon:'📅'},
+    {id:'マスタ管理',         label:'マスタ管理',        icon:'⚙️'},
   ];
 
   return (
@@ -2815,7 +3216,8 @@ function App() {
       <div className="px-2 py-4">
         {screen==='案件管理'            && <CaseListScreen cases={cases} setCases={setCases} masters={masters} currentUser={currentUser} />}
         {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} payrolls={payrolls} payrollRates={payrollRates} setPayrollRates={setPayrollRates} billingSnapshots={billingSnapshots} setBillingSnapshots={setBillingSnapshots} />}
-        {screen==='月変チェック'        && <MonthlyCheckScreen checks={checks} setChecks={setChecks} masters={masters} />}
+        {screen==='月変チェック'        && <MonthlyCheckScreen checks={checks} setChecks={setChecks} masters={masters} cases={cases} currentUser={currentUser} />}
+        {screen==='年更・算定案件管理'  && <AnnualUpdateScreen cases={cases} setCases={setCases} masters={masters} currentUser={currentUser} />}
         {screen==='給与計算スケジュール'&& <PayrollScheduleScreen payrolls={payrolls} setPayrolls={setPayrolls} masters={masters} />}
         {screen==='マスタ管理'          && <MasterScreen masters={masters} setMasters={setMasters} />}
       </div>
