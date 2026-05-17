@@ -1653,9 +1653,22 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
         {/* ② 対象年度 */}
         <div className="mb-5">
           <label className="block text-sm font-semibold text-gray-600 mb-1">② 対象年度（手続きの対象となる年度） <span className="text-red-500">*</span></label>
-          <input type="number" value={targetYear} onChange={e=>{setTargetYear(e.target.value);setSelected({});}}
-            placeholder="例：2026" style={{width:'160px'}} />
-          <p className="text-xs text-gray-400 mt-1">※作業する年月（対象年月）とは異なります。算定・年更の対象となる年度を入力してください。</p>
+          <div className="flex gap-2 flex-wrap mt-1">
+            {Array.from({length:7}, (_,i) => String(currentYear - 3 + i)).map(y => (
+              <button key={y} type="button"
+                onClick={()=>{setTargetYear(y);setSelected({});}}
+                style={{
+                  padding:'8px 18px', borderRadius:'6px', fontSize:'17px', fontWeight:'700',
+                  border: targetYear===y ? '2px solid #2563eb' : '2px solid #e5e7eb',
+                  background: targetYear===y ? '#2563eb' : 'white',
+                  color: targetYear===y ? 'white' : '#374151',
+                  cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s',
+                }}>
+                {y}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-2">※作業する年月（対象年月）とは異なります。算定・年更の対象となる年度を選択してください。</p>
         </div>
 
         {/* ③ 顧問先選択 */}
@@ -1695,6 +1708,8 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [editingCountId, setEditingCountId] = useState(null);
   const [editingCountValue, setEditingCountValue] = useState('');
+  const [editingYearId, setEditingYearId] = useState(null);
+  const [editingYearValue, setEditingYearValue] = useState('');
   const [cancelCase, setCancelCase] = useState(null);
   const [showCancelled, setShowCancelled] = useState(false);
 
@@ -1763,6 +1778,17 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
     const val = editingCountValue;
     setCases(p => p.map(c => c.id === caseId ? {...c, annualTargetCount: val} : c));
     setEditingCountId(null);
+  };
+
+  const handleYearClick = (c) => {
+    setEditingYearId(c.id);
+    setEditingYearValue(c.annualTargetYear != null ? String(c.annualTargetYear) : '');
+  };
+
+  const handleYearSave = (caseId) => {
+    const val = editingYearValue.trim();
+    setCases(p => p.map(c => c.id === caseId ? {...c, annualTargetYear: val} : c));
+    setEditingYearId(null);
   };
 
   const handleBulkRegister = (newCases) => {
@@ -1860,7 +1886,18 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
                         {c.customerName}
                       </td>
                       <td className="px-3 py-2.5 text-gray-700 text-xs">{c.procedure}</td>
-                      <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.annualTargetYear ? `${c.annualTargetYear}年度` : '—'}</td>
+                      <td className="px-3 py-2.5 text-xs text-center" style={{cursor:c.cancelled?'default':'pointer'}} onClick={()=>!c.cancelled&&handleYearClick(c)}>
+                        {editingYearId === c.id
+                          ? <input type="number" autoFocus value={editingYearValue}
+                              onChange={e=>setEditingYearValue(e.target.value)}
+                              onBlur={()=>handleYearSave(c.id)}
+                              onKeyDown={e=>{if(e.key==='Enter')handleYearSave(c.id);if(e.key==='Escape')setEditingYearId(null);}}
+                              style={{width:'72px',textAlign:'center',padding:'4px 6px',fontSize:'15px'}} />
+                          : <span className="text-xs px-2 py-1 rounded" style={{background:c.annualTargetYear?'#f0fdf4':'#f3f4f6',color:c.annualTargetYear?'#15803d':'#9ca3af'}}>
+                              {c.annualTargetYear ? `${c.annualTargetYear}年度` : '—'}
+                            </span>
+                        }
+                      </td>
                       <td className="px-3 py-2.5 text-gray-500 text-xs" style={{wordBreak:'break-word',verticalAlign:'middle'}}>{renderMemo(c.memo)}</td>
                       <td className="px-3 py-2.5">
                         {c.cancelled
@@ -3248,7 +3285,7 @@ function App() {
     {id:'案件管理',           label:'案件管理',         icon:'📋'},
     ...(currentUser?.email==='hiro@saitoh-sr.com' ? [{id:'請求集計', label:'請求集計', icon:'💰'}] : []),
     {id:'月変チェック',       label:'月変チェック',     icon:'📝'},
-    {id:'年更・算定案件管理', label:'年更・算定案件管理', icon:'📊'},
+    {id:'年更・算定案件管理', label:'年更・算定', icon:'📊'},
     {id:'給与計算スケジュール',label:'給与計算',         icon:'📅'},
     {id:'マスタ管理',         label:'マスタ管理',        icon:'⚙️'},
   ];
