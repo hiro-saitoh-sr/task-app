@@ -1740,7 +1740,7 @@ function AnnualEditModal({caseData, onSave, onClose, masters, currentUser}) {
     status:            caseData.status || '依頼受付',
     memo:              caseData.memo || '',
     annualTargetCount: caseData.annualTargetCount != null ? String(caseData.annualTargetCount) : '',
-    receivedDate:      caseData.receivedDate ? caseData.receivedDate.replace(/\//g, '-') : '',
+    receivedDate:      (() => { const d = parseDate(caseData.receivedDate); if (!d) return ''; return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })(),
   });
   const set = (k, v) => setForm(f => ({...f, [k]: v}));
 
