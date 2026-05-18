@@ -1535,8 +1535,9 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
 /* ══════════════════════════════════════════
    MONTHLY CHECK SCREEN
 ══════════════════════════════════════════ */
-function MonthlyCheckModal({item, onSave, onClose, masters}) {
-  const blank = {no:'',customerName:'',checker:'',procedureBy:'',count:'',assignee:'',completedDate:'',targetMonth:''};
+function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
+  const isHiro = currentUser?.email === 'hiro@saitoh-sr.com';
+  const blank = {no:'',customerName:'',checker:'',procedureBy:'',count:'',assignee:'',completedDate:'',targetMonth:'',manualBillingAmount:''};
   const [form, setForm] = useState(item?{...item}:blank);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   return (
@@ -1578,7 +1579,13 @@ function MonthlyCheckModal({item, onSave, onClose, masters}) {
               </select>
             </div>
           </div>
-          <div className="mb-6"><label className="block text-sm font-semibold text-gray-600 mb-1">チェック完了日</label><input value={form.completedDate} onChange={e=>set('completedDate',e.target.value)} placeholder="2026/5/31" /></div>
+          <div className="mb-4"><label className="block text-sm font-semibold text-gray-600 mb-1">チェック完了日</label><input value={form.completedDate} onChange={e=>set('completedDate',e.target.value)} placeholder="2026/5/31" /></div>
+          {isHiro && (
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">請求額（円）</label>
+              <input type="number" value={form.manualBillingAmount||''} onChange={e=>set('manualBillingAmount',e.target.value)} placeholder="空白で自動計算（2500＋人数×200）" min="0" style={{MozAppearance:'textfield'}} />
+            </div>
+          )}
           <div className="flex gap-3 justify-end">
             <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
             <button type="submit" className="btn btn-primary">{item?'保存する':'追加する'}</button>
@@ -1733,14 +1740,15 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
 function AnnualEditModal({caseData, onSave, onClose, masters, currentUser}) {
   const isHiro = currentUser?.email === 'hiro@saitoh-sr.com';
   const [form, setForm] = useState({
-    procedure:         caseData.procedure || '',
-    annualTargetYear:  caseData.annualTargetYear ? Number(caseData.annualTargetYear) : null,
-    targetMonth:       caseData.targetMonth || '',
-    assignee:          caseData.assignee || '',
-    status:            caseData.status || '依頼受付',
-    memo:              caseData.memo || '',
-    annualTargetCount: caseData.annualTargetCount != null ? String(caseData.annualTargetCount) : '',
-    receivedDate:      (() => { const d = parseDate(caseData.receivedDate); if (!d) return ''; return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })(),
+    procedure:            caseData.procedure || '',
+    annualTargetYear:     caseData.annualTargetYear ? Number(caseData.annualTargetYear) : null,
+    targetMonth:          caseData.targetMonth || '',
+    assignee:             caseData.assignee || '',
+    status:               caseData.status || '依頼受付',
+    memo:                 caseData.memo || '',
+    annualTargetCount:    caseData.annualTargetCount != null ? String(caseData.annualTargetCount) : '',
+    receivedDate:         (() => { const d = parseDate(caseData.receivedDate); if (!d) return ''; return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })(),
+    manualBillingAmount:  caseData.manualBillingAmount != null ? String(caseData.manualBillingAmount) : '',
   });
   const set = (k, v) => setForm(f => ({...f, [k]: v}));
 
@@ -1750,14 +1758,15 @@ function AnnualEditModal({caseData, onSave, onClose, masters, currentUser}) {
     if (!form.targetMonth) { alert('対象年月を選択してください'); return; }
     onSave({
       ...caseData,
-      procedure:         form.procedure,
-      annualTargetYear:  form.annualTargetYear ? String(form.annualTargetYear) : '',
-      targetMonth:       form.targetMonth,
-      assignee:          form.assignee,
-      status:            form.status,
-      memo:              form.memo,
-      annualTargetCount: form.annualTargetCount,
-      receivedDate:      form.receivedDate ? form.receivedDate.replace(/-/g, '/') : '',
+      procedure:            form.procedure,
+      annualTargetYear:     form.annualTargetYear ? String(form.annualTargetYear) : '',
+      targetMonth:          form.targetMonth,
+      assignee:             form.assignee,
+      status:               form.status,
+      memo:                 form.memo,
+      annualTargetCount:    form.annualTargetCount,
+      receivedDate:         form.receivedDate ? form.receivedDate.replace(/-/g, '/') : '',
+      manualBillingAmount:  form.manualBillingAmount !== '' ? form.manualBillingAmount : '',
     });
   };
 
@@ -1821,6 +1830,12 @@ function AnnualEditModal({caseData, onSave, onClose, masters, currentUser}) {
               <label className="block text-sm font-semibold text-gray-600 mb-1">対象人数</label>
               <input type="number" value={form.annualTargetCount} onChange={e => set('annualTargetCount', e.target.value)} placeholder="人数を入力" min="0" />
             </div>
+            {isHiro && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">請求額（円）</label>
+                <input type="number" value={form.manualBillingAmount} onChange={e => set('manualBillingAmount', e.target.value)} placeholder="空白で自動計算（13000＋人数×200）" min="0" style={{MozAppearance:'textfield'}} />
+              </div>
+            )}
           </div>
 
           <div className="mb-6">
@@ -2056,7 +2071,8 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.map(c => {
-                  const billing = calcBilling(c.annualTargetCount);
+                  const isManualBilling = c.manualBillingAmount !== '' && c.manualBillingAmount != null;
+                  const billing = isManualBilling ? Number(c.manualBillingAmount) : calcBilling(c.annualTargetCount);
                   return (
                     <tr key={c.id} className={`group ${c.cancelled?'opacity-50 bg-gray-50':''}`}>
                       <td className="px-3 py-2.5 text-gray-500 text-center text-xs">{c.no}</td>
@@ -2106,7 +2122,7 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
                       </td>
                       {isHiro && (
                         <td className="px-3 py-2.5 text-right text-sm">
-                          {billing !== '' ? `¥${billing.toLocaleString()}` : ''}
+                          {billing !== '' && billing != null ? <span>{isManualBilling && <span title="手入力" style={{fontSize:'12px',marginRight:'2px',color:'#6b7280'}}>✎</span>}¥{billing.toLocaleString()}</span> : ''}
                         </td>
                       )}
                       <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{c.targetMonth}</td>
@@ -2323,8 +2339,10 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
             <tbody className="divide-y divide-gray-100">
               {rows.map(c=>{
                 const countNum = Number(c.count);
-                const billing = c.count && !isNaN(countNum) && countNum > 0
+                const autoBilling = c.count && !isNaN(countNum) && countNum > 0
                   ? 2500 + countNum * 200 : null;
+                const isManualBilling = c.manualBillingAmount !== '' && c.manualBillingAmount != null;
+                const billing = isManualBilling ? Number(c.manualBillingAmount) : autoBilling;
                 return (
                   <tr key={c.id} className={`group ${c.cancelled?'bg-gray-50 opacity-50':'hover:bg-gray-50'}`}>
                     <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.no}</td>
@@ -2337,7 +2355,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                     <td className="px-3 py-2.5 text-gray-700 text-xs text-center">{c.count}</td>
                     {isHiro && (
                       <td className="px-3 py-2.5 text-sm text-right">
-                        {billing != null ? `¥${billing.toLocaleString()}` : ''}
+                        {billing != null ? <span>{isManualBilling && <span title="手入力" style={{fontSize:'12px',marginRight:'2px',color:'#6b7280'}}>✎</span>}¥{billing.toLocaleString()}</span> : ''}
                       </td>
                     )}
                     <td className="px-3 py-2.5 text-gray-600 text-xs text-center">{c.assignee}</td>
@@ -2359,7 +2377,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
           </table>
         )}
       </div>
-      {showModal && <MonthlyCheckModal item={editItem} onSave={handleSave} onClose={()=>{setShowModal(false);setEditItem(null);}} masters={masters} />}
+      {showModal && <MonthlyCheckModal item={editItem} onSave={handleSave} onClose={()=>{setShowModal(false);setEditItem(null);}} masters={masters} currentUser={currentUser} />}
       {showCopyModal && <CopyFromCasesModal cases={cases||[]} checks={checks} onCopy={handleCopy} onClose={()=>setShowCopyModal(false)} />}
       {cancelItem && (
         cancelItem.cancelled
