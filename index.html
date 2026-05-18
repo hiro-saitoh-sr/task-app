@@ -1236,44 +1236,86 @@ const PAYROLL_RATE_TIERS = [
 ];
 
 function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
-  const extraSaved = rates?.月別追加案件?.[month];
-  const initTiers = Object.fromEntries(PAYROLL_RATE_TIERS.map(([,key])=>[key, rates?.[key]!=null?String(rates[key]):'']));
+  // 当月の保存済み設定（月別設定構造）
+  const monthSetting = rates?.月別設定?.[month];
+
+  // 前月の設定を取得（引き継ぎ用）
+  const prevMonthSetting = useMemo(()=>{
+    const 月別 = rates?.月別設定||{};
+    const curNum = parseYM(month);
+    const prevKey = Object.keys(月別)
+      .filter(k=>parseYM(k)<curNum)
+      .sort((a,b)=>parseYM(b)-parseYM(a))[0];
+    return prevKey ? 月別[prevKey] : null;
+  }, [rates, month]);
+
+  // 引き継ぎ項目：当月設定 → 前月設定 → 旧フラット構造 の順に参照
+  const inherited = key => {
+    if(monthSetting) return monthSetting[key]!=null ? String(monthSetting[key]) : '';
+    if(prevMonthSetting?.[key]!=null) return String(prevMonthSetting[key]);
+    if(rates?.[key]!=null) return String(rates[key]); // 旧構造フォールバック
+    return '';
+  };
+  // リセット項目：当月設定のみ参照（前月からは引き継がない）
+  const monthOnly = key => {
+    if(monthSetting?.[key]!=null) return String(monthSetting[key]);
+    // 旧構造（月別追加案件）からの後方互換フォールバック
+    if(key==='追加件数'){ const v=rates?.月別追加案件?.[month]?.件数; return v!=null?String(v):''; }
+    if(key==='追加金額'){ const v=rates?.月別追加案件?.[month]?.金額; return v!=null?String(v):''; }
+    return '';
+  };
+
+  const initTiers = Object.fromEntries(PAYROLL_RATE_TIERS.map(([,key])=>[key, inherited(key)]));
   const [form, setForm] = useState({
     ...initTiers,
-    労務顧問:    rates?.労務顧問    != null ? String(rates.労務顧問)    : '',
-    処遇改善加算: rates?.処遇改善加算 != null ? String(rates.処遇改善加算) : '',
-    給与固定金額: rates?.給与固定金額 != null ? String(rates.給与固定金額) : '',
-    賞与固定金額: rates?.賞与固定金額 != null ? String(rates.賞与固定金額) : '',
-    追加件数: extraSaved?.件数 != null ? String(extraSaved.件数) : '',
-    追加金額: extraSaved?.金額 != null ? String(extraSaved.金額) : '',
+    労務顧問:    inherited('労務顧問'),
+    処遇改善加算: inherited('処遇改善加算'),
+    給与固定金額: monthOnly('給与固定金額'),
+    賞与固定金額: monthOnly('賞与固定金額'),
+    追加件数:    monthOnly('追加件数'),
+    追加金額:    monthOnly('追加金額'),
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  // 「前月をコピー」用：前月の給与固定金額
+  const prevFixedPay = prevMonthSetting?.給与固定金額!=null ? String(prevMonthSetting.給与固定金額) : null;
+  const isInherited = !monthSetting && (prevMonthSetting || Object.keys(rates?.月別設定||{}).length===0);
+
   return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="modal-box" style={{width:'560px'}}>
         <h2 className="text-lg font-bold mb-1">給与単価設定</h2>
-        <p className="text-sm text-gray-500 mb-5">{customerName}</p>
+        <p className="text-sm text-gray-500 mb-1">{customerName}</p>
+        {!monthSetting && prevMonthSetting && (
+          <p className="text-xs mb-4" style={{color:'#2563eb'}}>※ 前月の設定を引き継いでいます（保存すると{month}の設定として登録されます）</p>
+        )}
+        {!monthSetting && !prevMonthSetting && (
+          <p className="text-xs mb-4 text-gray-400">対象月：{month}</p>
+        )}
+        {monthSetting && (
+          <p className="text-xs mb-4 text-gray-400">対象月：{month}（保存済み）</p>
+        )}
         <form onSubmit={e=>{
           e.preventDefault();
-          const data = {};
-          PAYROLL_RATE_TIERS.forEach(([,key])=>{ if(form[key]!=='') data[key]=Number(form[key]); });
-          if(form.労務顧問!=='')    data.労務顧問    = Number(form.労務顧問);
-          if(form.処遇改善加算!=='') data.処遇改善加算 = Number(form.処遇改善加算);
-          if(form.給与固定金額!=='') data.給与固定金額 = Number(form.給与固定金額);
-          if(form.賞与固定金額!=='') data.賞与固定金額 = Number(form.賞与固定金額);
-          const 月別 = {...(rates?.月別追加案件||{})};
-          if(form.追加件数!=='' || form.追加金額!=='') {
-            月別[month] = {};
-            if(form.追加件数!=='') 月別[month].件数 = Number(form.追加件数);
-            if(form.追加金額!=='') 月別[month].金額 = Number(form.追加金額);
-          } else {
-            delete 月別[month];
-          }
-          if(Object.keys(月別).length>0) data.月別追加案件 = 月別;
-          onSave(data);
+          const setting = {};
+          PAYROLL_RATE_TIERS.forEach(([,key])=>{ if(form[key]!=='') setting[key]=Number(form[key]); });
+          if(form.労務顧問!=='')    setting.労務顧問    = Number(form.労務顧問);
+          if(form.処遇改善加算!=='') setting.処遇改善加算 = Number(form.処遇改善加算);
+          if(form.給与固定金額!=='') setting.給与固定金額 = Number(form.給与固定金額);
+          if(form.賞与固定金額!=='') setting.賞与固定金額 = Number(form.賞与固定金額);
+          if(form.追加件数!=='')    setting.追加件数    = Number(form.追加件数);
+          if(form.追加金額!=='')    setting.追加金額    = Number(form.追加金額);
+          // 月別設定構造で保存（旧構造のキーは除去して新構造に統一）
+          const { 月別追加案件, 単価_20以下, 単価_21_50, 単価_51_100, 単価_101_300, 単価_301以上,
+                  労務顧問: _r, 処遇改善加算: _s, 給与固定金額: _g, 賞与固定金額: _b, ...rest } = rates||{};
+          const newRates = {
+            ...rest,
+            月別設定: { ...(rates?.月別設定||{}), [month]: setting },
+          };
+          onSave(newRates);
         }}>
           <div className="mb-4">
-            <p className="text-xs font-semibold text-gray-500 mb-2">給与計算 — 段階単価（人数 × 単価）</p>
+            <p className="text-xs font-semibold text-gray-500 mb-2">給与計算 — 段階単価（人数 × 単価）<span className="ml-2 font-normal text-blue-400">← 毎月引き継ぎ</span></p>
             <div className="grid grid-cols-5 gap-3 mb-3">
               {PAYROLL_RATE_TIERS.map(([lbl,key])=>(
                 <div key={key}>
@@ -1282,14 +1324,22 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
                 </div>
               ))}
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">給与計算（固定金額・円）</label>
-              <input type="number" value={form.給与固定金額} onChange={e=>set('給与固定金額',e.target.value)} placeholder="未設定（段階単価を使用）" style={{width:'220px'}} />
-              <p className="text-xs text-gray-400 mt-1">※ 入力すると人数に関係なくこの金額を使用します</p>
+            <div className="flex items-end gap-2">
+              <div style={{flex:1}}>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">給与計算（固定金額・円）<span className="ml-2 font-normal text-gray-400">← 月ごとにリセット</span></label>
+                <input type="number" value={form.給与固定金額} onChange={e=>set('給与固定金額',e.target.value)} placeholder="未設定（段階単価を使用）" style={{width:'100%'}} />
+                <p className="text-xs text-gray-400 mt-1">※ 入力すると人数に関係なくこの金額を使用します</p>
+              </div>
+              {prevFixedPay && (
+                <button type="button" onClick={()=>set('給与固定金額', prevFixedPay)}
+                  className="btn btn-secondary" style={{fontSize:'12px',padding:'5px 10px',whiteSpace:'nowrap',marginBottom:'18px'}}>
+                  前月をコピー
+                </button>
+              )}
             </div>
           </div>
           <div className="mb-4">
-            <p className="text-xs font-semibold text-gray-500 mb-2">賞与計算</p>
+            <p className="text-xs font-semibold text-gray-500 mb-2">賞与計算<span className="ml-2 font-normal text-gray-400">← 月ごとにリセット</span></p>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">賞与計算（固定金額・円）</label>
               <input type="number" value={form.賞与固定金額} onChange={e=>set('賞与固定金額',e.target.value)} placeholder="未設定（段階単価を使用）" style={{width:'220px'}} />
@@ -1298,16 +1348,16 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
           </div>
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">労務顧問（月額固定・円）</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">労務顧問（月額固定・円）<span className="ml-1 font-normal text-blue-400">← 毎月引き継ぎ</span></label>
               <input type="number" value={form.労務顧問} onChange={e=>set('労務顧問',e.target.value)} placeholder="未設定" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">処遇改善加算（月額固定・円）</label>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">処遇改善加算（月額固定・円）<span className="ml-1 font-normal text-blue-400">← 毎月引き継ぎ</span></label>
               <input type="number" value={form.処遇改善加算} onChange={e=>set('処遇改善加算',e.target.value)} placeholder="未設定" />
             </div>
           </div>
           <div className="mb-6" style={{borderTop:'1px solid #e5e7eb',paddingTop:'16px'}}>
-            <p className="text-xs font-semibold text-gray-500 mb-2">追加案件（{month} 分・手入力）</p>
+            <p className="text-xs font-semibold text-gray-500 mb-2">追加案件（{month} 分・手入力）<span className="ml-2 font-normal text-gray-400">← 月ごとにリセット</span></p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">追加案件件数</label>
@@ -1394,10 +1444,12 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
 
     if(year && month){
       // 給与・賞与人数と単価を反映（契約解除済みを除く）
+      // 月別設定がある場合はそれを優先、なければ旧フラット構造にフォールバック
       (payrolls||[]).filter(p=>activeNames.has(p.customerName)).forEach(p=>{
         const name = p.customerName;
         const md = p.yearData?.[year]?.[month];
-        const rateData = (payrollRates||{})[name];
+        const rateRaw = (payrollRates||{})[name];
+        const rateData = rateRaw?.月別設定?.[sel] || rateRaw;
         const 人数 = Number(md?.人数)||0;
         const 賞与人 = Number(md?.賞与人数)||0;
         if(!map[name]) map[name]=blankRow(name);
@@ -1422,16 +1474,20 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
         }
       });
       // 労務顧問・処遇改善加算・追加案件を反映（契約解除済みを除く、給与の有無に関係なく）
-      Object.entries(payrollRates||{}).forEach(([name, rateData])=>{
+      Object.entries(payrollRates||{}).forEach(([name, rateRaw])=>{
         if(!activeNames.has(name)) return;
         if(!map[name]) map[name]=blankRow(name);
+        const rateData = rateRaw?.月別設定?.[sel] || rateRaw;
         if(rateData?.労務顧問!=null && rateData.労務顧問!=='')
           map[name].労務顧問    = Number(rateData.労務顧問)||0;
         if(rateData?.処遇改善加算!=null && rateData.処遇改善加算!=='')
           map[name].処遇改善加算 = Number(rateData.処遇改善加算)||0;
-        const extra = rateData?.月別追加案件?.[sel];
-        if(extra?.件数) map[name].追加件数 = Number(extra.件数)||0;
-        if(extra?.金額) map[name].追加金額 = Number(extra.金額)||0;
+        // 追加案件：新構造（月別設定.追加件数/追加金額）優先、旧構造（月別追加案件）にフォールバック
+        const ms = rateRaw?.月別設定?.[sel];
+        const 追加件数 = ms?.追加件数 ?? rateRaw?.月別追加案件?.[sel]?.件数;
+        const 追加金額 = ms?.追加金額 ?? rateRaw?.月別追加案件?.[sel]?.金額;
+        if(追加件数) map[name].追加件数 = Number(追加件数)||0;
+        if(追加金額) map[name].追加金額 = Number(追加金額)||0;
       });
     }
 
