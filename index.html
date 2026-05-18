@@ -1268,16 +1268,17 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
   const initTiers = Object.fromEntries(PAYROLL_RATE_TIERS.map(([,key])=>[key, inherited(key)]));
   const [form, setForm] = useState({
     ...initTiers,
-    労務顧問:    inherited('労務顧問'),
-    処遇改善加算: inherited('処遇改善加算'),
-    給与固定金額: monthOnly('給与固定金額'),
-    賞与固定金額: monthOnly('賞与固定金額'),
-    追加件数:    monthOnly('追加件数'),
-    追加金額:    monthOnly('追加金額'),
+    労務顧問:      inherited('労務顧問'),
+    処遇改善加算:  inherited('処遇改善加算'),
+    給与固定金額:  monthOnly('給与固定金額'),
+    賞与固定金額:  monthOnly('賞与固定金額'),
+    システム利用料: monthOnly('システム利用料'),
+    追加件数:      monthOnly('追加件数'),
+    追加金額:      monthOnly('追加金額'),
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
 
-  // 「前月をコピー」用：カレンダー上の1ヶ月前のキーと固定金額を取得
+  // 「前月をコピー」用：カレンダー上の1ヶ月前のキーと各値を取得
   const prevCalKey = (()=>{
     const m = month?.match(/(\d+)年(\d+)月/);
     if(!m) return null;
@@ -1285,9 +1286,11 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
     if(mo===0){mo=12;y--;}
     return `${y}年${mo}月`;
   })();
-  const prevCalFixedPay = rates?.月別設定?.[prevCalKey]?.給与固定金額!=null
-    ? String(rates.月別設定[prevCalKey].給与固定金額) : null;
-  const [noPrevMsg, setNoPrevMsg] = useState(false);
+  const prevCalSetting   = rates?.月別設定?.[prevCalKey];
+  const prevCalFixedPay  = prevCalSetting?.給与固定金額!=null  ? String(prevCalSetting.給与固定金額)  : null;
+  const prevCalSysAmt    = prevCalSetting?.システム利用料!=null ? String(prevCalSetting.システム利用料) : null;
+  const [noPrevMsg,    setNoPrevMsg]    = useState(false);
+  const [noPrevSysMsg, setNoPrevSysMsg] = useState(false);
 
   return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -1311,6 +1314,7 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
           if(form.処遇改善加算!=='') setting.処遇改善加算 = Number(form.処遇改善加算);
           if(form.給与固定金額!=='') setting.給与固定金額 = Number(form.給与固定金額);
           if(form.賞与固定金額!=='') setting.賞与固定金額 = Number(form.賞与固定金額);
+          if(form.システム利用料!=='') setting.システム利用料 = Number(form.システム利用料);
           if(form.追加件数!=='')    setting.追加件数    = Number(form.追加件数);
           if(form.追加金額!=='')    setting.追加金額    = Number(form.追加金額);
           // 月別設定構造で保存（旧構造のキーは除去して新構造に統一）
@@ -1361,7 +1365,7 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
               <p className="text-xs text-gray-400 mt-1">※ 入力すると人数に関係なくこの金額を使用します</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">労務顧問（月額固定・円）<span className="ml-1 font-normal text-blue-400">← 毎月引き継ぎ</span></label>
               <input type="number" value={form.労務顧問} onChange={e=>set('労務顧問',e.target.value)} placeholder="未設定" />
@@ -1369,6 +1373,25 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">処遇改善加算（月額固定・円）<span className="ml-1 font-normal text-blue-400">← 毎月引き継ぎ</span></label>
               <input type="number" value={form.処遇改善加算} onChange={e=>set('処遇改善加算',e.target.value)} placeholder="未設定" />
+            </div>
+          </div>
+          <div className="mb-4">
+            <div className="flex items-end gap-2">
+              <div style={{flex:1}}>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">システム利用料（円）<span className="ml-2 font-normal text-gray-400">← 月ごとにリセット</span></label>
+                <input type="number" min="0" value={form.システム利用料} onChange={e=>set('システム利用料',e.target.value)} placeholder="未設定" style={{width:'100%'}} />
+              </div>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',marginBottom:'2px'}}>
+                <button type="button"
+                  onClick={()=>{
+                    if(prevCalSysAmt!=null){set('システム利用料',prevCalSysAmt);setNoPrevSysMsg(false);}
+                    else setNoPrevSysMsg(true);
+                  }}
+                  className="btn btn-secondary" style={{fontSize:'12px',padding:'5px 10px',whiteSpace:'nowrap'}}>
+                  前月をコピー
+                </button>
+                {noPrevSysMsg && <span style={{fontSize:'11px',color:'#ef4444',whiteSpace:'nowrap'}}>前月のデータがありません</span>}
+              </div>
             </div>
           </div>
           <div className="mb-6" style={{borderTop:'1px solid #e5e7eb',paddingTop:'16px'}}>
@@ -1420,7 +1443,7 @@ function isAutoLocked(sel) {
   return new Date() > lockDate;
 }
 
-function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrollRates, billingSnapshots, setBillingSnapshots}) {
+function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrollRates, billingSnapshots, setBillingSnapshots, currentUser}) {
   const [sel, setSel] = useState('');
   const [rateModal, setRateModal] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(false);
@@ -1442,7 +1465,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
     const year  = ym ? Number(ym[1]) : null;
     const month = ym ? Number(ym[2]) : null;
 
-    const blankRow = name => ({name,count:0,total:0,追加件数:0,追加金額:0,給与人数:0,給与請求額:null,賞与人数:0,賞与請求額:null,労務顧問:null,処遇改善加算:null});
+    const blankRow = name => ({name,count:0,total:0,追加件数:0,追加金額:0,給与人数:0,給与請求額:null,賞与人数:0,賞与請求額:null,労務顧問:null,処遇改善加算:null,システム利用料:null});
     const map = {};
 
     // 顧問先マスタの全顧問先（契約解除済みを除く）を初期化
@@ -1497,6 +1520,8 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
           map[name].労務顧問    = Number(rateData.労務顧問)||0;
         if(rateData?.処遇改善加算!=null && rateData.処遇改善加算!=='')
           map[name].処遇改善加算 = Number(rateData.処遇改善加算)||0;
+        if(rateData?.システム利用料!=null && rateData.システム利用料!=='')
+          map[name].システム利用料 = Number(rateData.システム利用料)||0;
         // 追加案件：新構造（月別設定.追加件数/追加金額）優先、旧構造（月別追加案件）にフォールバック
         const ms = rateRaw?.月別設定?.[sel];
         const 追加件数 = ms?.追加件数 ?? rateRaw?.月別追加案件?.[sel]?.件数;
@@ -1523,10 +1548,13 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
   const grandBonusAmt = rows.reduce((s,r)=>r.賞与請求額!=null?s+r.賞与請求額:s, 0);
   const grandRomuAmt  = rows.reduce((s,r)=>r.労務顧問!=null?s+r.労務顧問:s, 0);
   const grandShoguAmt = rows.reduce((s,r)=>r.処遇改善加算!=null?s+r.処遇改善加算:s, 0);
+  const grandSysAmt   = rows.reduce((s,r)=>r.システム利用料!=null?s+r.システム利用料:s, 0);
   const hasPayAmt     = rows.some(r=>r.給与請求額!=null);
   const hasBonusAmt   = rows.some(r=>r.賞与請求額!=null);
   const hasRomuAmt    = rows.some(r=>r.労務顧問!=null);
   const hasShoguAmt   = rows.some(r=>r.処遇改善加算!=null);
+  const hasSysAmt     = rows.some(r=>r.システム利用料!=null);
+  const isHiro        = currentUser?.email === 'hiro@saitoh-sr.com';
 
   const handleSaveRate = (name, data) => {
     setPayrollRates({...(payrollRates||{}), [name]: data});
@@ -1583,7 +1611,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
         <div className="text-center py-20 text-gray-400"><p>該当する案件がありません</p></div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 200px)'}}>
-          <table className="text-sm" style={{tableLayout:'fixed',width:'1230px'}}>
+          <table className="text-sm" style={{tableLayout:'fixed',width:isHiro?'1350px':'1230px'}}>
             <colgroup>
               <col style={{width:'50px'}} />
               <col style={{width:'220px', minWidth:'220px'}} />
@@ -1595,6 +1623,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
               <col style={{width:'120px'}} />
               <col style={{width:'120px'}} />
               <col style={{width:'120px'}} />
+              {isHiro && <col style={{width:'120px'}} />}
             </colgroup>
             <thead>
               <tr style={{background:hdBg}} className="border-b border-gray-200">
@@ -1608,6 +1637,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
                 <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">賞与請求</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">労務顧問</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">処遇改善加算</th>
+                {isHiro && <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">システム利用料</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1637,6 +1667,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.賞与人数>0&&r.賞与請求額!=null?`¥${r.賞与請求額.toLocaleString()}`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.労務顧問!=null?`¥${r.労務顧問.toLocaleString()}`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.処遇改善加算!=null?`¥${r.処遇改善加算.toLocaleString()}`:'—'}</td>
+                  {isHiro && <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.システム利用料!=null?`¥${r.システム利用料.toLocaleString()}`:'—'}</td>}
                 </tr>
               ))}
             </tbody>
@@ -1652,6 +1683,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
                 <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasBonusAmt?`¥${grandBonusAmt.toLocaleString()}`:''}</td>
                 <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasRomuAmt?`¥${grandRomuAmt.toLocaleString()}`:''}</td>
                 <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasShoguAmt?`¥${grandShoguAmt.toLocaleString()}`:''}</td>
+                {isHiro && <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasSysAmt?`¥${grandSysAmt.toLocaleString()}`:''}</td>}
               </tr>
             </tfoot>
           </table>
@@ -3671,7 +3703,7 @@ function App() {
 
       <div className="px-2 py-4">
         {screen==='案件管理'            && <CaseListScreen cases={cases} setCases={setCases} masters={masters} currentUser={currentUser} />}
-        {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} payrolls={payrolls} payrollRates={payrollRates} setPayrollRates={setPayrollRates} billingSnapshots={billingSnapshots} setBillingSnapshots={setBillingSnapshots} />}
+        {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} payrolls={payrolls} payrollRates={payrollRates} setPayrollRates={setPayrollRates} billingSnapshots={billingSnapshots} setBillingSnapshots={setBillingSnapshots} currentUser={currentUser} />}
         {screen==='月変チェック'        && <MonthlyCheckScreen checks={checks} setChecks={setChecks} masters={masters} cases={cases} currentUser={currentUser} />}
         {screen==='年更・算定案件管理'  && <AnnualUpdateScreen cases={cases} setCases={setCases} masters={masters} currentUser={currentUser} />}
         {screen==='給与計算スケジュール'&& <PayrollScheduleScreen payrolls={payrolls} setPayrolls={setPayrolls} masters={masters} />}
