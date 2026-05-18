@@ -1345,6 +1345,8 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
     if(snap?.rows) return snap.rows;
 
     const custMap = Object.fromEntries((masters.customers||[]).map(c=>[c.name,c]));
+    // 未確定時は契約解除済みを一貫して除外するための名前セット
+    const activeNames = new Set((masters.customers||[]).filter(c=>!c.terminated).map(c=>c.name));
     const ym = sel.match(/(\d+)年(\d+)月/);
     const year  = ym ? Number(ym[1]) : null;
     const month = ym ? Number(ym[2]) : null;
@@ -1357,16 +1359,16 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
       map[c.name] = blankRow(c.name);
     });
 
-    // 案件請求（マスタ外の顧問先も念のため追加）
-    cases.filter(c=>c.targetMonth===sel && c.status==='請求済' && c.billingAmount!=='請求なし').forEach(c=>{
+    // 案件請求（契約解除済みの顧問先は除く）
+    cases.filter(c=>c.targetMonth===sel && c.status==='請求済' && c.billingAmount!=='請求なし' && activeNames.has(c.customerName)).forEach(c=>{
       if(!map[c.customerName]) map[c.customerName]=blankRow(c.customerName);
       map[c.customerName].count++;
       map[c.customerName].total+=Number(c.billingAmount)||0;
     });
 
     if(year && month){
-      // 給与・賞与人数と単価を反映
-      (payrolls||[]).forEach(p=>{
+      // 給与・賞与人数と単価を反映（契約解除済みを除く）
+      (payrolls||[]).filter(p=>activeNames.has(p.customerName)).forEach(p=>{
         const name = p.customerName;
         const md = p.yearData?.[year]?.[month];
         const rateData = (payrollRates||{})[name];
@@ -1393,8 +1395,9 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
           }
         }
       });
-      // 労務顧問・処遇改善加算を全顧問先に反映（給与の有無に関係なく）
+      // 労務顧問・処遇改善加算を反映（契約解除済みを除く、給与の有無に関係なく）
       Object.entries(payrollRates||{}).forEach(([name, rateData])=>{
+        if(!activeNames.has(name)) return;
         if(!map[name]) map[name]=blankRow(name);
         if(rateData?.労務顧問!=null && rateData.労務顧問!=='')
           map[name].労務顧問    = Number(rateData.労務顧問)||0;
