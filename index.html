@@ -1277,9 +1277,17 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
 
-  // 「前月をコピー」用：前月の給与固定金額
-  const prevFixedPay = prevMonthSetting?.給与固定金額!=null ? String(prevMonthSetting.給与固定金額) : null;
-  const isInherited = !monthSetting && (prevMonthSetting || Object.keys(rates?.月別設定||{}).length===0);
+  // 「前月をコピー」用：カレンダー上の1ヶ月前のキーと固定金額を取得
+  const prevCalKey = (()=>{
+    const m = month?.match(/(\d+)年(\d+)月/);
+    if(!m) return null;
+    let y=Number(m[1]), mo=Number(m[2])-1;
+    if(mo===0){mo=12;y--;}
+    return `${y}年${mo}月`;
+  })();
+  const prevCalFixedPay = rates?.月別設定?.[prevCalKey]?.給与固定金額!=null
+    ? String(rates.月別設定[prevCalKey].給与固定金額) : null;
+  const [noPrevMsg, setNoPrevMsg] = useState(false);
 
   return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -1330,12 +1338,19 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
                 <input type="number" value={form.給与固定金額} onChange={e=>set('給与固定金額',e.target.value)} placeholder="未設定（段階単価を使用）" style={{width:'100%'}} />
                 <p className="text-xs text-gray-400 mt-1">※ 入力すると人数に関係なくこの金額を使用します</p>
               </div>
-              {prevFixedPay && (
-                <button type="button" onClick={()=>set('給与固定金額', prevFixedPay)}
-                  className="btn btn-secondary" style={{fontSize:'12px',padding:'5px 10px',whiteSpace:'nowrap',marginBottom:'18px'}}>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'4px',marginBottom:'18px'}}>
+                <button type="button"
+                  onClick={()=>{
+                    if(prevCalFixedPay!=null){set('給与固定金額',prevCalFixedPay);setNoPrevMsg(false);}
+                    else setNoPrevMsg(true);
+                  }}
+                  className="btn btn-secondary" style={{fontSize:'12px',padding:'5px 10px',whiteSpace:'nowrap'}}>
                   前月をコピー
                 </button>
-              )}
+                {noPrevMsg && (
+                  <span style={{fontSize:'11px',color:'#ef4444',whiteSpace:'nowrap'}}>前月のデータがありません</span>
+                )}
+              </div>
             </div>
           </div>
           <div className="mb-4">
