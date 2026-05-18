@@ -1241,6 +1241,8 @@ function PayrollRateModal({customerName, rates, onSave, onClose}) {
     ...initTiers,
     労務顧問:    rates?.労務顧問    != null ? String(rates.労務顧問)    : '',
     処遇改善加算: rates?.処遇改善加算 != null ? String(rates.処遇改善加算) : '',
+    給与固定金額: rates?.給与固定金額 != null ? String(rates.給与固定金額) : '',
+    賞与固定金額: rates?.賞与固定金額 != null ? String(rates.賞与固定金額) : '',
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   return (
@@ -1254,15 +1256,33 @@ function PayrollRateModal({customerName, rates, onSave, onClose}) {
           PAYROLL_RATE_TIERS.forEach(([,key])=>{ if(form[key]!=='') data[key]=Number(form[key]); });
           if(form.労務顧問!=='')    data.労務顧問    = Number(form.労務顧問);
           if(form.処遇改善加算!=='') data.処遇改善加算 = Number(form.処遇改善加算);
+          if(form.給与固定金額!=='') data.給与固定金額 = Number(form.給与固定金額);
+          if(form.賞与固定金額!=='') data.賞与固定金額 = Number(form.賞与固定金額);
           onSave(data);
         }}>
-          <div className="grid grid-cols-5 gap-3 mb-5">
-            {PAYROLL_RATE_TIERS.map(([lbl,key])=>(
-              <div key={key}>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">{lbl}</label>
-                <input type="number" value={form[key]} onChange={e=>set(key,e.target.value)} placeholder="未設定" />
-              </div>
-            ))}
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-gray-500 mb-2">給与計算 — 段階単価（人数 × 単価）</p>
+            <div className="grid grid-cols-5 gap-3 mb-3">
+              {PAYROLL_RATE_TIERS.map(([lbl,key])=>(
+                <div key={key}>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">{lbl}</label>
+                  <input type="number" value={form[key]} onChange={e=>set(key,e.target.value)} placeholder="未設定" />
+                </div>
+              ))}
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">給与計算（固定金額・円）</label>
+              <input type="number" value={form.給与固定金額} onChange={e=>set('給与固定金額',e.target.value)} placeholder="未設定（段階単価を使用）" style={{width:'220px'}} />
+              <p className="text-xs text-gray-400 mt-1">※ 入力すると人数に関係なくこの金額を使用します</p>
+            </div>
+          </div>
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-gray-500 mb-2">賞与計算</p>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">賞与計算（固定金額・円）</label>
+              <input type="number" value={form.賞与固定金額} onChange={e=>set('賞与固定金額',e.target.value)} placeholder="未設定（段階単価を使用）" style={{width:'220px'}} />
+              <p className="text-xs text-gray-400 mt-1">※ 入力すると人数に関係なくこの金額を使用します</p>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3 mb-6">
             <div>
@@ -1338,30 +1358,49 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
     });
 
     if(year && month){
+      const processedPayrollNames = new Set();
       (payrolls||[]).forEach(p=>{
-        const md = p.yearData?.[year]?.[month];
-        if(!md) return;
-        const 人数 = Number(md.人数)||0;
-        const 賞与人 = Number(md.賞与人数)||0;
-        if(人数===0 && 賞与人===0) return;
         const name = p.customerName;
-        if(!map[name]) map[name]=blankRow(name);
+        const md = p.yearData?.[year]?.[month];
         const rateData = (payrollRates||{})[name];
+        const 人数 = Number(md?.人数)||0;
+        const 賞与人 = Number(md?.賞与人数)||0;
+        const hasRomu  = rateData?.労務顧問!=null    && rateData.労務顧問!=='';
+        const hasShogu = rateData?.処遇改善加算!=null && rateData.処遇改善加算!=='';
+        if(人数===0 && 賞与人===0 && !hasRomu && !hasShogu) return;
+        processedPayrollNames.add(name);
+        if(!map[name]) map[name]=blankRow(name);
         if(人数>0){
           map[name].給与人数 = 人数;
-          const price = getUnitPrice(rateData, 人数);
-          map[name].給与請求額 = price != null ? 人数 * price : null;
+          if(rateData?.給与固定金額!=null && rateData.給与固定金額!==''){
+            map[name].給与請求額 = Number(rateData.給与固定金額)||0;
+          } else {
+            const price = getUnitPrice(rateData, 人数);
+            map[name].給与請求額 = price != null ? 人数 * price : null;
+          }
         }
         if(賞与人>0){
           map[name].賞与人数 = 賞与人;
-          const tierN = 人数>0 ? 人数 : 賞与人;
-          const price = getUnitPrice(rateData, tierN);
-          map[name].賞与請求額 = price != null ? 賞与人 * price : null;
+          if(rateData?.賞与固定金額!=null && rateData.賞与固定金額!==''){
+            map[name].賞与請求額 = Number(rateData.賞与固定金額)||0;
+          } else {
+            const tierN = 人数>0 ? 人数 : 賞与人;
+            const price = getUnitPrice(rateData, tierN);
+            map[name].賞与請求額 = price != null ? 賞与人 * price : null;
+          }
         }
-        if(rateData?.労務顧問!=null && rateData.労務顧問!=='')
-          map[name].労務顧問 = Number(rateData.労務顧問)||0;
-        if(rateData?.処遇改善加算!=null && rateData.処遇改善加算!=='')
-          map[name].処遇改善加算 = Number(rateData.処遇改善加算)||0;
+        if(hasRomu)  map[name].労務顧問    = Number(rateData.労務顧問)||0;
+        if(hasShogu) map[name].処遇改善加算 = Number(rateData.処遇改善加算)||0;
+      });
+      // 給与人数なしでも労務顧問・処遇改善加算が設定されている顧問先を追加
+      Object.entries(payrollRates||{}).forEach(([name, rateData])=>{
+        if(processedPayrollNames.has(name) || map[name]) return;
+        const hasRomu  = rateData?.労務顧問!=null    && rateData.労務顧問!=='';
+        const hasShogu = rateData?.処遇改善加算!=null && rateData.処遇改善加算!=='';
+        if(!hasRomu && !hasShogu) return;
+        map[name] = blankRow(name);
+        if(hasRomu)  map[name].労務顧問    = Number(rateData.労務顧問)||0;
+        if(hasShogu) map[name].処遇改善加算 = Number(rateData.処遇改善加算)||0;
       });
     }
 
