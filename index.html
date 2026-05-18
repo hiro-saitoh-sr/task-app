@@ -1351,6 +1351,13 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
 
     const blankRow = name => ({name,count:0,total:0,給与人数:0,給与請求額:null,賞与人数:0,賞与請求額:null,労務顧問:null,処遇改善加算:null});
     const map = {};
+
+    // 顧問先マスタの全顧問先（契約解除済みを除く）を初期化
+    (masters.customers||[]).filter(c=>!c.terminated).forEach(c=>{
+      map[c.name] = blankRow(c.name);
+    });
+
+    // 案件請求（マスタ外の顧問先も念のため追加）
     cases.filter(c=>c.targetMonth===sel && c.status==='請求済' && c.billingAmount!=='請求なし').forEach(c=>{
       if(!map[c.customerName]) map[c.customerName]=blankRow(c.customerName);
       map[c.customerName].count++;
@@ -1358,17 +1365,13 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
     });
 
     if(year && month){
-      const processedPayrollNames = new Set();
+      // 給与・賞与人数と単価を反映
       (payrolls||[]).forEach(p=>{
         const name = p.customerName;
         const md = p.yearData?.[year]?.[month];
         const rateData = (payrollRates||{})[name];
         const 人数 = Number(md?.人数)||0;
         const 賞与人 = Number(md?.賞与人数)||0;
-        const hasRomu  = rateData?.労務顧問!=null    && rateData.労務顧問!=='';
-        const hasShogu = rateData?.処遇改善加算!=null && rateData.処遇改善加算!=='';
-        if(人数===0 && 賞与人===0 && !hasRomu && !hasShogu) return;
-        processedPayrollNames.add(name);
         if(!map[name]) map[name]=blankRow(name);
         if(人数>0){
           map[name].給与人数 = 人数;
@@ -1389,18 +1392,14 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
             map[name].賞与請求額 = price != null ? 賞与人 * price : null;
           }
         }
-        if(hasRomu)  map[name].労務顧問    = Number(rateData.労務顧問)||0;
-        if(hasShogu) map[name].処遇改善加算 = Number(rateData.処遇改善加算)||0;
       });
-      // 給与人数なしでも労務顧問・処遇改善加算が設定されている顧問先を追加
+      // 労務顧問・処遇改善加算を全顧問先に反映（給与の有無に関係なく）
       Object.entries(payrollRates||{}).forEach(([name, rateData])=>{
-        if(processedPayrollNames.has(name) || map[name]) return;
-        const hasRomu  = rateData?.労務顧問!=null    && rateData.労務顧問!=='';
-        const hasShogu = rateData?.処遇改善加算!=null && rateData.処遇改善加算!=='';
-        if(!hasRomu && !hasShogu) return;
-        map[name] = blankRow(name);
-        if(hasRomu)  map[name].労務顧問    = Number(rateData.労務顧問)||0;
-        if(hasShogu) map[name].処遇改善加算 = Number(rateData.処遇改善加算)||0;
+        if(!map[name]) map[name]=blankRow(name);
+        if(rateData?.労務顧問!=null && rateData.労務顧問!=='')
+          map[name].労務顧問    = Number(rateData.労務顧問)||0;
+        if(rateData?.処遇改善加算!=null && rateData.処遇改善加算!=='')
+          map[name].処遇改善加算 = Number(rateData.処遇改善加算)||0;
       });
     }
 
