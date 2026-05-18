@@ -1235,7 +1235,8 @@ const PAYROLL_RATE_TIERS = [
   ['301人〜',  '単価_301以上'],
 ];
 
-function PayrollRateModal({customerName, rates, onSave, onClose}) {
+function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
+  const extraSaved = rates?.月別追加案件?.[month];
   const initTiers = Object.fromEntries(PAYROLL_RATE_TIERS.map(([,key])=>[key, rates?.[key]!=null?String(rates[key]):'']));
   const [form, setForm] = useState({
     ...initTiers,
@@ -1243,6 +1244,8 @@ function PayrollRateModal({customerName, rates, onSave, onClose}) {
     処遇改善加算: rates?.処遇改善加算 != null ? String(rates.処遇改善加算) : '',
     給与固定金額: rates?.給与固定金額 != null ? String(rates.給与固定金額) : '',
     賞与固定金額: rates?.賞与固定金額 != null ? String(rates.賞与固定金額) : '',
+    追加件数: extraSaved?.件数 != null ? String(extraSaved.件数) : '',
+    追加金額: extraSaved?.金額 != null ? String(extraSaved.金額) : '',
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   return (
@@ -1258,6 +1261,15 @@ function PayrollRateModal({customerName, rates, onSave, onClose}) {
           if(form.処遇改善加算!=='') data.処遇改善加算 = Number(form.処遇改善加算);
           if(form.給与固定金額!=='') data.給与固定金額 = Number(form.給与固定金額);
           if(form.賞与固定金額!=='') data.賞与固定金額 = Number(form.賞与固定金額);
+          const 月別 = {...(rates?.月別追加案件||{})};
+          if(form.追加件数!=='' || form.追加金額!=='') {
+            月別[month] = {};
+            if(form.追加件数!=='') 月別[month].件数 = Number(form.追加件数);
+            if(form.追加金額!=='') 月別[month].金額 = Number(form.追加金額);
+          } else {
+            delete 月別[month];
+          }
+          if(Object.keys(月別).length>0) data.月別追加案件 = 月別;
           onSave(data);
         }}>
           <div className="mb-4">
@@ -1284,7 +1296,7 @@ function PayrollRateModal({customerName, rates, onSave, onClose}) {
               <p className="text-xs text-gray-400 mt-1">※ 入力すると人数に関係なくこの金額を使用します</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">労務顧問（月額固定・円）</label>
               <input type="number" value={form.労務顧問} onChange={e=>set('労務顧問',e.target.value)} placeholder="未設定" />
@@ -1293,6 +1305,20 @@ function PayrollRateModal({customerName, rates, onSave, onClose}) {
               <label className="block text-xs font-semibold text-gray-500 mb-1">処遇改善加算（月額固定・円）</label>
               <input type="number" value={form.処遇改善加算} onChange={e=>set('処遇改善加算',e.target.value)} placeholder="未設定" />
             </div>
+          </div>
+          <div className="mb-6" style={{borderTop:'1px solid #e5e7eb',paddingTop:'16px'}}>
+            <p className="text-xs font-semibold text-gray-500 mb-2">追加案件（{month} 分・手入力）</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">追加案件件数</label>
+                <input type="number" min="0" value={form.追加件数} onChange={e=>set('追加件数',e.target.value)} placeholder="0" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">追加案件請求額（円）</label>
+                <input type="number" min="0" value={form.追加金額} onChange={e=>set('追加金額',e.target.value)} placeholder="0" />
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">※ 案件管理の集計に加算されます</p>
           </div>
           <div className="flex gap-3 justify-end">
             <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
@@ -1351,7 +1377,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
     const year  = ym ? Number(ym[1]) : null;
     const month = ym ? Number(ym[2]) : null;
 
-    const blankRow = name => ({name,count:0,total:0,給与人数:0,給与請求額:null,賞与人数:0,賞与請求額:null,労務顧問:null,処遇改善加算:null});
+    const blankRow = name => ({name,count:0,total:0,追加件数:0,追加金額:0,給与人数:0,給与請求額:null,賞与人数:0,賞与請求額:null,労務顧問:null,処遇改善加算:null});
     const map = {};
 
     // 顧問先マスタの全顧問先（契約解除済みを除く）を初期化
@@ -1395,7 +1421,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
           }
         }
       });
-      // 労務顧問・処遇改善加算を反映（契約解除済みを除く、給与の有無に関係なく）
+      // 労務顧問・処遇改善加算・追加案件を反映（契約解除済みを除く、給与の有無に関係なく）
       Object.entries(payrollRates||{}).forEach(([name, rateData])=>{
         if(!activeNames.has(name)) return;
         if(!map[name]) map[name]=blankRow(name);
@@ -1403,6 +1429,9 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
           map[name].労務顧問    = Number(rateData.労務顧問)||0;
         if(rateData?.処遇改善加算!=null && rateData.処遇改善加算!=='')
           map[name].処遇改善加算 = Number(rateData.処遇改善加算)||0;
+        const extra = rateData?.月別追加案件?.[sel];
+        if(extra?.件数) map[name].追加件数 = Number(extra.件数)||0;
+        if(extra?.金額) map[name].追加金額 = Number(extra.金額)||0;
       });
     }
 
@@ -1415,8 +1444,8 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
       });
   },[cases,payrolls,payrollRates,sel,masters,billingSnapshots]);
 
-  const grandCount    = rows.reduce((s,r)=>s+r.count,0);
-  const grandTotal    = rows.reduce((s,r)=>s+r.total,0);
+  const grandCount    = rows.reduce((s,r)=>s+(r.count||0)+(r.追加件数||0),0);
+  const grandTotal    = rows.reduce((s,r)=>s+(r.total||0)+(r.追加金額||0),0);
   const grandPayCnt   = rows.reduce((s,r)=>s+r.給与人数,0);
   const grandPayAmt   = rows.reduce((s,r)=>r.給与請求額!=null?s+r.給与請求額:s, 0);
   const grandBonusCnt = rows.reduce((s,r)=>s+r.賞与人数,0);
@@ -1522,8 +1551,15 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
                         >{r.name}</button>
                     }
                   </td>
-                  <td className="px-3 py-3 text-right text-gray-700">{r.count>0?`${r.count}件`:'—'}</td>
-                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.total>0?`¥${r.total.toLocaleString()}`:'—'}</td>
+                  <td className="px-3 py-3 text-right text-gray-700">{(r.count||0)+(r.追加件数||0)>0?`${(r.count||0)+(r.追加件数||0)}件`:'—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">
+                    {(r.total||0)+(r.追加金額||0)>0
+                      ? <span title={(r.追加件数||0)+(r.追加金額||0)>0?`自動:¥${(r.total||0).toLocaleString()} + 手入力:¥${(r.追加金額||0).toLocaleString()}`:undefined}>
+                          {(r.追加件数||0)+(r.追加金額||0)>0 && <span style={{color:'#9ca3af',fontSize:'11px',marginRight:'2px'}}>✎</span>}
+                          {`¥${((r.total||0)+(r.追加金額||0)).toLocaleString()}`}
+                        </span>
+                      : '—'}
+                  </td>
                   <td className="px-3 py-3 text-right text-gray-700">{r.給与人数>0?`${r.給与人数}人`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.給与人数>0&&r.給与請求額!=null?`¥${r.給与請求額.toLocaleString()}`:'—'}</td>
                   <td className="px-3 py-3 text-right text-gray-700">{r.賞与人数>0?`${r.賞与人数}人`:'—'}</td>
@@ -1553,6 +1589,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
       {rateModal && (
         <PayrollRateModal
           customerName={rateModal.name}
+          month={sel}
           rates={(payrollRates||{})[rateModal.name]}
           onSave={data=>handleSaveRate(rateModal.name, data)}
           onClose={()=>setRateModal(null)}
