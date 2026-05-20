@@ -3051,9 +3051,9 @@ function CustomerDetailModal({item, onClose, onEdit}) {
     {k:'代表者メール',         v:item.代表者メール,         copy:true},
     {k:'担当者名①',            v:item.担当者名},
     {k:'担当者メール①',        v:item.担当者メール,         copy:true},
-    ...(item.担当者名②||item.担当者メール② ? [
-      {k:'担当者名②',          v:item.担当者名②||''},
-      {k:'担当者メール②',      v:item.担当者メール②||'',   copy:true},
+    ...(item['担当者名②']||item['担当者メール②'] ? [
+      {k:'担当者名②',          v:item['担当者名②']||''},
+      {k:'担当者メール②',      v:item['担当者メール②']||'',   copy:true},
     ] : []),
     {k:'決算月',               v:item.決算月},
     {k:'契約サービス',         v:(item.契約サービス||[]).join('・')},
@@ -3093,7 +3093,7 @@ function CustomerDetailModal({item, onClose, onEdit}) {
 }
 
 function MasterItemModal({title, item, onSave, onClose, showNo}) {
-  const defForm = {no:'', name:'', 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', 担当者名②:'', 担当者メール②:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
+  const defForm = {no:'', name:'', 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', '担当者名②':'', '担当者メール②':'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
   const [form, setForm] = useState(item ? {...defForm, ...item} : defForm);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const toggleSv = sv => {
@@ -3143,11 +3143,11 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="block text-sm font-semibold text-gray-600 mb-1">担当者名②</label>
-                <input value={form.担当者名②||''} onChange={e=>set('担当者名②',e.target.value)} placeholder="担当者名②" />
+                <input value={form['担当者名②']||''} onChange={e=>set('担当者名②',e.target.value)} placeholder="担当者名②" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-600 mb-1">担当者メール②</label>
-                <input value={form.担当者メール②||''} onChange={e=>set('担当者メール②',e.target.value)} placeholder="担当者メールアドレス②" />
+                <input value={form['担当者メール②']||''} onChange={e=>set('担当者メール②',e.target.value)} placeholder="担当者メールアドレス②" />
               </div>
             </div>
             <div className="mb-3">
