@@ -2793,7 +2793,9 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters}) {
   },[payrolls,filterCustomer,filterAssignee,filterStatus,showTerminated,selYear,selMonth,viewMode]);
 
   const hasFilter = !!(filterCustomer||filterAssignee||filterStatus!=='all'||showTerminated);
-  const customerOptions = payrolls.map(p=>({label:p.customerName,value:p.customerName}));
+  const customerOptions = payrolls
+    .filter(p => showTerminated ? p.terminated : !p.terminated)
+    .map(p=>({label:p.customerName, value:p.customerName}));
   const assigneeOptions = [...new Set(payrolls.map(p=>p.assignee).filter(Boolean))].map(a=>({label:a,value:a}));
 
   /* ── sticky列共通スタイル ── */
