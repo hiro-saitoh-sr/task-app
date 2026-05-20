@@ -486,7 +486,7 @@ function initMasters() {
     {id:1, name:'齊藤'},
     {id:2, name:'武井'},
   ];
-  return { customers, procedures, assignees, nextId: 9000, version: MASTER_VERSION };
+  return { customers, procedures, assignees, partners: [], nextId: 9000, version: MASTER_VERSION };
 }
 
 function loadMasters() {
@@ -545,6 +545,18 @@ function rowAlert(c) {
   if (days >= 30) return 'row-danger';
   if (days >= 14) return 'row-warning';
   return '';
+}
+function daysUntil36Kisan(str) {
+  if (!str) return null;
+  const m = str.match(/(\d+)月(\d+)日/);
+  if (!m) return null;
+  const month = parseInt(m[1]);
+  const day   = parseInt(m[2]);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const thisYear = today.getFullYear();
+  let d = new Date(thisYear, month - 1, day);
+  if (Math.floor((d - today) / 86400000) < 0) d = new Date(thisYear + 1, month - 1, day);
+  return Math.floor((d - today) / 86400000);
 }
 function nextId(list) { return Math.max(0, ...list.map(x => x.id||0)) + 1; }
 function renderMemo(text) {
@@ -3205,6 +3217,60 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
   );
 }
 
+function PartnerItemModal({title, item, onSave, onClose, customers}) {
+  const defForm = {name:'', 担当者名:'', メールアドレス:'', 担当顧問先:[]};
+  const [form, setForm] = useState(item ? {...defForm, ...item} : defForm);
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const toggleCust = custName => {
+    const cur = form.担当顧問先 || [];
+    set('担当顧問先', cur.includes(custName) ? cur.filter(x=>x!==custName) : [...cur, custName]);
+  };
+  const activeCusts = (customers||[]).filter(c=>!c.terminated);
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal-box" style={{width:'560px', maxHeight:'90vh', overflowY:'auto'}}>
+        <h2 className="text-lg font-bold mb-4">{title}</h2>
+        <form onSubmit={e=>{e.preventDefault();if(!form.name.trim()){alert('事務所名は必須です');return;}onSave(form);}}>
+          <div className="mb-3">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">事務所名 <span className="text-red-500">*</span></label>
+            <input value={form.name} onChange={e=>set('name',e.target.value)} placeholder="事務所名を入力" />
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">担当者名</label>
+              <input value={form.担当者名||''} onChange={e=>set('担当者名',e.target.value)} placeholder="担当者名" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">メールアドレス</label>
+              <input value={form.メールアドレス||''} onChange={e=>set('メールアドレス',e.target.value)} placeholder="メールアドレス" />
+            </div>
+          </div>
+          <div className="mb-3">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">担当顧問先</label>
+            <div style={{maxHeight:'200px', overflowY:'auto', border:'1px solid #e5e7eb', borderRadius:'6px', padding:'8px 12px'}}>
+              {activeCusts.length === 0 ? (
+                <p className="text-sm text-gray-400">顧問先マスタにデータがありません</p>
+              ) : activeCusts.map(c=>(
+                <label key={c.id} className="flex items-center gap-2 py-1 cursor-pointer text-sm">
+                  <input type="checkbox"
+                    checked={(form.担当顧問先||[]).includes(c.name)}
+                    onChange={()=>toggleCust(c.name)}
+                    style={{width:'15px',height:'15px',cursor:'pointer'}} />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+            <button type="submit" className="btn btn-primary">{item?'保存する':'追加する'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function MasterScreen({masters, setMasters}) {
   const [tab, setTab]               = useState('顧問先');
   const [showModal, setShowModal]   = useState(false);
@@ -3213,8 +3279,15 @@ function MasterScreen({masters, setMasters}) {
   const [delItem, setDelItem]       = useState(null);
   const [showTerminated, setShowTerminated] = useState(false);
   const [search, setSearch]             = useState('');
+  const [showAlert36, setShowAlert36]   = useState(false);
 
-  const listKey = tab==='顧問先'?'customers':tab==='担当者'?'assignees':'procedures';
+  const alertCustomers = (masters.customers||[]).filter(c => {
+    if (c.terminated) return false;
+    const d = daysUntil36Kisan(c['36協定起算日']);
+    return d !== null && d >= 0 && d <= 40;
+  });
+
+  const listKey = tab==='顧問先'?'customers':tab==='担当者'?'assignees':tab==='手続き'?'procedures':'partners';
   const rawList = masters[listKey] || [];
   const sorted = tab==='顧問先'
     ? [...rawList].sort((a,b) => {
@@ -3252,11 +3325,18 @@ function MasterScreen({masters, setMasters}) {
     setDelItem(null);
   };
 
-  const TABS = ['顧問先','担当者','手続き'];
+  const TABS = ['顧問先','担当者','手続き','提携先'];
 
   return (
     <div>
       <h2 className="text-lg font-bold text-gray-800 mb-4">マスタ管理</h2>
+      {alertCustomers.length > 0 && (
+        <div onClick={()=>setShowAlert36(true)} style={{cursor:'pointer',background:'#fff7ed',border:'1px solid #fdba74',borderRadius:'8px',padding:'10px 16px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'8px',fontSize:'14px',fontWeight:'600',color:'#9a3412'}}>
+          <span>⚠️</span>
+          <span>36協定の起算日まで40日以内の顧問先があります（{alertCustomers.length}件）</span>
+          <span style={{marginLeft:'auto',fontSize:'12px',color:'#c2410c'}}>クリックで一覧表示 ›</span>
+        </div>
+      )}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         {TABS.map(t=>(
           <button key={t} onClick={()=>{setTab(t);setShowModal(false);setEditItem(null);setShowTerminated(false);setSearch('');}}
@@ -3290,7 +3370,7 @@ function MasterScreen({masters, setMasters}) {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 {tab==='顧問先' && <th className="px-4 py-3 text-left font-semibold text-gray-600 w-14">No</th>}
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">名称</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">{tab==='提携先'?'事務所名':'名称'}</th>
                 {tab==='顧問先' && <>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">代表者名</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当者名</th>
@@ -3298,12 +3378,21 @@ function MasterScreen({masters, setMasters}) {
                   <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">その他労使協定</th>
                   <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">東京SR</th>
                 </>}
+                {tab==='提携先' && <>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当者名</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">メールアドレス</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当顧問先</th>
+                </>}
                 <th className="px-4 py-3 text-center font-semibold text-gray-600 w-28">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {list.map(item=>(
-                <tr key={item.id} className={`group ${item.terminated?'bg-gray-50 opacity-60':'hover:bg-gray-50'}`}>
+              {list.map(item=>{
+                const is36Alert = tab==='顧問先' && (()=>{const d=daysUntil36Kisan(item['36協定起算日']);return d!==null&&d>=0&&d<=40;})();
+                return (
+                <tr key={item.id}
+                  className={`group ${item.terminated?'bg-gray-50 opacity-60':is36Alert?'':'hover:bg-gray-50'}`}
+                  style={is36Alert&&!item.terminated?{backgroundColor:'#fff7ed'}:{}}>
                   {tab==='顧問先' && <td className="px-4 py-3 text-gray-500 text-sm">{item.no}</td>}
                   <td className="px-4 py-3 font-medium" style={{color:item.terminated?'#9ca3af':'#1f2937'}}>
                     {item.terminated && <span className="inline-block mr-1.5 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">解除</span>}
@@ -3323,6 +3412,18 @@ function MasterScreen({masters, setMasters}) {
                       {item['東京SR特別加入']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-700">あり</span>}
                     </td>
                   </>}
+                  {tab==='提携先' && <>
+                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}</td>
+                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">
+                      {item.メールアドレス && (
+                        <div className="flex items-center gap-2">
+                          <span>{item.メールアドレス}</span>
+                          <CopyButton text={item.メールアドレス} />
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-3 text-sm text-gray-600">{(item.担当顧問先||[]).join('・')}</td>
+                  </>}
                   <td className="px-4 py-3">
                     <div className="flex gap-2 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       {!item.terminated && <button onClick={()=>{setEditItem(item);setShowModal(true);}} className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>}
@@ -3336,7 +3437,8 @@ function MasterScreen({masters, setMasters}) {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -3348,7 +3450,16 @@ function MasterScreen({masters, setMasters}) {
           onEdit={viewItem.terminated ? null : ()=>{setEditItem(viewItem);setViewItem(null);setShowModal(true);}}
         />
       )}
-      {showModal && (
+      {showModal && tab==='提携先' && (
+        <PartnerItemModal
+          title={`提携先マスタ — ${editItem?'編集':'追加'}`}
+          item={editItem}
+          onSave={handleSave}
+          onClose={()=>{setShowModal(false);setEditItem(null);}}
+          customers={masters.customers||[]}
+        />
+      )}
+      {showModal && tab!=='提携先' && (
         <MasterItemModal
           title={`${tab}マスタ — ${editItem?'編集':'追加'}`}
           item={editItem}
@@ -3374,6 +3485,35 @@ function MasterScreen({masters, setMasters}) {
               onConfirm={handleDelete}
               onClose={()=>setDelItem(null)}
             />
+      )}
+      {showAlert36 && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowAlert36(false)}>
+          <div className="modal-box" style={{width:'480px', maxHeight:'80vh', overflowY:'auto'}}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-800">⚠️ 36協定 起算日が近い顧問先</h2>
+              <button onClick={()=>setShowAlert36(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {alertCustomers.map(c=>{
+                const d = daysUntil36Kisan(c['36協定起算日']);
+                return (
+                  <div key={c.id} className="flex items-center justify-between py-3 text-sm">
+                    <div>
+                      <div className="font-semibold text-gray-800">{c.name}</div>
+                      <div className="text-gray-500 text-xs mt-0.5">起算日: {c['36協定起算日']}</div>
+                    </div>
+                    <div className={`font-bold ${d===0?'text-red-600':d<=7?'text-orange-600':'text-amber-600'}`}>
+                      {d===0?'本日':'あと'+d+'日'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-end mt-5">
+              <button className="btn btn-secondary" onClick={()=>setShowAlert36(false)}>閉じる</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
