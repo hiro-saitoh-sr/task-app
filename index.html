@@ -3128,17 +3128,19 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
                 <input value={form.代表者名||''} onChange={e=>set('代表者名',e.target.value)} placeholder="代表者名" />
               </div>
               <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">代表者メール</label>
+                <input value={form.代表者メール||''} onChange={e=>set('代表者メール',e.target.value)} placeholder="代表者メールアドレス" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
                 <label className="block text-sm font-semibold text-gray-600 mb-1">担当者名①</label>
                 <input value={form.担当者名||''} onChange={e=>set('担当者名',e.target.value)} placeholder="担当者名①" />
               </div>
-            </div>
-            <div className="mb-3">
-              <label className="block text-sm font-semibold text-gray-600 mb-1">代表者メール</label>
-              <input value={form.代表者メール||''} onChange={e=>set('代表者メール',e.target.value)} placeholder="代表者メールアドレス" />
-            </div>
-            <div className="mb-3">
-              <label className="block text-sm font-semibold text-gray-600 mb-1">担当者メール①</label>
-              <input value={form.担当者メール||''} onChange={e=>set('担当者メール',e.target.value)} placeholder="担当者メールアドレス①" />
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">担当者メール①</label>
+                <input value={form.担当者メール||''} onChange={e=>set('担当者メール',e.target.value)} placeholder="担当者メールアドレス①" />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
