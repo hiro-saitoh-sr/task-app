@@ -548,10 +548,15 @@ function rowAlert(c) {
 }
 function daysUntil36Kisan(str) {
   if (!str) return null;
-  const m = str.match(/(\d+)月(\d+)日/);
-  if (!m) return null;
-  const month = parseInt(m[1]);
-  const day   = parseInt(m[2]);
+  let month, day;
+  let m = str.match(/(\d+)月(\d+)日/);
+  if (m) { month = parseInt(m[1]); day = parseInt(m[2]); }
+  else {
+    m = str.trim().match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+    if (m) { month = parseInt(m[1]); day = parseInt(m[2]); }
+    else return null;
+  }
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   const today = new Date(); today.setHours(0,0,0,0);
   const thisYear = today.getFullYear();
   let d = new Date(thisYear, month - 1, day);
@@ -957,6 +962,16 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
   const [showNew, setShowNew]       = useState(false);
   const [cancelCase, setCancelCase] = useState(null);
   const [showCancelled, setShowCancelled] = useState(false);
+  const [showAlert36, setShowAlert36] = useState(false);
+
+  const alertCustomers36 = useMemo(()=>{
+    return (masters.customers||[]).filter(c => {
+      if (c.terminated) return false;
+      const d = daysUntil36Kisan(c['36協定起算日']);
+      return d !== null && d >= 0 && d <= 40;
+    });
+  }, [masters.customers]);
+
   const tabCounts = useMemo(()=>{
     const active = cases.filter(c=>!c.cancelled&&!c.isAnnualOnly);
     const cnt={'全件':active.length};
@@ -1029,6 +1044,13 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
           <span className="text-sm font-semibold text-gray-600 mr-1">期限注意</span>
           {alertCounts.danger>0  && <span className="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">🔴 30日超過 {alertCounts.danger}件</span>}
           {alertCounts.warning>0 && <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-3 py-1 rounded-full">🟡 14日超過 {alertCounts.warning}件</span>}
+        </div>
+      )}
+      {alertCustomers36.length > 0 && (
+        <div onClick={()=>setShowAlert36(true)} style={{cursor:'pointer',background:'#fff7ed',border:'1px solid #fdba74',borderRadius:'8px',padding:'10px 16px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'8px',fontSize:'14px',fontWeight:'600',color:'#9a3412'}}>
+          <span>⚠️</span>
+          <span>36協定の起算日まで40日以内の顧問先があります（{alertCustomers36.length}件）</span>
+          <span style={{marginLeft:'auto',fontSize:'12px',color:'#c2410c'}}>クリックで一覧表示 ›</span>
         </div>
       )}
 
@@ -1231,6 +1253,35 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
               note="データは保持されます。フィルターで再表示できます。"
               onConfirm={()=>{setCases(p=>p.map(c=>c.id===cancelCase.id?{...c,cancelled:true}:c));setCancelCase(null);}}
               onClose={()=>setCancelCase(null)} />
+      )}
+      {showAlert36 && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowAlert36(false)}>
+          <div className="modal-box" style={{width:'480px', maxHeight:'80vh', overflowY:'auto'}}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-800">⚠️ 36協定 起算日が近い顧問先</h2>
+              <button onClick={()=>setShowAlert36(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {alertCustomers36.map(c=>{
+                const d = daysUntil36Kisan(c['36協定起算日']);
+                return (
+                  <div key={c.id} className="flex items-center justify-between py-3 text-sm">
+                    <div>
+                      <div className="font-semibold text-gray-800">{c.name}</div>
+                      <div className="text-gray-500 text-xs mt-0.5">起算日: {c['36協定起算日']}</div>
+                    </div>
+                    <div className={`font-bold ${d===0?'text-red-600':d<=7?'text-orange-600':'text-amber-600'}`}>
+                      {d===0?'本日':'あと'+d+'日'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-end mt-5">
+              <button className="btn btn-secondary" onClick={()=>setShowAlert36(false)}>閉じる</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -3217,6 +3268,40 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
   );
 }
 
+function PartnerDetailModal({item, onClose, onEdit}) {
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal-box" style={{width:'480px'}}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-800">{item.name}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+        </div>
+        <div className="divide-y divide-gray-100">
+          <div className="flex items-center gap-3 py-2.5 text-sm">
+            <span className="font-semibold text-gray-500 whitespace-nowrap w-32 shrink-0">担当者名</span>
+            <span className="text-gray-800 break-all flex-1">{item.担当者名 || <span className="text-gray-300">—</span>}</span>
+          </div>
+          <div className="flex items-center gap-3 py-2.5 text-sm">
+            <span className="font-semibold text-gray-500 whitespace-nowrap w-32 shrink-0">メールアドレス</span>
+            <span className="text-gray-800 break-all flex-1">{item.メールアドレス || <span className="text-gray-300">—</span>}</span>
+            {item.メールアドレス && <CopyButton text={item.メールアドレス} />}
+          </div>
+          {(item.担当顧問先||[]).length > 0 && (
+            <div className="flex items-start gap-3 py-2.5 text-sm">
+              <span className="font-semibold text-gray-500 whitespace-nowrap w-32 shrink-0">担当顧問先</span>
+              <span className="text-gray-800 flex-1">{(item.担当顧問先||[]).join('・')}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex justify-between mt-5">
+          <button className="btn btn-secondary" onClick={onClose}>閉じる</button>
+          {onEdit && <button className="btn btn-primary" onClick={onEdit}>編集する</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PartnerItemModal({title, item, onSave, onClose, customers}) {
   const defForm = {name:'', 担当者名:'', メールアドレス:'', 担当顧問先:[]};
   const [form, setForm] = useState(item ? {...defForm, ...item} : defForm);
@@ -3230,10 +3315,10 @@ function PartnerItemModal({title, item, onSave, onClose, customers}) {
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="modal-box" style={{width:'560px', maxHeight:'90vh', overflowY:'auto'}}>
         <h2 className="text-lg font-bold mb-4">{title}</h2>
-        <form onSubmit={e=>{e.preventDefault();if(!form.name.trim()){alert('事務所名は必須です');return;}onSave(form);}}>
+        <form onSubmit={e=>{e.preventDefault();if(!form.name.trim()){alert('提携先名は必須です');return;}onSave(form);}}>
           <div className="mb-3">
-            <label className="block text-sm font-semibold text-gray-600 mb-1">事務所名 <span className="text-red-500">*</span></label>
-            <input value={form.name} onChange={e=>set('name',e.target.value)} placeholder="事務所名を入力" />
+            <label className="block text-sm font-semibold text-gray-600 mb-1">提携先名 <span className="text-red-500">*</span></label>
+            <input value={form.name} onChange={e=>set('name',e.target.value)} placeholder="提携先名を入力" />
           </div>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
@@ -3276,6 +3361,7 @@ function MasterScreen({masters, setMasters}) {
   const [showModal, setShowModal]   = useState(false);
   const [editItem, setEditItem]     = useState(null);
   const [viewItem, setViewItem]     = useState(null);
+  const [viewPartnerItem, setViewPartnerItem] = useState(null);
   const [delItem, setDelItem]       = useState(null);
   const [showTerminated, setShowTerminated] = useState(false);
   const [search, setSearch]             = useState('');
@@ -3370,7 +3456,7 @@ function MasterScreen({masters, setMasters}) {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 {tab==='顧問先' && <th className="px-4 py-3 text-left font-semibold text-gray-600 w-14">No</th>}
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">{tab==='提携先'?'事務所名':'名称'}</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600">{tab==='提携先'?'提携先名':'名称'}</th>
                 {tab==='顧問先' && <>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">代表者名</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当者名</th>
@@ -3381,7 +3467,6 @@ function MasterScreen({masters, setMasters}) {
                 {tab==='提携先' && <>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当者名</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">メールアドレス</th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当顧問先</th>
                 </>}
                 <th className="px-4 py-3 text-center font-semibold text-gray-600 w-28">操作</th>
               </tr>
@@ -3398,7 +3483,9 @@ function MasterScreen({masters, setMasters}) {
                     {item.terminated && <span className="inline-block mr-1.5 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">解除</span>}
                     {tab==='顧問先'
                       ? <button onClick={()=>setViewItem(item)} style={{background:'none',border:'none',padding:0,cursor:'pointer',color:item.terminated?'#9ca3af':'#1f2937',fontWeight:'500',textAlign:'left'}} className="hover:underline">{item.name}</button>
-                      : item.name
+                      : tab==='提携先'
+                        ? <button onClick={()=>setViewPartnerItem(item)} style={{background:'none',border:'none',padding:0,cursor:'pointer',color:'#1f2937',fontWeight:'500',textAlign:'left'}} className="hover:underline">{item.name}</button>
+                        : item.name
                     }
                   </td>
                   {tab==='顧問先' && <>
@@ -3422,7 +3509,6 @@ function MasterScreen({masters, setMasters}) {
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-3 text-sm text-gray-600">{(item.担当顧問先||[]).join('・')}</td>
                   </>}
                   <td className="px-4 py-3">
                     <div className="flex gap-2 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -3448,6 +3534,13 @@ function MasterScreen({masters, setMasters}) {
           item={viewItem}
           onClose={()=>setViewItem(null)}
           onEdit={viewItem.terminated ? null : ()=>{setEditItem(viewItem);setViewItem(null);setShowModal(true);}}
+        />
+      )}
+      {viewPartnerItem && (
+        <PartnerDetailModal
+          item={viewPartnerItem}
+          onClose={()=>setViewPartnerItem(null)}
+          onEdit={()=>{setEditItem(viewPartnerItem);setViewPartnerItem(null);setShowModal(true);}}
         />
       )}
       {showModal && tab==='提携先' && (
