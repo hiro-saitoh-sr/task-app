@@ -44,6 +44,7 @@
     }
 
     /* ── ステータスバッジ ── */
+    .status-依頼待ち { background-color: #ede9fe; color: #5b21b6 !important; font-weight: 700; }
     .status-依頼受付 { background-color: #bfdbfe; color: #1e3a8a !important; font-weight: 700; }
     .status-手続き済 { background-color: #bbf7d0; color: #14532d !important; font-weight: 700; }
     .status-納品済  { background-color: #fde68a; color: #713f12 !important; font-weight: 700; }
@@ -247,7 +248,7 @@ function LoginScreen({ onLogin }) {
   );
 }
 
-const STATUSES = ['依頼受付', '手続き済', '納品済', '請求済'];
+const STATUSES = ['依頼待ち', '依頼受付', '手続き済', '納品済', '請求済'];
 const SK = {
   cases:    'task_app_cases',
   masters:  'task_app_masters',
@@ -1884,7 +1885,7 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
     const todayStr = `${today.getFullYear()}/${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
     const newCases = selectedCustomers.map(c => ({
       no: c.no, customerName: c.name, procedure: procedure,
-      memo: memo, assignee: assignee, status: '依頼受付',
+      memo: memo, assignee: assignee, status: '依頼待ち',
       receivedDate: todayStr, targetMonth: targetMonth, cancelled: false,
       billingAmount: '', annualTargetCount: '', annualTargetYear: String(targetYear),
       isAnnualOnly: true,
