@@ -885,7 +885,7 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
                   onChange={v => handleCustSelect(v)}
                   placeholder="選択または検索..."
                   options={[
-                    ...masters.customers.filter(c=>c.name!=='スポット'&&c.name!=='その他（直接入力）').map(c=>({value:c.name, label:c.no ? `${c.no}. ${c.name}` : c.name})),
+                    ...masters.customers.filter(c=>!c.terminated&&c.name!=='スポット'&&c.name!=='その他（直接入力）').map(c=>({value:c.name, label:c.no ? `${c.no}. ${c.name}` : c.name})),
                     {value:'__text__', label:'その他（直接入力）'},
                   ]}
                 />
@@ -978,6 +978,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
   const [showNew, setShowNew]       = useState(false);
   const [cancelCase, setCancelCase] = useState(null);
   const [showCancelled, setShowCancelled] = useState(false);
+  const [showTerminatedFilter, setShowTerminatedFilter] = useState(false);
   const [showAlert36, setShowAlert36] = useState(false);
   const [bulkBillMsg, setBulkBillMsg] = useState('');
 
@@ -1051,10 +1052,10 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
   },[masters.procedures]);
 
   const customerFilterOptions = useMemo(() => {
-    // マスタから No. 情報を含む Map を構築
+    // マスタから No. 情報を含む Map を構築（契約解除済みは toggle で制御）
     const masterMap = new Map(
       masters.customers
-        .filter(c => !c.terminated && c.name !== 'スポット' && c.name !== 'その他（直接入力）')
+        .filter(c => (showTerminatedFilter || !c.terminated) && c.name !== 'スポット' && c.name !== 'その他（直接入力）')
         .map(c => [c.name, {label: c.no ? `${c.no}. ${c.name}` : c.name, no: c.no ? Number(c.no) : Infinity}])
     );
     const caseNames = cases.filter(c => !c.cancelled && !c.isAnnualOnly && c.customerName).map(c => c.customerName);
@@ -1074,7 +1075,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
       {value:'', label:'すべて'},
       ...[...rest, ...others].map(n => ({value:n, label: masterMap.get(n)?.label || n})),
     ];
-  }, [cases, masters.customers]);
+  }, [cases, masters.customers, showTerminatedFilter]);
 
   return (
     <div>
@@ -1183,6 +1184,11 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
               <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
                 style={{width:'15px',height:'15px',cursor:'pointer'}} />
               取消済みを表示
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer" style={{fontSize:'13px',fontWeight:'500',color:'#374151',alignSelf:'flex-end',paddingBottom:'6px'}}>
+              <input type="checkbox" checked={showTerminatedFilter} onChange={e=>setShowTerminatedFilter(e.target.checked)}
+                style={{width:'15px',height:'15px',cursor:'pointer'}} />
+              契約解除済みを表示
             </label>
             {hasFilter && (
               <button className="btn btn-secondary text-xs py-1 px-3" style={{alignSelf:'flex-end',marginBottom:'2px'}}
@@ -1952,7 +1958,7 @@ function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
             <label className="block text-sm font-semibold text-gray-600 mb-1">顧客名</label>
             <select value={checkCustOther ? '__text__' : form.customerName} onChange={handleCheckCustChange}>
               <option value="">選択してください</option>
-              {masters.customers.filter(c=>c.name!=='スポット'&&c.name!=='その他（直接入力）').map(c=><option key={c.id} value={c.name}>{c.no ? `${c.no}. ` : ''}{c.name}</option>)}
+              {masters.customers.filter(c=>!c.terminated&&c.name!=='スポット'&&c.name!=='その他（直接入力）').map(c=><option key={c.id} value={c.name}>{c.no ? `${c.no}. ` : ''}{c.name}</option>)}
               <option value="__text__">その他（直接入力）</option>
             </select>
             {checkCustOther && (
@@ -2294,6 +2300,7 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
   const [filterAssignee,     setFilterAssignee]     = useState('');
   const [filterStatus,       setFilterStatus]       = useState('');
   const [filterOpen,         setFilterOpen]         = useState(false);
+  const [showTerminatedFilter, setShowTerminatedFilter] = useState(false);
   const [editCase,           setEditCase]           = useState(null);
 
   /* ── 絞り込み選択肢（動的生成） ── */
@@ -2315,7 +2322,12 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
     const custMap = Object.fromEntries(masters.customers.map(c=>[c.name,c]));
     const s = new Set(annualCases.map(c => c.customerName).filter(Boolean));
     const others = [...s].filter(n => n === 'その他（直接入力）');
-    const rest   = [...s].filter(n => n !== 'その他（直接入力）');
+    const rest   = [...s].filter(n => {
+      if (n === 'その他（直接入力）') return false;
+      // 契約解除済みを非表示の場合、マスタで terminated の顧問先を除外
+      if (!showTerminatedFilter && custMap[n]?.terminated) return false;
+      return true;
+    });
     // No. 昇順、番号未設定は末尾
     rest.sort((a, b) => {
       const na = custMap[a]?.no ? Number(custMap[a].no) : Infinity;
@@ -2327,7 +2339,7 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
       {value:'', label:'すべて'},
       ...[...rest, ...others].map(n => { const mc=custMap[n]; return {value:n, label:mc?.no ? `${mc.no}. ${n}` : n}; }),
     ];
-  }, [annualCases, masters.customers]);
+  }, [annualCases, masters.customers, showTerminatedFilter]);
 
   const hasFilter = !!(filterProcedure||filterYear||filterTargetMonth||filterCustomerName||filterAssignee||filterStatus);
 
@@ -2461,6 +2473,11 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
               <input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}
                 style={{width:'15px',height:'15px',cursor:'pointer'}} />
               取消済みを表示
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer" style={{fontSize:'13px',fontWeight:'500',color:'#374151',alignSelf:'flex-end',paddingBottom:'6px'}}>
+              <input type="checkbox" checked={showTerminatedFilter} onChange={e=>setShowTerminatedFilter(e.target.checked)}
+                style={{width:'15px',height:'15px',cursor:'pointer'}} />
+              契約解除済みを表示
             </label>
             {hasFilter && (
               <button className="btn btn-secondary text-xs py-1 px-3" style={{alignSelf:'flex-end',marginBottom:'2px'}}
@@ -3028,7 +3045,7 @@ function PayrollCustomerModal({item, onSave, onClose, masters}) {
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">顧問先名 <span className="text-red-500">*</span></label>
               <SearchableSelect value={form.customerName} onChange={v=>set('customerName',v)} placeholder="選択または検索..."
-                options={masters.customers.filter(c=>c.name!=='スポット'&&c.name!=='その他（直接入力）').map(c=>({value:c.name,label:c.no?`${c.no}. ${c.name}`:c.name}))} />
+                options={masters.customers.filter(c=>!c.terminated&&c.name!=='スポット'&&c.name!=='その他（直接入力）').map(c=>({value:c.name,label:c.no?`${c.no}. ${c.name}`:c.name}))} />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">担当者</label>
