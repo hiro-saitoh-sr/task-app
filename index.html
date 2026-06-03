@@ -1531,7 +1531,7 @@ function isAutoLocked(sel) {
   return new Date() > lockDate;
 }
 
-function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrollRates, billingSnapshots, setBillingSnapshots, currentUser}) {
+function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrollRates, billingSnapshots, setBillingSnapshots, currentUser, checks}) {
   const [sel, setSel] = useState('');
   const [rateModal, setRateModal] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(false);
@@ -1678,6 +1678,17 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
       const ankenAmt = (r.total||0) + (r.追加金額||0);
       if (ankenAmt > 0) add('36', ankenAmt);
       if (r.賞与人数 > 0 && r.賞与請求額 != null) add('56', r.賞与請求額);
+    });
+    /* 月変チェックの請求額を内訳コード36として追加 */
+    (checks||[]).filter(c => !c.cancelled && c.targetMonth === sel).forEach(c => {
+      const no = c.no || '';
+      if (!no) return;
+      const countNum = Number(c.count);
+      const autoBilling = c.count && !isNaN(countNum) && countNum > 0 ? 2500 + countNum * 200 : null;
+      const isManual = c.manualBillingAmount !== '' && c.manualBillingAmount != null;
+      const billing = isManual ? Number(c.manualBillingAmount) : autoBilling;
+      if (!billing || billing <= 0) return;
+      lines.push([no, '36', billing, '', '', '2'].join(','));
     });
     const csvText = lines.join('\r\n');
     const sjisArray = Encoding.convert(Encoding.stringToCode(csvText), {to:'SJIS', from:'UNICODE'});
@@ -2469,6 +2480,106 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
 }
 
 /* ══════════════════════════════════════════
+   MONTHLY CHECK BULK MODAL (月変チェック一括登録)
+══════════════════════════════════════════ */
+function MonthlyCheckBulkModal({checks, masters, onRegister, onClose}) {
+  const [targetMonth, setTargetMonth] = useState('');
+  const [assignee,    setAssignee]    = useState('');
+  const [memo,        setMemo]        = useState('');
+  const [selected,    setSelected]    = useState({});
+
+  const registeredCustomers = useMemo(() => {
+    if (!targetMonth) return new Set();
+    return new Set(
+      checks.filter(c => !c.cancelled && c.targetMonth === targetMonth).map(c => c.customerName)
+    );
+  }, [checks, targetMonth]);
+
+  const availableCustomers = useMemo(() => {
+    return masters.customers.filter(c => !c.terminated && !registeredCustomers.has(c.name));
+  }, [masters.customers, registeredCustomers]);
+
+  const showList = !!targetMonth;
+
+  const toggleAll = (v) => {
+    const next = {};
+    availableCustomers.forEach(c => { next[c.id] = v; });
+    setSelected(next);
+  };
+
+  const handleRegister = () => {
+    if (!targetMonth) { alert('対象年月を選択してください'); return; }
+    const selectedCustomers = availableCustomers.filter(c => selected[c.id]);
+    if (selectedCustomers.length === 0) { alert('顧問先を選択してください'); return; }
+    onRegister({targetMonth, assignee, memo, customers: selectedCustomers});
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        background:'white', borderRadius:'12px', width:'640px', maxWidth:'95vw',
+        maxHeight:'95vh', display:'flex', flexDirection:'column',
+        boxShadow:'0 20px 60px rgba(0,0,0,0.35)',
+      }}>
+        <div style={{flex:'1 1 auto', minHeight:0, overflowY:'auto', padding:'24px 32px 16px'}}>
+          <h2 className="text-xl font-bold mb-4">月変チェック 一括登録</h2>
+
+          <div className="mb-3">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">① 対象年月 <span className="text-red-500">*</span></label>
+            <div style={{width:'200px'}}>
+              <YearMonthPicker value={targetMonth} onChange={v=>{setTargetMonth(v);setSelected({});}} placeholder="年月を選択" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">② 担当者</label>
+              <select value={assignee} onChange={e=>setAssignee(e.target.value)}>
+                <option value="">選択してください</option>
+                {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">③ メモ（任意）</label>
+              <textarea value={memo} onChange={e=>setMemo(e.target.value)} rows={1} placeholder="全顧問先共通のメモ..." style={{resize:'none'}} />
+            </div>
+          </div>
+
+          {showList && (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-semibold text-gray-600 mr-2">④ 顧問先を選択：</span>
+                <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(true)}>全て選択</button>
+                <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(false)}>全て解除</button>
+              </div>
+              <div style={{maxHeight:'220px', overflowY:'auto', border:'1px solid #e5e7eb', borderRadius:'8px', marginBottom:'4px'}}>
+                {availableCustomers.length === 0
+                  ? <p className="text-center py-8 text-gray-400 text-sm">登録可能な顧問先がありません（全て登録済み）</p>
+                  : availableCustomers.map(c=>(
+                      <label key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0">
+                        <input type="checkbox" checked={!!selected[c.id]} onChange={e=>setSelected(prev=>({...prev,[c.id]:e.target.checked}))} style={{width:'16px',height:'16px',cursor:'pointer',flexShrink:0}} />
+                        <span className="text-sm">{c.no ? `${c.no}. ` : ''}{c.name}</span>
+                      </label>
+                    ))
+                }
+              </div>
+              <p className="text-xs text-gray-400">※同じ対象年月ですでに登録済みの顧問先は除外しています</p>
+            </>
+          )}
+        </div>
+
+        <div style={{padding:'12px 32px 20px', flexShrink:0, borderTop:'1px solid #f3f4f6'}}>
+          <div className="flex gap-3 justify-end">
+            <button className="btn btn-secondary" onClick={onClose}>キャンセル</button>
+            <button className="btn btn-primary" onClick={handleRegister}>登録実行</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
    COPY FROM CASES MODAL (月変チェック用)
 ══════════════════════════════════════════ */
 function CopyFromCasesModal({cases, checks, onCopy, onClose}) {
@@ -2551,7 +2662,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
   const [cancelItem, setCancelItem]       = useState(null);
   const [filterMonth, setFilterMonth]       = useState('');
   const [showCancelled, setShowCancelled]   = useState(false);
-  const [showCopyModal, setShowCopyModal]   = useState(false);
+  const [showBulkModal, setShowBulkModal]   = useState(false);
 
   /* 登録済みデータから対象年月の選択肢を動的生成 */
   const monthOptions = useMemo(() => {
@@ -2577,26 +2688,30 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
     setShowModal(false); setEditItem(null);
   };
 
-  const handleCopy = (selectedCases) => {
+  const handleBulkRegister = ({targetMonth, assignee, memo, customers}) => {
     setChecks(p => {
       let next = [...p];
-      selectedCases.forEach(sc => {
+      customers.forEach(c => {
         const id = nextId(next);
         next = [...next, {
           id,
-          no: sc.no || '',
-          customerName: sc.customerName,
-          checker: sc.memo || '',
+          no: c.no || '',
+          customerName: c.name,
+          checker: '',
           procedureBy: '',
           count: '',
-          assignee: '',
+          assignee,
+          memo,
           completedDate: '',
-          targetMonth: sc.targetMonth || '',
+          targetMonth,
+          status: '依頼待ち',
+          manualBillingAmount: '',
+          cancelled: false,
         }];
       });
       return next;
     });
-    setShowCopyModal(false);
+    setShowBulkModal(false);
   };
 
   return (
@@ -2604,7 +2719,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-lg font-bold text-gray-800">月額変更届チェック管理</h2>
         <div className="flex gap-2">
-          <button className="btn btn-secondary" onClick={()=>setShowCopyModal(true)}>案件管理からコピー</button>
+          <button className="btn btn-primary" onClick={()=>setShowBulkModal(true)}>＋新規追加</button>
         </div>
       </div>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -2681,7 +2796,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
         )}
       </div>
       {showModal && <MonthlyCheckModal item={editItem} onSave={handleSave} onClose={()=>{setShowModal(false);setEditItem(null);}} masters={masters} currentUser={currentUser} />}
-      {showCopyModal && <CopyFromCasesModal cases={cases||[]} checks={checks} onCopy={handleCopy} onClose={()=>setShowCopyModal(false)} />}
+      {showBulkModal && <MonthlyCheckBulkModal checks={checks} masters={masters} onRegister={handleBulkRegister} onClose={()=>setShowBulkModal(false)} />}
       {cancelItem && (
         cancelItem.cancelled
           ? <ConfirmModal
@@ -4017,7 +4132,7 @@ function App() {
 
       <div className="px-2 py-4">
         {screen==='案件管理'            && <CaseListScreen cases={cases} setCases={setCases} masters={masters} currentUser={currentUser} />}
-        {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} payrolls={payrolls} payrollRates={payrollRates} setPayrollRates={setPayrollRates} billingSnapshots={billingSnapshots} setBillingSnapshots={setBillingSnapshots} currentUser={currentUser} />}
+        {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} payrolls={payrolls} payrollRates={payrollRates} setPayrollRates={setPayrollRates} billingSnapshots={billingSnapshots} setBillingSnapshots={setBillingSnapshots} currentUser={currentUser} checks={checks} />}
         {screen==='月変チェック'        && <MonthlyCheckScreen checks={checks} setChecks={setChecks} masters={masters} cases={cases} currentUser={currentUser} />}
         {screen==='年更・算定案件管理'  && <AnnualUpdateScreen cases={cases} setCases={setCases} masters={masters} currentUser={currentUser} />}
         {screen==='給与計算スケジュール'&& <PayrollScheduleScreen payrolls={payrolls} setPayrolls={setPayrolls} masters={masters} />}
