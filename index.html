@@ -2575,10 +2575,12 @@ function InlineYMCell({value, onChange}) {
    MONTHLY CHECK BULK MODAL (月変チェック一括登録)
 ══════════════════════════════════════════ */
 function MonthlyCheckBulkModal({checks, masters, onRegister, onClose}) {
-  const [targetMonth, setTargetMonth] = useState('');
-  const [assignee,    setAssignee]    = useState('');
-  const [memo,        setMemo]        = useState('');
-  const [selected,    setSelected]    = useState({});
+  const [salaryMonth,   setSalaryMonth]   = useState('');
+  const [revisionMonth, setRevisionMonth] = useState('');
+  const [assignee,      setAssignee]      = useState('');
+  const [targetMonth,   setTargetMonth]   = useState('');
+  const [memo,          setMemo]          = useState('');
+  const [selected,      setSelected]      = useState({});
 
   const registeredCustomers = useMemo(() => {
     if (!targetMonth) return new Set();
@@ -2591,8 +2593,6 @@ function MonthlyCheckBulkModal({checks, masters, onRegister, onClose}) {
     return masters.customers.filter(c => !c.terminated && !registeredCustomers.has(c.name));
   }, [masters.customers, registeredCustomers]);
 
-  const showList = !!targetMonth;
-
   const toggleAll = (v) => {
     const next = {};
     availableCustomers.forEach(c => { next[c.id] = v; });
@@ -2600,10 +2600,10 @@ function MonthlyCheckBulkModal({checks, masters, onRegister, onClose}) {
   };
 
   const handleRegister = () => {
-    if (!targetMonth) { alert('対象年月を選択してください'); return; }
+    if (!targetMonth) { alert('⑤ 対象年月を選択してください'); return; }
     const selectedCustomers = availableCustomers.filter(c => selected[c.id]);
-    if (selectedCustomers.length === 0) { alert('顧問先を選択してください'); return; }
-    onRegister({targetMonth, assignee, memo, customers: selectedCustomers});
+    if (selectedCustomers.length === 0) { alert('① 顧問先を選択してください'); return; }
+    onRegister({targetMonth, salaryMonth, revisionMonth, assignee, memo, customers: selectedCustomers});
   };
 
   return (
@@ -2613,59 +2613,72 @@ function MonthlyCheckBulkModal({checks, masters, onRegister, onClose}) {
         maxHeight:'95vh', display:'flex', flexDirection:'column',
         boxShadow:'0 20px 60px rgba(0,0,0,0.35)',
       }}>
-        <div style={{flex:'1 1 auto', minHeight:0, overflowY:'auto', padding:'24px 32px 16px'}}>
-          <h2 className="text-xl font-bold mb-4">月変チェック 一括登録</h2>
 
-          <div className="mb-3">
-            <label className="block text-sm font-semibold text-gray-600 mb-1">① 対象年月 <span className="text-red-500">*</span></label>
-            <div style={{width:'200px'}}>
-              <YearMonthPicker value={targetMonth} onChange={v=>{setTargetMonth(v);setSelected({});}} placeholder="年月を選択" />
-            </div>
+        {/* タイトル */}
+        <div style={{padding:'24px 32px 12px', flexShrink:0}}>
+          <h2 className="text-xl font-bold">月変チェック 一括登録</h2>
+        </div>
+
+        {/* ① 顧問先リスト（内部のみスクロール） */}
+        <div style={{padding:'0 32px 8px', flexShrink:1, minHeight:0}}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-semibold text-gray-600 mr-2">① 顧問先を選択：</span>
+            <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(true)}>全て選択</button>
+            <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(false)}>全て解除</button>
           </div>
+          <div style={{maxHeight:'200px', overflowY:'auto', border:'1px solid #e5e7eb', borderRadius:'8px', marginBottom:'4px'}}>
+            {availableCustomers.length === 0
+              ? <p className="text-center py-8 text-gray-400 text-sm">登録可能な顧問先がありません（全て登録済み）</p>
+              : availableCustomers.map(c=>(
+                  <label key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0">
+                    <input type="checkbox" checked={!!selected[c.id]} onChange={e=>setSelected(prev=>({...prev,[c.id]:e.target.checked}))} style={{width:'16px',height:'16px',cursor:'pointer',flexShrink:0}} />
+                    <span className="text-sm">{c.no ? `${c.no}. ` : ''}{c.name}</span>
+                  </label>
+                ))
+            }
+          </div>
+          <p className="text-xs text-gray-400">※同じ対象年月（⑤）ですでに登録済みの顧問先は除外しています</p>
+        </div>
 
+        {/* ②〜⑥ 入力フィールド（スクロールなし・ピッカーがクリップされない） */}
+        <div style={{padding:'8px 32px 16px', flexShrink:0}}>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">② 担当者</label>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">② 昇(降)給年月</label>
+              <YearMonthPicker value={salaryMonth} onChange={v=>setSalaryMonth(v)} placeholder="年月を選択" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">③ 改定年月</label>
+              <YearMonthPicker value={revisionMonth} onChange={v=>setRevisionMonth(v)} placeholder="年月を選択" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">④ 担当者</label>
               <select value={assignee} onChange={e=>setAssignee(e.target.value)}>
                 <option value="">選択してください</option>
                 {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">③ メモ（任意）</label>
-              <textarea value={memo} onChange={e=>setMemo(e.target.value)} rows={1} placeholder="全顧問先共通のメモ..." style={{resize:'none'}} />
+              <label className="block text-sm font-semibold text-gray-600 mb-1">⑤ 対象年月 <span className="text-red-500">*</span><span className="text-xs text-gray-400 font-normal ml-1">（請求対象月・リスト除外基準）</span></label>
+              <YearMonthPicker value={targetMonth} onChange={v=>{setTargetMonth(v);setSelected({});}} placeholder="年月を選択" />
             </div>
           </div>
-
-          {showList && (
-            <>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-semibold text-gray-600 mr-2">④ 顧問先を選択：</span>
-                <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(true)}>全て選択</button>
-                <button className="btn btn-secondary text-xs py-1 px-3" onClick={()=>toggleAll(false)}>全て解除</button>
-              </div>
-              <div style={{maxHeight:'220px', overflowY:'auto', border:'1px solid #e5e7eb', borderRadius:'8px', marginBottom:'4px'}}>
-                {availableCustomers.length === 0
-                  ? <p className="text-center py-8 text-gray-400 text-sm">登録可能な顧問先がありません（全て登録済み）</p>
-                  : availableCustomers.map(c=>(
-                      <label key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0">
-                        <input type="checkbox" checked={!!selected[c.id]} onChange={e=>setSelected(prev=>({...prev,[c.id]:e.target.checked}))} style={{width:'16px',height:'16px',cursor:'pointer',flexShrink:0}} />
-                        <span className="text-sm">{c.no ? `${c.no}. ` : ''}{c.name}</span>
-                      </label>
-                    ))
-                }
-              </div>
-              <p className="text-xs text-gray-400">※同じ対象年月ですでに登録済みの顧問先は除外しています</p>
-            </>
-          )}
+          <div>
+            <label className="block text-sm font-semibold text-gray-600 mb-1">⑥ メモ（任意）</label>
+            <textarea value={memo} onChange={e=>setMemo(e.target.value)} rows={2} placeholder="全顧問先共通のメモ..." style={{resize:'none', width:'100%'}} />
+          </div>
         </div>
 
+        {/* ⑦ フッター */}
         <div style={{padding:'12px 32px 20px', flexShrink:0, borderTop:'1px solid #f3f4f6'}}>
           <div className="flex gap-3 justify-end">
             <button className="btn btn-secondary" onClick={onClose}>キャンセル</button>
-            <button className="btn btn-primary" onClick={handleRegister}>登録実行</button>
+            <button className="btn btn-primary" onClick={handleRegister}>⑦ 登録実行</button>
           </div>
         </div>
+
       </div>
     </div>
   );
@@ -2781,7 +2794,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
     setShowModal(false); setEditItem(null);
   };
 
-  const handleBulkRegister = ({targetMonth, assignee, memo, customers}) => {
+  const handleBulkRegister = ({targetMonth, salaryMonth, revisionMonth, assignee, memo, customers}) => {
     setChecks(p => {
       let next = [...p];
       customers.forEach(c => {
@@ -2796,8 +2809,8 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
           assignee,
           memo,
           targetMonth,
-          salaryMonth: '',
-          revisionMonth: '',
+          salaryMonth: salaryMonth || '',
+          revisionMonth: revisionMonth || '',
           status: '依頼受付',
           manualBillingAmount: '',
           cancelled: false,
