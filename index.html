@@ -1646,6 +1646,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
       const hasRomu  = svcs.includes('労務顧問');
       const hasKyuyo = svcs.includes('給与計算');
       const no = r.no || '';
+      if (!no) return;
       const add = (code, amt) => { if (!amt || amt <= 0) return; lines.push([no, code, amt, '', '', '2'].join(',')); };
       if (r.労務顧問 != null)    add('01', r.労務顧問);
       if (r.処遇改善加算 != null) add(!hasRomu ? '28' : hasKyuyo ? '03' : '02', r.処遇改善加算);
