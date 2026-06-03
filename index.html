@@ -831,8 +831,8 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
   const [procMode, setProcMode] = useState(!isNew && !procInMaster && masters.procedures.length>0 ? 'text' : 'select');
 
   const handleCustSelect = v => {
-    if (v==='__text__') { setCustMode('text'); set('customerName',''); }
-    else { const c=masters.customers.find(x=>x.name===v); set('customerName',v); if(c) set('no',c.no); }
+    if (v==='__text__') { setCustMode('text'); set('customerName',''); set('no',''); }
+    else { setCustMode('select'); const c=masters.customers.find(x=>x.name===v); set('customerName',v); if(c) set('no',c.no); }
   };
   const handleProcSelect = v => {
     set('procedure',v);
@@ -878,26 +878,28 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
 
           <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-600 mb-1">顧客名 <span className="text-red-500">*</span></label>
-            {masters.customers.length>0 && custMode==='select' ? (
-              <SearchableSelect
-                value={form.customerName}
-                onChange={v => handleCustSelect(v)}
-                placeholder="選択または検索..."
-                options={[
-                  ...masters.customers.filter(c=>c.name!=='スポット').map(c=>({value:c.name, label:c.name})),
-                  {value:'__text__', label:'その他（直接入力）'},
-                ]}
-              />
+            {masters.customers.length>0 ? (
+              <>
+                <SearchableSelect
+                  value={custMode==='text' ? '__text__' : form.customerName}
+                  onChange={v => handleCustSelect(v)}
+                  placeholder="選択または検索..."
+                  options={[
+                    ...masters.customers.filter(c=>c.name!=='スポット'&&c.name!=='その他（直接入力）').map(c=>({value:c.name, label:c.no ? `${c.no}. ${c.name}` : c.name})),
+                    {value:'__text__', label:'その他（直接入力）'},
+                  ]}
+                />
+                {custMode==='text' && (
+                  <>
+                    <input value={form.customerName} onChange={e=>set('customerName',e.target.value)} placeholder="顧問先名を入力..." style={{marginTop:'8px'}} />
+                    <p style={{color:'#ea580c', fontSize:'12px', marginTop:'6px', fontWeight:'500', lineHeight:'1.5'}}>
+                      ⚠️ 顧問先マスタに登録済みの顧問先は必ず選択してください。「その他」は顧問先マスタにない場合のみ使用してください。
+                    </p>
+                  </>
+                )}
+              </>
             ) : (
-              <div className="flex gap-2">
-                <input value={form.customerName} onChange={e=>set('customerName',e.target.value)} placeholder="株式会社〇〇" />
-                {masters.customers.length>0 && <button type="button" className="btn btn-secondary text-xs px-2 py-1 whitespace-nowrap" onClick={()=>setCustMode('select')}>一覧から選択</button>}
-              </div>
-            )}
-            {custMode === 'text' && (
-              <p style={{color:'#ea580c', fontSize:'12px', marginTop:'6px', fontWeight:'500', lineHeight:'1.5'}}>
-                ⚠️ 顧問先マスタに登録済みの顧問先は必ず選択してください。「その他」は顧問先マスタにない場合のみ使用してください。
-              </p>
+              <input value={form.customerName} onChange={e=>set('customerName',e.target.value)} placeholder="株式会社〇〇" />
             )}
           </div>
 
@@ -1062,9 +1064,13 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
     // 英数字先頭は group 0、それ以外は group 1
     const sortKey = name => [/^[a-zA-Z0-9]/.test(stripCorp(name)) ? 0 : 1, stripCorp(name)];
 
-    const masterNames = masters.customers.filter(c => !c.terminated && c.name !== 'スポット').map(c => c.name);
-    const caseNames   = cases.filter(c => !c.cancelled && !c.isAnnualOnly && c.customerName).map(c => c.customerName);
-    const all = [...new Set([...masterNames, ...caseNames])];
+    const masterMap = new Map(
+      masters.customers
+        .filter(c => !c.terminated && c.name !== 'スポット' && c.name !== 'その他（直接入力）')
+        .map(c => [c.name, c.no ? `${c.no}. ${c.name}` : c.name])
+    );
+    const caseNames = cases.filter(c => !c.cancelled && !c.isAnnualOnly && c.customerName).map(c => c.customerName);
+    const all = [...new Set([...masterMap.keys(), ...caseNames])];
 
     const others = all.filter(n => n === 'その他（直接入力）');
     const rest   = all.filter(n => n !== 'その他（直接入力）');
@@ -1077,7 +1083,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
 
     return [
       {value:'', label:'すべて'},
-      ...[...rest, ...others].map(n => ({value:n, label:n})),
+      ...[...rest, ...others].map(n => ({value:n, label: masterMap.get(n) || n})),
     ];
   }, [cases, masters.customers]);
 
@@ -1933,6 +1939,14 @@ function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
   const blank = {no:'',customerName:'',checker:'',procedureBy:'',count:'',assignee:'',targetMonth:'',manualBillingAmount:'',status:'依頼受付',salaryMonth:'',revisionMonth:''};
   const [form, setForm] = useState(item?{...item}:blank);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const [checkCustOther, setCheckCustOther] = useState(
+    !!item && !!item.customerName && !masters.customers.some(c=>c.name===item.customerName)
+  );
+  const handleCheckCustChange = e => {
+    const val = e.target.value;
+    if (val === '__text__') { setCheckCustOther(true); set('customerName',''); set('no',''); }
+    else { setCheckCustOther(false); const c=masters.customers.find(x=>x.name===val); set('customerName',val); if(c) set('no',c.no); }
+  };
   return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="modal-box">
@@ -1947,10 +1961,19 @@ function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
           </div>
           <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-600 mb-1">顧客名</label>
-            <select value={form.customerName} onChange={e=>{const c=masters.customers.find(x=>x.name===e.target.value);set('customerName',e.target.value);if(c)set('no',c.no);}}>
+            <select value={checkCustOther ? '__text__' : form.customerName} onChange={handleCheckCustChange}>
               <option value="">選択してください</option>
-              {masters.customers.filter(c=>c.name!=='スポット').map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+              {masters.customers.filter(c=>c.name!=='スポット'&&c.name!=='その他（直接入力）').map(c=><option key={c.id} value={c.name}>{c.no ? `${c.no}. ` : ''}{c.name}</option>)}
+              <option value="__text__">その他（直接入力）</option>
             </select>
+            {checkCustOther && (
+              <>
+                <input value={form.customerName} onChange={e=>set('customerName',e.target.value)} placeholder="顧問先名を入力..." style={{marginTop:'8px'}} />
+                <p style={{color:'#ea580c', fontSize:'12px', marginTop:'6px', fontWeight:'500', lineHeight:'1.5'}}>
+                  ⚠️ 顧問先マスタに登録済みの顧問先は必ず選択してください。「その他」は顧問先マスタにない場合のみ使用してください。
+                </p>
+              </>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
@@ -2300,9 +2323,14 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
   }, [annualCases]);
 
   const customerOptions = useMemo(() => {
+    const custMap = Object.fromEntries(masters.customers.map(c=>[c.name,c]));
     const s = new Set(annualCases.map(c => c.customerName).filter(Boolean));
-    return [...s].sort();
-  }, [annualCases]);
+    const sorted = [...s].sort((a,b)=>a.localeCompare(b,'ja'));
+    return [
+      {value:'', label:'すべて'},
+      ...sorted.map(n=>{ const mc=custMap[n]; return {value:n, label:mc?.no ? `${mc.no}. ${n}` : n}; }),
+    ];
+  }, [annualCases, masters.customers]);
 
   const hasFilter = !!(filterProcedure||filterYear||filterTargetMonth||filterCustomerName||filterAssignee||filterStatus);
 
@@ -2397,7 +2425,7 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
                 value={filterCustomerName}
                 onChange={v => setFilterCustomerName(v)}
                 placeholder="すべて"
-                options={[{value:'', label:'すべて'}, ...customerOptions.map(n=>({value:n, label:n}))]}
+                options={customerOptions}
               />
             </div>
             <div style={{flex:'1 1 130px', maxWidth:'200px'}}>
@@ -2617,6 +2645,7 @@ function InlineYMCell({value, onChange}) {
 function MonthlyCheckBulkModal({checks, masters, onRegister, onClose}) {
   const [customerName,  setCustomerName]  = useState('');
   const [no,            setNo]            = useState('');
+  const [custOther,     setCustOther]     = useState(false);
   const [salaryMonth,   setSalaryMonth]   = useState('');
   const [revisionMonth, setRevisionMonth] = useState('');
   const [assignee,      setAssignee]      = useState('');
@@ -2641,16 +2670,25 @@ function MonthlyCheckBulkModal({checks, masters, onRegister, onClose}) {
         {/* ① 顧問先名 */}
         <div className="mb-4">
           <label className="block text-sm font-semibold text-gray-600 mb-1">① 顧問先名 <span className="text-red-500">*</span></label>
-          <select value={customerName} onChange={e=>{
-            const c = masters.customers.find(x=>x.name===e.target.value);
-            setCustomerName(e.target.value);
-            setNo(c?.no || '');
+          <select value={custOther ? '__text__' : customerName} onChange={e=>{
+            const val = e.target.value;
+            if (val === '__text__') { setCustOther(true); setCustomerName(''); setNo(''); }
+            else { setCustOther(false); const c=masters.customers.find(x=>x.name===val); setCustomerName(val); setNo(c?.no||''); }
           }}>
             <option value="">選択してください</option>
-            {masters.customers.filter(c=>!c.terminated&&c.name!=='スポット').map(c=>(
+            {masters.customers.filter(c=>!c.terminated&&c.name!=='スポット'&&c.name!=='その他（直接入力）').map(c=>(
               <option key={c.id} value={c.name}>{c.no ? `${c.no}. ` : ''}{c.name}</option>
             ))}
+            <option value="__text__">その他（直接入力）</option>
           </select>
+          {custOther && (
+            <>
+              <input value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder="顧問先名を入力..." style={{marginTop:'8px'}} />
+              <p style={{color:'#ea580c', fontSize:'12px', marginTop:'6px', fontWeight:'500', lineHeight:'1.5'}}>
+                ⚠️ 顧問先マスタに登録済みの顧問先は必ず選択してください。「その他」は顧問先マスタにない場合のみ使用してください。
+              </p>
+            </>
+          )}
         </div>
 
         {/* ② 昇(降)給年月 | ③ 改定年月 */}
@@ -2993,7 +3031,7 @@ function PayrollCustomerModal({item, onSave, onClose, masters}) {
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">顧問先名 <span className="text-red-500">*</span></label>
               <SearchableSelect value={form.customerName} onChange={v=>set('customerName',v)} placeholder="選択または検索..."
-                options={masters.customers.filter(c=>c.name!=='スポット').map(c=>({value:c.name,label:c.name}))} />
+                options={masters.customers.filter(c=>c.name!=='スポット'&&c.name!=='その他（直接入力）').map(c=>({value:c.name,label:c.no?`${c.no}. ${c.name}`:c.name}))} />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">担当者</label>
