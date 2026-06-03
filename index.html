@@ -1415,6 +1415,12 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
           };
           onSave(newRates);
         }}>
+          {/* ① 労務顧問 */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-500 mb-1">労務顧問（月額固定・円）<span className="ml-1 font-normal text-blue-400">← 毎月引き継ぎ</span></label>
+            <input type="number" value={form.労務顧問} onChange={e=>set('労務顧問',e.target.value)} placeholder="未設定" style={{width:'220px'}} />
+          </div>
+          {/* ② 給与計算 段階単価 */}
           <div className="mb-4">
             <p className="text-xs font-semibold text-gray-500 mb-2">給与計算 — 段階単価（人数 × 単価）<span className="ml-2 font-normal text-blue-400">← 毎月引き継ぎ</span></p>
             <div className="grid grid-cols-5 gap-3 mb-3">
@@ -1446,24 +1452,12 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
               </div>
             </div>
           </div>
+          {/* ③ 処遇改善加算 */}
           <div className="mb-4">
-            <p className="text-xs font-semibold text-gray-500 mb-2">賞与計算<span className="ml-2 font-normal text-gray-400">← 月ごとにリセット</span></p>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">賞与計算（固定金額・円）</label>
-              <input type="number" value={form.賞与固定金額} onChange={e=>set('賞与固定金額',e.target.value)} placeholder="未設定（段階単価を使用）" style={{width:'220px'}} />
-              <p className="text-xs text-gray-400 mt-1">※ 入力すると人数に関係なくこの金額を使用します</p>
-            </div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">処遇改善加算（月額固定・円）<span className="ml-1 font-normal text-blue-400">← 毎月引き継ぎ</span></label>
+            <input type="number" value={form.処遇改善加算} onChange={e=>set('処遇改善加算',e.target.value)} placeholder="未設定" style={{width:'220px'}} />
           </div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">労務顧問（月額固定・円）<span className="ml-1 font-normal text-blue-400">← 毎月引き継ぎ</span></label>
-              <input type="number" value={form.労務顧問} onChange={e=>set('労務顧問',e.target.value)} placeholder="未設定" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">処遇改善加算（月額固定・円）<span className="ml-1 font-normal text-blue-400">← 毎月引き継ぎ</span></label>
-              <input type="number" value={form.処遇改善加算} onChange={e=>set('処遇改善加算',e.target.value)} placeholder="未設定" />
-            </div>
-          </div>
+          {/* ④ システム利用料 */}
           <div className="mb-4">
             <div className="flex items-end gap-2">
               <div style={{flex:1}}>
@@ -1483,7 +1477,8 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
               </div>
             </div>
           </div>
-          <div className="mb-6" style={{borderTop:'1px solid #e5e7eb',paddingTop:'16px'}}>
+          {/* ⑤ 追加案件 */}
+          <div className="mb-4" style={{borderTop:'1px solid #e5e7eb',paddingTop:'16px'}}>
             <p className="text-xs font-semibold text-gray-500 mb-2">追加案件（{month} 分・手入力）<span className="ml-2 font-normal text-gray-400">← 月ごとにリセット</span></p>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -1495,7 +1490,16 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
                 <input type="number" min="0" value={form.追加金額} onChange={e=>set('追加金額',e.target.value)} placeholder="0" />
               </div>
             </div>
-            <p className="text-xs text-gray-400 mt-1">※ 案件管理の集計に加算されます</p>
+            <p className="text-xs text-gray-400 mt-1">※ 請求集計の「追加案件請求」列に表示されます</p>
+          </div>
+          {/* ⑥ 賞与計算 */}
+          <div className="mb-6">
+            <p className="text-xs font-semibold text-gray-500 mb-2">賞与計算<span className="ml-2 font-normal text-gray-400">← 月ごとにリセット</span></p>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">賞与計算（固定金額・円）</label>
+              <input type="number" value={form.賞与固定金額} onChange={e=>set('賞与固定金額',e.target.value)} placeholder="未設定（段階単価を使用）" style={{width:'220px'}} />
+              <p className="text-xs text-gray-400 mt-1">※ 入力すると人数に関係なくこの金額を使用します</p>
+            </div>
           </div>
           <div className="flex gap-3 justify-end">
             <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
@@ -1554,7 +1558,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
     const year  = ym ? Number(ym[1]) : null;
     const month = ym ? Number(ym[2]) : null;
 
-    const blankRow = name => ({name,count:0,total:0,追加件数:0,追加金額:0,給与人数:0,給与請求額:null,賞与人数:0,賞与請求額:null,労務顧問:null,処遇改善加算:null,システム利用料:null});
+    const blankRow = name => ({name,count:0,total:0,追加件数:0,追加金額:0,給与人数:0,給与請求額:null,賞与人数:0,賞与請求額:null,労務顧問:null,処遇改善加算:null,システム利用料:null,月変請求:null,年更算定請求:null});
     const map = {};
 
     // 顧問先マスタの全顧問先（契約解除済みを除く）を初期化
@@ -1620,6 +1624,25 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
       });
     }
 
+    // 月変請求
+    (checks||[]).filter(c=>!c.cancelled&&c.status==='請求済'&&c.targetMonth===sel&&activeNames.has(c.customerName)).forEach(c=>{
+      if(!map[c.customerName]) map[c.customerName]=blankRow(c.customerName);
+      const n=Number(c.count);
+      const auto=c.count&&!isNaN(n)&&n>0?2500+n*200:null;
+      const isMan=c.manualBillingAmount!==''&&c.manualBillingAmount!=null;
+      const bill=isMan?Number(c.manualBillingAmount):auto;
+      if(bill&&bill>0) map[c.customerName].月変請求=(map[c.customerName].月変請求||0)+bill;
+    });
+    // 年更算定請求
+    (cases||[]).filter(c=>!c.cancelled&&c.isAnnualOnly&&c.status==='請求済'&&c.targetMonth===sel&&activeNames.has(c.customerName)).forEach(c=>{
+      if(!map[c.customerName]) map[c.customerName]=blankRow(c.customerName);
+      const isMan=c.manualBillingAmount!==''&&c.manualBillingAmount!=null;
+      const n=Number(c.annualTargetCount);
+      const auto=!isMan&&c.annualTargetCount!==''&&c.annualTargetCount!=null&&!isNaN(n)?13000+n*200:null;
+      const bill=isMan?Number(c.manualBillingAmount):auto;
+      if(bill&&bill>0) map[c.customerName].年更算定請求=(map[c.customerName].年更算定請求||0)+bill;
+    });
+
     return Object.values(map)
       .map(r=>({...r, no:custMap[r.name]?.no??''}))
       .sort((a,b)=>{
@@ -1627,22 +1650,28 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
         const nb = b.no===''||b.no==null ? Infinity : Number(b.no);
         return na-nb;
       });
-  },[cases,payrolls,payrollRates,sel,masters,billingSnapshots]);
+  },[cases,payrolls,payrollRates,sel,masters,billingSnapshots,checks]);
 
-  const grandCount    = rows.reduce((s,r)=>s+(r.count||0)+(r.追加件数||0),0);
-  const grandTotal    = rows.reduce((s,r)=>s+(r.total||0)+(r.追加金額||0),0);
-  const grandPayCnt   = rows.reduce((s,r)=>s+r.給与人数,0);
-  const grandPayAmt   = rows.reduce((s,r)=>r.給与請求額!=null?s+r.給与請求額:s, 0);
-  const grandBonusCnt = rows.reduce((s,r)=>s+r.賞与人数,0);
-  const grandBonusAmt = rows.reduce((s,r)=>r.賞与請求額!=null?s+r.賞与請求額:s, 0);
-  const grandRomuAmt  = rows.reduce((s,r)=>r.労務顧問!=null?s+r.労務顧問:s, 0);
-  const grandShoguAmt = rows.reduce((s,r)=>r.処遇改善加算!=null?s+r.処遇改善加算:s, 0);
-  const grandSysAmt   = rows.reduce((s,r)=>r.システム利用料!=null?s+r.システム利用料:s, 0);
-  const hasPayAmt     = rows.some(r=>r.給与請求額!=null);
-  const hasBonusAmt   = rows.some(r=>r.賞与請求額!=null);
-  const hasRomuAmt    = rows.some(r=>r.労務顧問!=null);
-  const hasShoguAmt   = rows.some(r=>r.処遇改善加算!=null);
-  const hasSysAmt     = rows.some(r=>r.システム利用料!=null);
+  const grandCount      = rows.reduce((s,r)=>s+(r.count||0),0);
+  const grandTotal      = rows.reduce((s,r)=>s+(r.total||0),0);
+  const grandAddAmt     = rows.reduce((s,r)=>s+(r.追加金額||0),0);
+  const grandMonthly    = rows.reduce((s,r)=>r.月変請求!=null?s+r.月変請求:s, 0);
+  const grandAnnual     = rows.reduce((s,r)=>r.年更算定請求!=null?s+r.年更算定請求:s, 0);
+  const grandPayCnt     = rows.reduce((s,r)=>s+r.給与人数,0);
+  const grandPayAmt     = rows.reduce((s,r)=>r.給与請求額!=null?s+r.給与請求額:s, 0);
+  const grandBonusCnt   = rows.reduce((s,r)=>s+r.賞与人数,0);
+  const grandBonusAmt   = rows.reduce((s,r)=>r.賞与請求額!=null?s+r.賞与請求額:s, 0);
+  const grandRomuAmt    = rows.reduce((s,r)=>r.労務顧問!=null?s+r.労務顧問:s, 0);
+  const grandShoguAmt   = rows.reduce((s,r)=>r.処遇改善加算!=null?s+r.処遇改善加算:s, 0);
+  const grandSysAmt     = rows.reduce((s,r)=>r.システム利用料!=null?s+r.システム利用料:s, 0);
+  const hasPayAmt       = rows.some(r=>r.給与請求額!=null);
+  const hasBonusAmt     = rows.some(r=>r.賞与請求額!=null);
+  const hasRomuAmt      = rows.some(r=>r.労務顧問!=null);
+  const hasShoguAmt     = rows.some(r=>r.処遇改善加算!=null);
+  const hasSysAmt       = rows.some(r=>r.システム利用料!=null);
+  const hasAddAmt       = rows.some(r=>(r.追加金額||0)>0);
+  const hasMonthly      = rows.some(r=>r.月変請求!=null);
+  const hasAnnual       = rows.some(r=>r.年更算定請求!=null);
   const isHiro        = currentUser?.email === 'hiro@saitoh-sr.com';
 
   const handleSaveRate = (name, data) => {
@@ -1676,8 +1705,8 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
       if (r.処遇改善加算 != null) add(!hasRomu ? '28' : hasKyuyo ? '03' : '02', r.処遇改善加算);
       if (r.給与人数 > 0 && r.給与請求額 != null) add('26', r.給与請求額);
       if (r.システム利用料 != null) add('27', r.システム利用料);
-      const ankenAmt = (r.total||0) + (r.追加金額||0);
-      if (ankenAmt > 0) add('36', ankenAmt);
+      if ((r.total||0) > 0) add('36', r.total);
+      if ((r.追加金額||0) > 0) add('36', r.追加金額);
       if (r.賞与人数 > 0 && r.賞与請求額 != null) add('56', r.賞与請求額);
     });
     /* 月変チェックの請求額（請求済のみ）を内訳コード36として追加 */
@@ -1756,40 +1785,46 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
         <div className="text-center py-20 text-gray-400"><p>該当する案件がありません</p></div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 200px)'}}>
-          <table className="text-sm" style={{tableLayout:'fixed',width:isHiro?'1350px':'1230px'}}>
+          <table className="text-sm" style={{tableLayout:'fixed',width:'1520px'}}>
             <colgroup>
-              <col style={{width:'50px'}} />
-              <col style={{width:'220px', minWidth:'220px'}} />
+              <col style={{width:'45px'}} />
+              <col style={{width:'200px',minWidth:'200px'}} />
+              <col style={{width:'105px'}} />
+              <col style={{width:'75px'}} />
+              <col style={{width:'105px'}} />
               <col style={{width:'120px'}} />
+              <col style={{width:'105px'}} />
+              <col style={{width:'65px'}} />
+              <col style={{width:'105px'}} />
+              <col style={{width:'115px'}} />
+              <col style={{width:'105px'}} />
               <col style={{width:'120px'}} />
-              <col style={{width:'120px'}} />
-              <col style={{width:'120px'}} />
-              <col style={{width:'120px'}} />
-              <col style={{width:'120px'}} />
-              <col style={{width:'120px'}} />
-              <col style={{width:'120px'}} />
-              {isHiro && <col style={{width:'120px'}} />}
+              <col style={{width:'75px'}} />
+              <col style={{width:'110px'}} />
             </colgroup>
             <thead>
               <tr style={{background:hdBg}} className="border-b border-gray-200">
                 <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">No</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">顧客名</th>
-                <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">件数</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">案件請求</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">労務顧問</th>
                 <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">給与人数</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">給与請求</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">処遇改善加算</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">システム利用料</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">件数</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">案件請求</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">追加案件請求</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">月変請求</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">年更算定請求</th>
                 <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">賞与人数</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">賞与請求</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">労務顧問</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">処遇改善加算</th>
-                {isHiro && <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">システム利用料</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map(r=>(
                 <tr key={r.name} className="hover:bg-gray-50">
                   <td className="px-3 py-3 text-right text-gray-400 text-xs">{r.no}</td>
-                  <td className="px-4 py-3" style={{minWidth:'220px',whiteSpace:'nowrap'}}>
+                  <td className="px-4 py-3" style={{minWidth:'200px',whiteSpace:'nowrap'}}>
                     {isConfirmed
                       ? <span style={{fontWeight:'500',color:'#1f2937'}}>{r.name}</span>
                       : <button onClick={()=>setRateModal({name:r.name})}
@@ -1797,22 +1832,18 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
                         >{r.name}</button>
                     }
                   </td>
-                  <td className="px-3 py-3 text-right text-gray-700">{(r.count||0)+(r.追加件数||0)>0?`${(r.count||0)+(r.追加件数||0)}件`:'—'}</td>
-                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">
-                    {(r.total||0)+(r.追加金額||0)>0
-                      ? <span title={(r.追加件数||0)+(r.追加金額||0)>0?`自動:¥${(r.total||0).toLocaleString()} + 手入力:¥${(r.追加金額||0).toLocaleString()}`:undefined}>
-                          {(r.追加件数||0)+(r.追加金額||0)>0 && <span style={{color:'#9ca3af',fontSize:'11px',marginRight:'2px'}}>✎</span>}
-                          {`¥${((r.total||0)+(r.追加金額||0)).toLocaleString()}`}
-                        </span>
-                      : '—'}
-                  </td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.労務顧問!=null?`¥${r.労務顧問.toLocaleString()}`:'—'}</td>
                   <td className="px-3 py-3 text-right text-gray-700">{r.給与人数>0?`${r.給与人数}人`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.給与人数>0&&r.給与請求額!=null?`¥${r.給与請求額.toLocaleString()}`:'—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.処遇改善加算!=null?`¥${r.処遇改善加算.toLocaleString()}`:'—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.システム利用料!=null?`¥${r.システム利用料.toLocaleString()}`:'—'}</td>
+                  <td className="px-3 py-3 text-right text-gray-700">{(r.count||0)>0?`${r.count}件`:'—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{(r.total||0)>0?`¥${r.total.toLocaleString()}`:'—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{(r.追加金額||0)>0?`¥${r.追加金額.toLocaleString()}`:'—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.月変請求!=null?`¥${r.月変請求.toLocaleString()}`:'—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.年更算定請求!=null?`¥${r.年更算定請求.toLocaleString()}`:'—'}</td>
                   <td className="px-3 py-3 text-right text-gray-700">{r.賞与人数>0?`${r.賞与人数}人`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.賞与人数>0&&r.賞与請求額!=null?`¥${r.賞与請求額.toLocaleString()}`:'—'}</td>
-                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.労務顧問!=null?`¥${r.労務顧問.toLocaleString()}`:'—'}</td>
-                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.処遇改善加算!=null?`¥${r.処遇改善加算.toLocaleString()}`:'—'}</td>
-                  {isHiro && <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.システム利用料!=null?`¥${r.システム利用料.toLocaleString()}`:'—'}</td>}
                 </tr>
               ))}
             </tbody>
@@ -1820,15 +1851,18 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
               <tr style={{background:ftBg,borderTop:`2px solid ${ftBd}`}} className="font-bold">
                 <td className="px-3 py-3"></td>
                 <td className="px-4 py-3" style={{color:ftColor}}>合計</td>
-                <td className="px-3 py-3 text-right" style={{color:ftColor}}>{grandCount>0?`${grandCount}件`:''}</td>
-                <td className="px-4 py-3 text-right" style={{color:ftColor}}>{grandTotal>0?`¥${grandTotal.toLocaleString()}`:''}</td>
+                <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasRomuAmt?`¥${grandRomuAmt.toLocaleString()}`:''}</td>
                 <td className="px-3 py-3 text-right" style={{color:ftColor}}>{grandPayCnt>0?`${grandPayCnt}人`:''}</td>
                 <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasPayAmt?`¥${grandPayAmt.toLocaleString()}`:''}</td>
+                <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasShoguAmt?`¥${grandShoguAmt.toLocaleString()}`:''}</td>
+                <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasSysAmt?`¥${grandSysAmt.toLocaleString()}`:''}</td>
+                <td className="px-3 py-3 text-right" style={{color:ftColor}}>{grandCount>0?`${grandCount}件`:''}</td>
+                <td className="px-4 py-3 text-right" style={{color:ftColor}}>{grandTotal>0?`¥${grandTotal.toLocaleString()}`:''}</td>
+                <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasAddAmt?`¥${grandAddAmt.toLocaleString()}`:''}</td>
+                <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasMonthly?`¥${grandMonthly.toLocaleString()}`:''}</td>
+                <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasAnnual?`¥${grandAnnual.toLocaleString()}`:''}</td>
                 <td className="px-3 py-3 text-right" style={{color:ftColor}}>{grandBonusCnt>0?`${grandBonusCnt}人`:''}</td>
                 <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasBonusAmt?`¥${grandBonusAmt.toLocaleString()}`:''}</td>
-                <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasRomuAmt?`¥${grandRomuAmt.toLocaleString()}`:''}</td>
-                <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasShoguAmt?`¥${grandShoguAmt.toLocaleString()}`:''}</td>
-                {isHiro && <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasSysAmt?`¥${grandSysAmt.toLocaleString()}`:''}</td>}
               </tr>
             </tfoot>
           </table>
