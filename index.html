@@ -1785,39 +1785,23 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
         <div className="text-center py-20 text-gray-400"><p>該当する案件がありません</p></div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 200px)'}}>
-          <table className="text-sm" style={{tableLayout:'fixed',width:'1520px'}}>
-            <colgroup>
-              <col style={{width:'45px'}} />
-              <col style={{width:'200px',minWidth:'200px'}} />
-              <col style={{width:'105px'}} />
-              <col style={{width:'75px'}} />
-              <col style={{width:'105px'}} />
-              <col style={{width:'120px'}} />
-              <col style={{width:'105px'}} />
-              <col style={{width:'65px'}} />
-              <col style={{width:'105px'}} />
-              <col style={{width:'115px'}} />
-              <col style={{width:'105px'}} />
-              <col style={{width:'120px'}} />
-              <col style={{width:'75px'}} />
-              <col style={{width:'110px'}} />
-            </colgroup>
+          <table className="text-sm" style={{minWidth:'1420px'}}>
             <thead>
               <tr style={{background:hdBg}} className="border-b border-gray-200">
-                <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">No</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">顧客名</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">労務顧問</th>
-                <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">給与人数</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">給与請求</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">処遇改善加算</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">システム利用料</th>
-                <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">件数</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">案件請求</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">追加案件請求</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">月変請求</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">年更算定請求</th>
-                <th className="px-3 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">賞与人数</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 whitespace-nowrap">賞与請求</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600" style={{minWidth:'44px'}}>No</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-600" style={{minWidth:'220px'}}>顧客名</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'90px'}}>労務顧問</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600" style={{minWidth:'76px'}}>給与人数</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'90px'}}>給与請求</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'112px'}}>処遇改善加算</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'120px'}}>システム利用料</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600" style={{minWidth:'60px'}}>件数</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'90px'}}>案件請求</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'112px'}}>追加案件請求</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'90px'}}>月変請求</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'112px'}}>年更算定請求</th>
+                <th className="px-3 py-3 text-right font-semibold text-gray-600" style={{minWidth:'76px'}}>賞与人数</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'90px'}}>賞与請求</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
