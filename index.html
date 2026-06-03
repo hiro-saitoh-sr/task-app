@@ -250,6 +250,7 @@ function LoginScreen({ onLogin }) {
 }
 
 const STATUSES = ['依頼待ち', '依頼受付', '手続き済', '納品済', '請求済'];
+const CHECK_STATUSES = ['依頼受付', '手続き済', '納品済', '請求済'];
 const SK = {
   cases:    'task_app_cases',
   masters:  'task_app_masters',
@@ -1679,13 +1680,24 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
       if (ankenAmt > 0) add('36', ankenAmt);
       if (r.賞与人数 > 0 && r.賞与請求額 != null) add('56', r.賞与請求額);
     });
-    /* 月変チェックの請求額を内訳コード36として追加 */
-    (checks||[]).filter(c => !c.cancelled && c.targetMonth === sel).forEach(c => {
+    /* 月変チェックの請求額（請求済のみ）を内訳コード36として追加 */
+    (checks||[]).filter(c => !c.cancelled && c.status === '請求済' && c.targetMonth === sel).forEach(c => {
       const no = c.no || '';
       if (!no) return;
       const countNum = Number(c.count);
       const autoBilling = c.count && !isNaN(countNum) && countNum > 0 ? 2500 + countNum * 200 : null;
       const isManual = c.manualBillingAmount !== '' && c.manualBillingAmount != null;
+      const billing = isManual ? Number(c.manualBillingAmount) : autoBilling;
+      if (!billing || billing <= 0) return;
+      lines.push([no, '36', billing, '', '', '2'].join(','));
+    });
+    /* 年更・算定の請求額（請求済のみ）を内訳コード36として追加 */
+    (cases||[]).filter(c => !c.cancelled && c.isAnnualOnly && c.status === '請求済' && c.targetMonth === sel).forEach(c => {
+      const no = c.no || '';
+      if (!no) return;
+      const isManual = c.manualBillingAmount !== '' && c.manualBillingAmount != null;
+      const n = Number(c.annualTargetCount);
+      const autoBilling = !isManual && c.annualTargetCount !== '' && c.annualTargetCount != null && !isNaN(n) ? 13000 + n * 200 : null;
       const billing = isManual ? Number(c.manualBillingAmount) : autoBilling;
       if (!billing || billing <= 0) return;
       lines.push([no, '36', billing, '', '', '2'].join(','));
@@ -1851,7 +1863,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
 ══════════════════════════════════════════ */
 function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
   const isHiro = currentUser?.email === 'hiro@saitoh-sr.com';
-  const blank = {no:'',customerName:'',checker:'',procedureBy:'',count:'',assignee:'',completedDate:'',targetMonth:'',manualBillingAmount:''};
+  const blank = {no:'',customerName:'',checker:'',procedureBy:'',count:'',assignee:'',completedDate:'',targetMonth:'',manualBillingAmount:'',status:'依頼受付'};
   const [form, setForm] = useState(item?{...item}:blank);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   return (
@@ -1883,7 +1895,7 @@ function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
               <textarea value={form.procedureBy||''} onChange={e=>set('procedureBy',e.target.value)} rows={4} placeholder="従業員番号とフルネームを1行ずつ入力" />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-3 gap-4 mb-4">
             <div><label className="block text-sm font-semibold text-gray-600 mb-1">月変した人数</label><input type="number" value={form.count} onChange={e=>set('count',e.target.value)} placeholder="0" /></div>
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">担当者</label>
@@ -1891,6 +1903,16 @@ function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
                 <option value="">選択してください</option>
                 {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">ステータス</label>
+              {(!isHiro && (form.status||'依頼受付') === '請求済')
+                ? <select value={form.status||'依頼受付'} disabled style={{opacity:1,cursor:'default'}}><option>{form.status||'依頼受付'}</option></select>
+                : <select value={form.status||'依頼受付'} onChange={e=>set('status',e.target.value)}>
+                    {CHECK_STATUSES.filter(s => s !== '請求済' || isHiro).map(s=><option key={s}>{s}</option>)}
+                    {(form.status === '依頼待ち') && <option value="依頼待ち">依頼待ち</option>}
+                  </select>
+              }
             </div>
           </div>
           <div className="mb-4"><label className="block text-sm font-semibold text-gray-600 mb-1">チェック完了日</label><input value={form.completedDate} onChange={e=>set('completedDate',e.target.value)} placeholder="2026/5/31" /></div>
@@ -2663,6 +2685,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
   const [filterMonth, setFilterMonth]       = useState('');
   const [showCancelled, setShowCancelled]   = useState(false);
   const [showBulkModal, setShowBulkModal]   = useState(false);
+  const [bulkBillMsg,   setBulkBillMsg]     = useState('');
 
   /* 登録済みデータから対象年月の選択肢を動的生成 */
   const monthOptions = useMemo(() => {
@@ -2704,7 +2727,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
           memo,
           completedDate: '',
           targetMonth,
-          status: '依頼待ち',
+          status: '依頼受付',
           manualBillingAmount: '',
           cancelled: false,
         }];
@@ -2714,14 +2737,32 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
     setShowBulkModal(false);
   };
 
+  const handleBulkBill = () => {
+    const targets = rows.filter(c => c.status === '納品済');
+    if (targets.length === 0) { alert('表示中の納品済データがありません。'); return; }
+    if (!window.confirm(`納品済の${targets.length}件を請求済に変更します。よろしいですか？`)) return;
+    const ids = new Set(targets.map(c => c.id));
+    setChecks(p => p.map(c => ids.has(c.id) ? {...c, status: '請求済'} : c));
+    setBulkBillMsg(`${targets.length}件を請求済に変更しました`);
+    setTimeout(() => setBulkBillMsg(''), 4000);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-lg font-bold text-gray-800">月額変更届チェック管理</h2>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {isHiro && (
+            <button className="btn btn-secondary flex items-center gap-2" onClick={handleBulkBill}>
+              納品済を一括請求済に
+            </button>
+          )}
           <button className="btn btn-primary" onClick={()=>setShowBulkModal(true)}>＋新規追加</button>
         </div>
       </div>
+      {bulkBillMsg && (
+        <div className="mb-3 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm font-medium">{bulkBillMsg}</div>
+      )}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <label className="text-sm font-semibold text-gray-600 whitespace-nowrap">月変対象年月：</label>
         <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)}
@@ -2748,6 +2789,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                 <th className="px-3 py-3 text-left font-semibold text-gray-600">月変手続きした人</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">月変人数</th>
                 {isHiro && <th className="px-3 py-3 text-right font-semibold text-gray-600">請求額</th>}
+                <th className="px-3 py-3 text-center font-semibold text-gray-600">ステータス</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">担当者</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">チェック完了日</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">月変対象年月</th>
@@ -2776,6 +2818,19 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                         {billing != null ? <span>{isManualBilling && <span title="手入力" style={{fontSize:'12px',marginRight:'2px',color:'#6b7280'}}>✎</span>}¥{billing.toLocaleString()}</span> : ''}
                       </td>
                     )}
+                    <td className="px-3 py-2.5 text-center" style={{minWidth:'100px'}}>
+                      {c.cancelled
+                        ? <span className={`status-${c.status||'依頼受付'} text-xs font-semibold px-2 py-1 rounded-full`}>{c.status||'依頼受付'}</span>
+                        : <select
+                            value={c.status||'依頼受付'}
+                            onChange={e=>setChecks(p=>p.map(x=>x.id===c.id?{...x,status:e.target.value}:x))}
+                            className={`status-${c.status||'依頼受付'} text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer`}
+                            style={{appearance:'none',textAlign:'center',width:'100%',opacity:1}}>
+                            {CHECK_STATUSES.filter(s => s !== '請求済' || isHiro || s === (c.status||'依頼受付')).map(s=><option key={s}>{s}</option>)}
+                            {c.status === '依頼待ち' && <option value="依頼待ち">依頼待ち</option>}
+                          </select>
+                      }
+                    </td>
                     <td className="px-3 py-2.5 text-gray-600 text-xs text-center">{c.assignee}</td>
                     <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.completedDate}</td>
                     <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.targetMonth}</td>
