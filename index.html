@@ -1051,39 +1051,28 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
   },[masters.procedures]);
 
   const customerFilterOptions = useMemo(() => {
-    // 法人格を除去（長い順に先にチェック）
-    const CORPS = ['特定非営利活動法人','社会福祉法人','一般社団法人','NPO法人','医療法人','株式会社','合同会社','有限会社'];
-    const stripCorp = name => {
-      let s = name;
-      for (const c of CORPS) {
-        if (s.startsWith(c)) { s = s.slice(c.length).trim(); break; }
-        if (s.endsWith(c))   { s = s.slice(0, s.length - c.length).trim(); break; }
-      }
-      return s || name;
-    };
-    // 英数字先頭は group 0、それ以外は group 1
-    const sortKey = name => [/^[a-zA-Z0-9]/.test(stripCorp(name)) ? 0 : 1, stripCorp(name)];
-
+    // マスタから No. 情報を含む Map を構築
     const masterMap = new Map(
       masters.customers
         .filter(c => !c.terminated && c.name !== 'スポット' && c.name !== 'その他（直接入力）')
-        .map(c => [c.name, c.no ? `${c.no}. ${c.name}` : c.name])
+        .map(c => [c.name, {label: c.no ? `${c.no}. ${c.name}` : c.name, no: c.no ? Number(c.no) : Infinity}])
     );
     const caseNames = cases.filter(c => !c.cancelled && !c.isAnnualOnly && c.customerName).map(c => c.customerName);
     const all = [...new Set([...masterMap.keys(), ...caseNames])];
 
     const others = all.filter(n => n === 'その他（直接入力）');
     const rest   = all.filter(n => n !== 'その他（直接入力）');
+    // No. 昇順、番号未設定は末尾
     rest.sort((a, b) => {
-      const [ga, sa] = sortKey(a);
-      const [gb, sb] = sortKey(b);
-      if (ga !== gb) return ga - gb;
-      return sa.localeCompare(sb, 'ja');
+      const na = masterMap.get(a)?.no ?? Infinity;
+      const nb = masterMap.get(b)?.no ?? Infinity;
+      if (na !== nb) return na - nb;
+      return a.localeCompare(b, 'ja');
     });
 
     return [
       {value:'', label:'すべて'},
-      ...[...rest, ...others].map(n => ({value:n, label: masterMap.get(n) || n})),
+      ...[...rest, ...others].map(n => ({value:n, label: masterMap.get(n)?.label || n})),
     ];
   }, [cases, masters.customers]);
 
@@ -2325,10 +2314,18 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
   const customerOptions = useMemo(() => {
     const custMap = Object.fromEntries(masters.customers.map(c=>[c.name,c]));
     const s = new Set(annualCases.map(c => c.customerName).filter(Boolean));
-    const sorted = [...s].sort((a,b)=>a.localeCompare(b,'ja'));
+    const others = [...s].filter(n => n === 'その他（直接入力）');
+    const rest   = [...s].filter(n => n !== 'その他（直接入力）');
+    // No. 昇順、番号未設定は末尾
+    rest.sort((a, b) => {
+      const na = custMap[a]?.no ? Number(custMap[a].no) : Infinity;
+      const nb = custMap[b]?.no ? Number(custMap[b].no) : Infinity;
+      if (na !== nb) return na - nb;
+      return a.localeCompare(b, 'ja');
+    });
     return [
       {value:'', label:'すべて'},
-      ...sorted.map(n=>{ const mc=custMap[n]; return {value:n, label:mc?.no ? `${mc.no}. ${n}` : n}; }),
+      ...[...rest, ...others].map(n => { const mc=custMap[n]; return {value:n, label:mc?.no ? `${mc.no}. ${n}` : n}; }),
     ];
   }, [annualCases, masters.customers]);
 
@@ -3163,9 +3160,23 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters}) {
   },[payrolls,filterCustomer,filterAssignee,filterStatus,showTerminated,selYear,selMonth,viewMode]);
 
   const hasFilter = !!(filterCustomer||filterAssignee||filterStatus!=='all'||showTerminated);
-  const customerOptions = payrolls
-    .filter(p => showTerminated ? p.terminated : !p.terminated)
-    .map(p=>({label:p.customerName, value:p.customerName}));
+  const customerOptions = useMemo(() => {
+    const custMap = Object.fromEntries((masters.customers||[]).map(c=>[c.name,c]));
+    const names = [...new Set(
+      payrolls.filter(p => showTerminated ? p.terminated : !p.terminated).map(p=>p.customerName).filter(Boolean)
+    )];
+    const others = names.filter(n => n === 'その他（直接入力）');
+    const rest   = names.filter(n => n !== 'その他（直接入力）');
+    rest.sort((a, b) => {
+      const na = custMap[a]?.no ? Number(custMap[a].no) : Infinity;
+      const nb = custMap[b]?.no ? Number(custMap[b].no) : Infinity;
+      if (na !== nb) return na - nb;
+      return a.localeCompare(b, 'ja');
+    });
+    return [
+      ...[...rest, ...others].map(n => { const mc=custMap[n]; return {value:n, label:mc?.no ? `${mc.no}. ${n}` : n}; }),
+    ];
+  }, [payrolls, masters.customers, showTerminated]);
   const assigneeOptions = [...new Set(payrolls.map(p=>p.assignee).filter(Boolean))].map(a=>({label:a,value:a}));
 
   /* ── sticky列共通スタイル ── */
