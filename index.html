@@ -691,8 +691,8 @@ function SearchableSelect({ options, value, onChange, placeholder }) {
 /* ══════════════════════════════════════════
    YEAR-MONTH PICKER
 ══════════════════════════════════════════ */
-function YearMonthPicker({ value, onChange, placeholder, placeholderDark, style, yearOnly }) {
-  const [open, setOpen] = useState(false);
+function YearMonthPicker({ value, onChange, placeholder, placeholderDark, style, yearOnly, autoOpen }) {
+  const [open, setOpen] = useState(!!autoOpen);
   const [dropUp, setDropUp] = useState(false);
   const [navYear, setNavYear] = useState(() => {
     if (yearOnly) return value || new Date().getFullYear();
@@ -1889,7 +1889,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
 ══════════════════════════════════════════ */
 function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
   const isHiro = currentUser?.email === 'hiro@saitoh-sr.com';
-  const blank = {no:'',customerName:'',checker:'',procedureBy:'',count:'',assignee:'',completedDate:'',targetMonth:'',manualBillingAmount:'',status:'依頼受付'};
+  const blank = {no:'',customerName:'',checker:'',procedureBy:'',count:'',assignee:'',targetMonth:'',manualBillingAmount:'',status:'依頼受付',salaryMonth:'',revisionMonth:''};
   const [form, setForm] = useState(item?{...item}:blank);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   return (
@@ -1900,7 +1900,7 @@ function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div><label className="block text-sm font-semibold text-gray-600 mb-1">No</label><input value={form.no} onChange={e=>set('no',e.target.value)} /></div>
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">月変対象年月</label>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">対象年月</label>
               <YearMonthPicker value={form.targetMonth} onChange={v=>set('targetMonth',v)} />
             </div>
           </div>
@@ -1913,16 +1913,26 @@ function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
           </div>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">月変チェック者</label>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">昇(降)給月</label>
+              <YearMonthPicker value={form.salaryMonth} onChange={v=>set('salaryMonth',v)} placeholder="年月を選択" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">改定年月</label>
+              <YearMonthPicker value={form.revisionMonth} onChange={v=>set('revisionMonth',v)} placeholder="年月を選択" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">チェック対象者</label>
               <textarea value={form.checker||''} onChange={e=>set('checker',e.target.value)} rows={4} placeholder="従業員番号とフルネームを1行ずつ入力" />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">月変手続きした人</label>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">手続き対象者</label>
               <textarea value={form.procedureBy||''} onChange={e=>set('procedureBy',e.target.value)} rows={4} placeholder="従業員番号とフルネームを1行ずつ入力" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4 mb-4">
-            <div><label className="block text-sm font-semibold text-gray-600 mb-1">月変した人数</label><input type="number" value={form.count} onChange={e=>set('count',e.target.value)} placeholder="0" /></div>
+            <div><label className="block text-sm font-semibold text-gray-600 mb-1">改定人数</label><input type="number" value={form.count} onChange={e=>set('count',e.target.value)} placeholder="0" /></div>
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">担当者</label>
               <select value={form.assignee} onChange={e=>set('assignee',e.target.value)}>
@@ -1941,7 +1951,6 @@ function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
               }
             </div>
           </div>
-          <div className="mb-4"><label className="block text-sm font-semibold text-gray-600 mb-1">チェック完了日</label><input value={form.completedDate} onChange={e=>set('completedDate',e.target.value)} placeholder="2026/5/31" /></div>
           {isHiro && (
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-600 mb-1">請求額（円）</label>
@@ -2528,6 +2537,41 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
 }
 
 /* ══════════════════════════════════════════
+   INLINE YEAR-MONTH CELL (月変チェック一覧用)
+══════════════════════════════════════════ */
+function InlineYMCell({value, onChange}) {
+  const [editing, setEditing] = useState(false);
+  const wrapRef = useRef(null);
+  useEffect(() => {
+    if (!editing) return;
+    const handler = e => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setEditing(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [editing]);
+  return (
+    <div ref={wrapRef} style={{position:'relative', display:'inline-block'}}>
+      {!editing
+        ? <span
+            onClick={()=>setEditing(true)}
+            style={{cursor:'pointer', fontSize:'12px', color: value ? '#374151' : '#9ca3af', padding:'2px 4px', borderRadius:'4px', display:'inline-block'}}
+            className="hover:bg-gray-100"
+          >{value || '—'}</span>
+        : <div style={{minWidth:'160px'}}>
+            <YearMonthPicker
+              value={value}
+              onChange={v=>{onChange(v);setEditing(false);}}
+              autoOpen
+              placeholder="年月を選択"
+            />
+          </div>
+      }
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
    MONTHLY CHECK BULK MODAL (月変チェック一括登録)
 ══════════════════════════════════════════ */
 function MonthlyCheckBulkModal({checks, masters, onRegister, onClose}) {
@@ -2751,8 +2795,9 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
           count: '',
           assignee,
           memo,
-          completedDate: '',
           targetMonth,
+          salaryMonth: '',
+          revisionMonth: '',
           status: '依頼受付',
           manualBillingAmount: '',
           cancelled: false,
@@ -2790,7 +2835,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
         <div className="mb-3 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm font-medium">{bulkBillMsg}</div>
       )}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <label className="text-sm font-semibold text-gray-600 whitespace-nowrap">月変対象年月：</label>
+        <label className="text-sm font-semibold text-gray-600 whitespace-nowrap">対象年月：</label>
         <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)}
           style={{width:'auto',minWidth:'150px',padding:'7px 10px',fontSize:'17px',fontWeight:'500'}}>
           <option value="">すべて</option>
@@ -2811,14 +2856,15 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-3 py-3 text-left font-semibold text-gray-600 w-12">No</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600">顧客名</th>
-                <th className="px-3 py-3 text-left font-semibold text-gray-600">月変チェック者</th>
-                <th className="px-3 py-3 text-left font-semibold text-gray-600">月変手続きした人</th>
-                <th className="px-3 py-3 text-center font-semibold text-gray-600">月変人数</th>
-                {isHiro && <th className="px-3 py-3 text-right font-semibold text-gray-600">請求額</th>}
-                <th className="px-3 py-3 text-center font-semibold text-gray-600">ステータス</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600">昇(降)給月</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600">改定年月</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600">チェック対象者</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600">手続き対象者</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600">改定人数</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">担当者</th>
-                <th className="px-3 py-3 text-center font-semibold text-gray-600">チェック完了日</th>
-                <th className="px-3 py-3 text-center font-semibold text-gray-600">月変対象年月</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600">ステータス</th>
+                {isHiro && <th className="px-3 py-3 text-right font-semibold text-gray-600">請求額</th>}
+                <th className="px-3 py-3 text-center font-semibold text-gray-600">対象年月</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600 w-24">操作</th>
               </tr>
             </thead>
@@ -2836,14 +2882,22 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                       {c.cancelled && <span className="inline-block mr-1 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">取消</span>}
                       {c.customerName}
                     </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {c.cancelled
+                        ? <span className="text-xs text-gray-400">{c.salaryMonth||'—'}</span>
+                        : <InlineYMCell value={c.salaryMonth||''} onChange={v=>setChecks(p=>p.map(x=>x.id===c.id?{...x,salaryMonth:v}:x))} />
+                      }
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {c.cancelled
+                        ? <span className="text-xs text-gray-400">{c.revisionMonth||'—'}</span>
+                        : <InlineYMCell value={c.revisionMonth||''} onChange={v=>setChecks(p=>p.map(x=>x.id===c.id?{...x,revisionMonth:v}:x))} />
+                      }
+                    </td>
                     <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.checker}</td>
                     <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.procedureBy}</td>
                     <td className="px-3 py-2.5 text-gray-700 text-xs text-center">{c.count}</td>
-                    {isHiro && (
-                      <td className="px-3 py-2.5 text-sm text-right">
-                        {billing != null ? <span>{isManualBilling && <span title="手入力" style={{fontSize:'12px',marginRight:'2px',color:'#6b7280'}}>✎</span>}¥{billing.toLocaleString()}</span> : ''}
-                      </td>
-                    )}
+                    <td className="px-3 py-2.5 text-gray-600 text-xs text-center">{c.assignee}</td>
                     <td className="px-3 py-2.5 text-center" style={{minWidth:'100px'}}>
                       {c.cancelled
                         ? <span className={`status-${c.status||'依頼受付'} text-xs font-semibold px-2 py-1 rounded-full`}>{c.status||'依頼受付'}</span>
@@ -2857,8 +2911,11 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                           </select>
                       }
                     </td>
-                    <td className="px-3 py-2.5 text-gray-600 text-xs text-center">{c.assignee}</td>
-                    <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.completedDate}</td>
+                    {isHiro && (
+                      <td className="px-3 py-2.5 text-sm text-right">
+                        {billing != null ? <span>{isManualBilling && <span title="手入力" style={{fontSize:'12px',marginRight:'2px',color:'#6b7280'}}>✎</span>}¥{billing.toLocaleString()}</span> : ''}
+                      </td>
+                    )}
                     <td className="px-3 py-2.5 text-gray-500 text-xs text-center">{c.targetMonth}</td>
                     <td className="px-3 py-2.5">
                       <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
