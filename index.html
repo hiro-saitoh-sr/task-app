@@ -369,7 +369,7 @@ function initMasters() {
     '36協定起算日': '', 'その他労使協定の届出': '', '東京SR特別加入': '',
   });
   const customers = [
-    c(1,  '',   'スポット'),
+    c(1,  '',   'その他（直接入力）'),
     c(2,  '1',  '株式会社天山工務店',              '建築',       '田中啓太',    '田中里子',    '',                             'keiri@tenzan.net',                    '',    ['労務顧問','給与計算']),
     c(3,  '3',  'ピースフルライフ有限会社',          '介護',       '宮本直子',    '宮本尚久',    '',                             'peaceful.14@jcom.zaq.ne.jp',          '',    ['処遇改善加算']),
     c(4,  '4',  '大雄商会株式会社',                '介護・障害', '森美也子',    '森繁幸',      'roze@roze-daiyuu.tokyo',        'rose.hill.tokyo@gmail.com',           '',    ['処遇改善加算']),
@@ -497,7 +497,13 @@ function loadMasters() {
     const saved = localStorage.getItem(SK.masters);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (parsed.version === MASTER_VERSION) return parsed;
+      if (parsed.version === MASTER_VERSION) {
+        // スポット → その他（直接入力） 変換
+        if (parsed.customers?.some(c => c.name === 'スポット')) {
+          return {...parsed, customers: parsed.customers.map(c => c.name === 'スポット' ? {...c, name: 'その他（直接入力）'} : c)};
+        }
+        return parsed;
+      }
       // v2 → v3: merge new fields (業種・担当者名・メール等) into existing customers, add new customers
       if (parsed.version === 2 && Array.isArray(parsed.customers)) {
         const defaults = initMasters();
@@ -878,7 +884,7 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
                 onChange={v => handleCustSelect(v)}
                 placeholder="選択または検索..."
                 options={[
-                  ...masters.customers.map(c=>({value:c.name, label:c.name})),
+                  ...masters.customers.filter(c=>c.name!=='スポット').map(c=>({value:c.name, label:c.name})),
                   {value:'__text__', label:'その他（直接入力）'},
                 ]}
               />
@@ -1110,7 +1116,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
                 placeholder="すべて"
                 options={[
                   {value:'', label:'すべて'},
-                  ...masters.customers.filter(c=>!c.terminated).map(c=>({value:c.name, label:c.name})),
+                  ...masters.customers.filter(c=>!c.terminated&&c.name!=='スポット').map(c=>({value:c.name, label:c.name})),
                 ]}
               />
             </div>
@@ -1908,7 +1914,7 @@ function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
             <label className="block text-sm font-semibold text-gray-600 mb-1">顧客名</label>
             <select value={form.customerName} onChange={e=>{const c=masters.customers.find(x=>x.name===e.target.value);set('customerName',e.target.value);if(c)set('no',c.no);}}>
               <option value="">選択してください</option>
-              {masters.customers.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+              {masters.customers.filter(c=>c.name!=='スポット').map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4 mb-4">
@@ -1988,9 +1994,8 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
     );
   }, [cases, procedure, targetYear]);
 
-  /* 修正2: id:1（スポット）を除外しない */
   const availableCustomers = useMemo(() => {
-    return masters.customers.filter(c => !c.terminated && !registeredCustomers.has(c.name));
+    return masters.customers.filter(c => !c.terminated && c.name !== 'スポット' && !registeredCustomers.has(c.name));
   }, [masters.customers, registeredCustomers]);
 
   const showList = !!(procedure && targetYear && targetMonth);
@@ -2607,7 +2612,7 @@ function MonthlyCheckBulkModal({checks, masters, onRegister, onClose}) {
             setNo(c?.no || '');
           }}>
             <option value="">選択してください</option>
-            {masters.customers.filter(c=>!c.terminated).map(c=>(
+            {masters.customers.filter(c=>!c.terminated&&c.name!=='スポット').map(c=>(
               <option key={c.id} value={c.name}>{c.no ? `${c.no}. ` : ''}{c.name}</option>
             ))}
           </select>
@@ -2953,7 +2958,7 @@ function PayrollCustomerModal({item, onSave, onClose, masters}) {
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">顧問先名 <span className="text-red-500">*</span></label>
               <SearchableSelect value={form.customerName} onChange={v=>set('customerName',v)} placeholder="選択または検索..."
-                options={masters.customers.map(c=>({value:c.name,label:c.name}))} />
+                options={masters.customers.filter(c=>c.name!=='スポット').map(c=>({value:c.name,label:c.name}))} />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-600 mb-1">担当者</label>
@@ -3963,23 +3968,36 @@ function App() {
       db.ref('payrollRates').once('value'),
       db.ref('billingSnapshots').once('value'),
     ]).then(([csSnap, msSnap, ckSnap, prSnap, ratesSnap, snapsSnap]) => {
+      const migrateSpot = arr => arr.map(c => c.customerName === 'スポット' ? {...c, customerName: 'その他（直接入力）'} : c);
+
       const loadedCases = fbToCases(csSnap.val());
       if (loadedCases && loadedCases.length > 0) {
-        casesRef.current = loadedCases; setCasesState(loadedCases); save(SK.cases, loadedCases);
+        const migratedCases = migrateSpot(loadedCases);
+        const caseChanged = migratedCases.some((c,i) => c.customerName !== loadedCases[i].customerName);
+        casesRef.current = migratedCases; setCasesState(migratedCases); save(SK.cases, migratedCases);
+        if (caseChanged) db.ref('cases').set(arrToFbObj(migratedCases));
       } else {
         db.ref('cases').set(arrToFbObj(casesRef.current));
       }
 
       const loadedMasters = msSnap.val();
       if (loadedMasters && loadedMasters.customers && loadedMasters.version === MASTER_VERSION) {
-        mastersRef.current = loadedMasters; setMastersRaw(loadedMasters); save(SK.masters, loadedMasters);
+        const hasSpot = loadedMasters.customers.some(c => c.name === 'スポット');
+        const migratedMasters = hasSpot
+          ? {...loadedMasters, customers: loadedMasters.customers.map(c => c.name === 'スポット' ? {...c, name: 'その他（直接入力）'} : c)}
+          : loadedMasters;
+        mastersRef.current = migratedMasters; setMastersRaw(migratedMasters); save(SK.masters, migratedMasters);
+        if (hasSpot) db.ref('masters').set(migratedMasters);
       } else {
         db.ref('masters').set(mastersRef.current);
       }
 
       const loadedChecks = fbToChecks(ckSnap.val());
       if (loadedChecks && loadedChecks.length > 0) {
-        checksRef.current = loadedChecks; setChecksRaw(loadedChecks); save(SK.checks, {version: CHECKS_VERSION, data: loadedChecks});
+        const migratedChecks = migrateSpot(loadedChecks);
+        const checkChanged = migratedChecks.some((c,i) => c.customerName !== loadedChecks[i].customerName);
+        checksRef.current = migratedChecks; setChecksRaw(migratedChecks); save(SK.checks, {version: CHECKS_VERSION, data: migratedChecks});
+        if (checkChanged) db.ref('checks').set(arrToFbObj(migratedChecks));
       } else {
         db.ref('checks').set(arrToFbObj(checksRef.current));
       }
