@@ -1049,10 +1049,36 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
   },[masters.procedures]);
 
   const customerFilterOptions = useMemo(() => {
+    // 法人格を除去（長い順に先にチェック）
+    const CORPS = ['特定非営利活動法人','社会福祉法人','一般社団法人','NPO法人','医療法人','株式会社','合同会社','有限会社'];
+    const stripCorp = name => {
+      let s = name;
+      for (const c of CORPS) {
+        if (s.startsWith(c)) { s = s.slice(c.length).trim(); break; }
+        if (s.endsWith(c))   { s = s.slice(0, s.length - c.length).trim(); break; }
+      }
+      return s || name;
+    };
+    // 英数字先頭は group 0、それ以外は group 1
+    const sortKey = name => [/^[a-zA-Z0-9]/.test(stripCorp(name)) ? 0 : 1, stripCorp(name)];
+
     const masterNames = masters.customers.filter(c => !c.terminated && c.name !== 'スポット').map(c => c.name);
     const caseNames   = cases.filter(c => !c.cancelled && !c.isAnnualOnly && c.customerName).map(c => c.customerName);
-    const merged = [...new Set([...masterNames, ...caseNames])].sort((a, b) => a.localeCompare(b, 'ja'));
-    return [{value:'', label:'すべて'}, ...merged.map(n => ({value:n, label:n}))];
+    const all = [...new Set([...masterNames, ...caseNames])];
+
+    const others = all.filter(n => n === 'その他（直接入力）');
+    const rest   = all.filter(n => n !== 'その他（直接入力）');
+    rest.sort((a, b) => {
+      const [ga, sa] = sortKey(a);
+      const [gb, sb] = sortKey(b);
+      if (ga !== gb) return ga - gb;
+      return sa.localeCompare(sb, 'ja');
+    });
+
+    return [
+      {value:'', label:'すべて'},
+      ...[...rest, ...others].map(n => ({value:n, label:n})),
+    ];
   }, [cases, masters.customers]);
 
   return (
