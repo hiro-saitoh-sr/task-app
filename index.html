@@ -1779,8 +1779,17 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
       if (nd !== 0) return nd;
       return Number(a.code) - Number(b.code);
     });
-    const header = ['関与先コード','内訳コード','報酬額','源泉額','消費税','対象年月'].join(',');
-    const lines = [header, ...entries.map(e => [e.no, e.code, e.amt, '', '', '2'].join(','))];
+    /* 同一関与先コードの内訳コード36を合算（Mapは挿入順を保持するためソート順維持） */
+    const mergedMap = new Map();
+    entries.forEach(e => {
+      const key = `${e.no}|${e.code}`;
+      if (mergedMap.has(key)) {
+        mergedMap.get(key).amt += e.amt;
+      } else {
+        mergedMap.set(key, {...e});
+      }
+    });
+    const lines = Array.from(mergedMap.values()).map(e => [e.no, e.code, e.amt, '', '', '2'].join(','));
     const csvText = lines.join('\r\n');
     const sjisArray = Encoding.convert(Encoding.stringToCode(csvText), {to:'SJIS', from:'UNICODE'});
     const blob = new Blob([new Uint8Array(sjisArray)], {type:'text/csv;charset=shift-jis'});
