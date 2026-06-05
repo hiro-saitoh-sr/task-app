@@ -1787,7 +1787,8 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `請求集計_${sel}.csv`;
+    const [,dlYr,dlMo] = sel.match(/(\d+)年(\d+)月/) || [];
+    a.download = dlYr ? `billing_${dlYr}_${String(dlMo).padStart(2,'0')}.csv` : `billing_${sel}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
