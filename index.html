@@ -1789,7 +1789,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
         mergedMap.set(key, {...e});
       }
     });
-    const lines = Array.from(mergedMap.values()).map(e => [e.no, e.code, e.amt, '', '', '2'].join(','));
+    const lines = Array.from(mergedMap.values()).filter(e => String(e.no) !== '19').map(e => [e.no, e.code, e.amt, '', '', '2'].join(','));
     const csvText = lines.join('\r\n');
     const sjisArray = Encoding.convert(Encoding.stringToCode(csvText), {to:'SJIS', from:'UNICODE'});
     const blob = new Blob([new Uint8Array(sjisArray)], {type:'text/csv;charset=shift-jis'});
