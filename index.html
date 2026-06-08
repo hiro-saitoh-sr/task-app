@@ -2704,7 +2704,7 @@ function InlineYMCell({value, onChange}) {
       {!editing
         ? <span
             onClick={()=>setEditing(true)}
-            style={{cursor:'pointer', fontSize:'12px', color: value ? '#374151' : '#9ca3af', padding:'2px 4px', borderRadius:'4px', display:'inline-block'}}
+            style={{cursor:'pointer', color: value ? '#374151' : '#9ca3af', padding:'2px 4px', borderRadius:'4px', display:'inline-block'}}
             className="hover:bg-gray-100"
           >{value || '—'}</span>
         : <div style={{minWidth:'160px'}}>
@@ -3021,15 +3021,15 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                       {c.cancelled && <span className="inline-block mr-1 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">取消</span>}
                       {c.customerName}
                     </td>
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-3 py-2.5 text-xs text-center">
                       {c.cancelled
-                        ? <span className="text-xs text-gray-400">{c.salaryMonth||'—'}</span>
+                        ? <span className="text-gray-400">{c.salaryMonth||'—'}</span>
                         : <InlineYMCell value={c.salaryMonth||''} onChange={v=>setChecks(p=>p.map(x=>x.id===c.id?{...x,salaryMonth:v}:x))} />
                       }
                     </td>
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-3 py-2.5 text-xs text-center">
                       {c.cancelled
-                        ? <span className="text-xs text-gray-400">{c.revisionMonth||'—'}</span>
+                        ? <span className="text-gray-400">{c.revisionMonth||'—'}</span>
                         : <InlineYMCell value={c.revisionMonth||''} onChange={v=>setChecks(p=>p.map(x=>x.id===c.id?{...x,revisionMonth:v}:x))} />
                       }
                     </td>
