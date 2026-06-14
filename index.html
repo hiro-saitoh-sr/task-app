@@ -1941,7 +1941,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
 ══════════════════════════════════════════ */
 function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
   const isHiro = currentUser?.email === 'hiro@saitoh-sr.com';
-  const blank = {no:'',customerName:'',checker:'',procedureBy:'',count:'',assignee:'',targetMonth:'',manualBillingAmount:'',status:'依頼受付',salaryMonth:'',revisionMonth:''};
+  const blank = {no:'',customerName:'',checker:'',procedureBy:'',count:'',assignee:'',memo:'',targetMonth:'',manualBillingAmount:'',status:'依頼受付',salaryMonth:'',revisionMonth:''};
   const [form, setForm] = useState(item?{...item}:blank);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   const [checkCustOther, setCheckCustOther] = useState(
@@ -2019,6 +2019,10 @@ function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
                   </select>
               }
             </div>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">メモ</label>
+            <textarea value={form.memo||''} onChange={e=>set('memo',e.target.value)} rows={2} placeholder="メモを入力" />
           </div>
           {isHiro && (
             <div className="mb-6">
@@ -2998,6 +3002,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">昇(降)給月</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">改定年月</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600">チェック対象者</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600">メモ</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600">手続き対象者</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">改定人数</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">担当者</th>
@@ -3034,6 +3039,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                       }
                     </td>
                     <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.checker}</td>
+                    <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'160px'}}>{c.memo||''}</td>
                     <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.procedureBy}</td>
                     <td className="px-3 py-2.5 text-gray-700 text-xs text-center">{c.count}</td>
                     <td className="px-3 py-2.5 text-gray-600 text-xs text-center">{c.assignee}</td>
