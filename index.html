@@ -3967,7 +3967,7 @@ function MasterScreen({masters, setMasters}) {
                   </td>
                   {tab==='顧問先' && <>
                     <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.代表者名||''}</td>
-                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}{item['担当者名②'] ? ` / ${item['担当者名②']}` : ''}</td>
+                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}{item['担当者名②'] ? `　${item['担当者名②']}` : ''}</td>
                     <td className="px-3 py-3 text-sm text-gray-600 text-center whitespace-nowrap">{item['36協定起算日']||''}</td>
                     <td className="px-3 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
                       {item['その他労使協定の届出']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">あり</span>}
