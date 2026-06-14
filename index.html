@@ -3001,8 +3001,8 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                 <th className="px-3 py-3 text-left font-semibold text-gray-600">顧客名</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">昇(降)給月</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">改定年月</th>
-                <th className="px-3 py-3 text-left font-semibold text-gray-600">チェック対象者</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600">メモ</th>
+                <th className="px-3 py-3 text-left font-semibold text-gray-600">チェック対象者</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600">手続き対象者</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">改定人数</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">担当者</th>
@@ -3038,8 +3038,8 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                         : <InlineYMCell value={c.revisionMonth||''} onChange={v=>setChecks(p=>p.map(x=>x.id===c.id?{...x,revisionMonth:v}:x))} />
                       }
                     </td>
-                    <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.checker}</td>
                     <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'160px'}}>{c.memo||''}</td>
+                    <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.checker}</td>
                     <td className="px-3 py-2.5 text-gray-700 text-xs" style={{whiteSpace:'pre-wrap',maxWidth:'180px'}}>{c.procedureBy}</td>
                     <td className="px-3 py-2.5 text-gray-700 text-xs text-center">{c.count}</td>
                     <td className="px-3 py-2.5 text-gray-600 text-xs text-center">{c.assignee}</td>
