@@ -4225,7 +4225,56 @@ function App() {
     mastersTimerRef.current = setTimeout(() => {
       mastersTimerRef.current = null;
       db.ref('masters').set(next)
-        .then(() => setSyncStatus('saved'))
+        .then(() => {
+          setSyncStatus('saved');
+          const shoguTargets = (next.customers || []).filter(c =>
+            Array.isArray(c.契約サービス) && c.契約サービス.includes('処遇改善加算')
+          );
+          if (shoguTargets.length > 0) {
+            db.ref('shogu/masters').once('value').then(snap => {
+              const val = snap.val();
+              let shoguList;
+              if (!val) {
+                shoguList = [];
+              } else if (Array.isArray(val)) {
+                shoguList = val.filter(v => v != null);
+              } else {
+                const keys = Object.keys(val).sort((a, b) => Number(a) - Number(b));
+                shoguList = keys.map(k => val[k]).filter(v => v != null);
+              }
+              let maxId = shoguList.reduce((max, r) => Math.max(max, r.id || 0), 0);
+              for (const c of shoguTargets) {
+                const idx = shoguList.findIndex(r => String(r['顧問先ナンバー']) === String(c.no));
+                if (idx >= 0) {
+                  shoguList[idx] = {
+                    ...shoguList[idx],
+                    '顧問先ナンバー': c.no,
+                    '顧問先名': c.name,
+                    '代表者名': c.代表者名 || '',
+                    '担当者名': c.担当者名 || '',
+                    'メールアドレス': c.担当者メール || '',
+                  };
+                } else {
+                  maxId++;
+                  shoguList.push({
+                    id: maxId,
+                    '顧問先ナンバー': c.no,
+                    '顧問先名': c.name,
+                    '業種': '',
+                    '賃金改善実施期間': '',
+                    '代表者名': c.代表者名 || '',
+                    '担当者名': c.担当者名 || '',
+                    'メールアドレス': c.担当者メール || '',
+                    '月額報酬金額': '',
+                    'メモ': '',
+                    '契約解除': '',
+                  });
+                }
+              }
+              return db.ref('shogu/masters').set(shoguList);
+            }).catch(() => {});
+          }
+        })
         .catch(e => { setSyncStatus('error'); setSyncError('保存エラー: ' + e.message); });
     }, 2000);
   }, []);
