@@ -592,6 +592,11 @@ function toYearMonth(str) {
   if (m1) return `${m1[1]}年${parseInt(m1[2])}月`;
   return str;
 }
+// 対象年月の表示：日が入っていれば「2026年7月3日」、なければ「2026年7月」
+function formatTargetYMD(targetMonth, targetDay) {
+  if (!targetMonth) return targetMonth;
+  return targetDay ? `${targetMonth}${targetDay}日` : targetMonth;
+}
 
 /* ══════════════════════════════════════════
    STATUS BADGE
@@ -809,6 +814,8 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
   const [form, setForm] = useState(caseData ? {...caseData} : blank);
   const [errors, setErrors] = useState({receivedDate:'', targetMonth:''});
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  // 「日」は任意。未選択時はキー自体を持たせない（Firebaseはundefined不可のため）
+  const setDay = v => setForm(f => { const nf={...f}; if(v) nf.targetDay=v; else delete nf.targetDay; return nf; });
   const clearErr = k => { if(errors[k]) setErrors(er=>({...er,[k]:''})); };
 
   const validateDateInput = str => {
@@ -950,8 +957,19 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
               </div>
             )}
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">対象年月 <span className="text-red-500">*</span></label>
-              <YearMonthPicker value={form.targetMonth} onChange={v=>{set('targetMonth',v);clearErr('targetMonth');}} style={errors.targetMonth?{borderColor:'#ef4444'}:{}} />
+              <label className="block text-sm font-semibold text-gray-600 mb-1">対象年月 <span className="text-red-500">*</span> <span className="text-gray-400 font-normal">（日は任意）</span></label>
+              <div style={{display:'flex', gap:'8px', alignItems:'flex-start'}}>
+                <div style={{flex:1, minWidth:0}}>
+                  <YearMonthPicker value={form.targetMonth} onChange={v=>{set('targetMonth',v);clearErr('targetMonth');}} style={errors.targetMonth?{borderColor:'#ef4444'}:{}} />
+                </div>
+                <select
+                  value={form.targetDay ? String(form.targetDay) : ''}
+                  onChange={e=>setDay(e.target.value ? Number(e.target.value) : null)}
+                  style={{width:'88px', flexShrink:0, minHeight:'36px', fontSize:'19px', border:'1px solid #9ca3af', borderRadius:'6px', padding:'6px 8px', background:'white', color: form.targetDay ? '#111827' : '#9ca3af', boxSizing:'border-box', cursor:'pointer'}}>
+                  <option value="">日</option>
+                  {Array.from({length:31},(_,i)=>i+1).map(d=><option key={d} value={d}>{d}日</option>)}
+                </select>
+              </div>
               {errors.targetMonth && <p className="text-red-500 text-xs mt-1">{errors.targetMonth}</p>}
             </div>
           </div>
@@ -1285,7 +1303,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
                           : ''}
                     </td>
                   )}
-                  <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{c.targetMonth}</td>
+                  <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{formatTargetYMD(c.targetMonth, c.targetDay)}</td>
                   {!isViewOnly && (
                     <td className="px-3 py-2.5">
                       <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
