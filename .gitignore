@@ -7,3 +7,6 @@
 *.txt
 *.json
 read_excel.ps1
+
+# Node.js dependencies
+node_modules/

@@ -17,9 +17,7 @@
 - プロジェクトID: task-app-493716
 - リージョン: asia-southeast1
 - DB URL: https://task-app-493716-default-rtdb.asia-southeast1.firebasedatabase.app
-- ログイン許可アカウント:
-  - hiro@saitoh-sr.com
-  - kawahara@saitoh-sr.com
+- ログイン許可アカウント: 業務用アカウント2件（Firebase側で管理）
 
 ## データ構造（Firebase Realtime Database）
 - `cases`: 案件データ（顧客名・手続き内容・ステータス等）
@@ -31,8 +29,8 @@
 - `checks`: 月変チェック等
 
 ## 開発方針
-- 修正はすべてClaude Codeへの指示文として受け取る
-- F12デバッグや直接コード修正は不要
+- Claude CodeとCodexを対等な開発担当として使用する
+- どちらが作業しても引き継げるよう、Git履歴・本ファイル・CLAUDE.md・PROJECT_STATUS.mdを正本として確認する
 - 修正後は必ず `git add . && git commit && git push` を実行
 - コミットメッセージは日本語で「feat: 」「fix: 」等のプレフィックスを付ける
 - ステップごとに確認しながら進める
