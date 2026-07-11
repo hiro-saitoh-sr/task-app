@@ -29,6 +29,7 @@
 
 ## 既知の課題
 - 業務監査員Ver.0の正本はGASエディタ上にあり、GitHub管理されていない
+- Google Chat Webhookのスクリプトプロパティ移行は、稼働安定後に対応する保留課題
 
 ## NEXT_ACTION
 - 次回作業開始時に `git fetch origin`、指示文書、Git状態を再確認する
