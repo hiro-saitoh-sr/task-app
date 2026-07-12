@@ -15,10 +15,12 @@
 - 業務監査員Ver.0が `cases` と `masters` を参照
 - 業務監査員Ver.0は実行履歴上、安定稼働中
 - Firebase Authenticationの許可対象は業務用アカウント2件（Firebase側で管理）
+- CodexとClaude Codeは対等な開発担当であり、共通Git手順と競合停止ルールを適用する
 
 ## 直近の変更
 - AI引継ぎ資料とGit除外設定を整備
 - Claude CodeとCodexを対等な開発担当として明記
+- Git作業開始・終了、競合停止、利用者承認ルールを統一
 
 ## デプロイ・公開状況
 - 公開URL: https://hiro-saitoh-sr.github.io/task-app/
@@ -39,4 +41,4 @@
 
 ## 最終更新
 - 最終更新AI: Codex
-- 最終更新日時: 2026-07-12（日本時間）
+- 最終更新日時: 2026-07-13（日本時間）
