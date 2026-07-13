@@ -2623,7 +2623,7 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
                         {c.customerName}
                       </td>
                       <td className="px-3 py-2.5 text-gray-700 text-xs">{c.procedure}</td>
-                      <td className="px-3 py-2.5 text-xs text-center">
+                      <td className="px-3 py-2.5 text-xs text-center whitespace-nowrap">
                         <span className="text-xs px-2 py-1 rounded" style={{background:c.annualTargetYear?'#f0fdf4':'#f3f4f6',color:c.annualTargetYear?'#15803d':'#9ca3af'}}>
                           {c.annualTargetYear ? `${c.annualTargetYear}年度` : '—'}
                         </span>
