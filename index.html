@@ -2763,100 +2763,6 @@ function InlineYMCell({value, onChange}) {
 }
 
 /* ══════════════════════════════════════════
-   MONTHLY CHECK ADD MODAL (月変チェック新規追加)
-══════════════════════════════════════════ */
-function MonthlyCheckBulkModal({checks, masters, onRegister, onClose}) {
-  const [customerName,  setCustomerName]  = useState('');
-  const [no,            setNo]            = useState('');
-  const [custOther,     setCustOther]     = useState(false);
-  const [salaryMonth,   setSalaryMonth]   = useState('');
-  const [revisionMonth, setRevisionMonth] = useState('');
-  const [assignee,      setAssignee]      = useState('');
-  const [targetMonth,   setTargetMonth]   = useState('');
-  const [memo,          setMemo]          = useState('');
-
-  const handleSave = () => {
-    if (!customerName) { alert('① 顧問先名を選択してください'); return; }
-    onRegister({customerName, no, salaryMonth, revisionMonth, assignee, targetMonth, memo});
-  };
-
-  return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      {/* overflow を設定しない → ピッカーのドロップダウンがクリップされない */}
-      <div style={{
-        background:'white', borderRadius:'12px', padding:'32px',
-        width:'560px', maxWidth:'95vw',
-        boxShadow:'0 20px 60px rgba(0,0,0,0.35)',
-      }}>
-        <h2 className="text-xl font-bold mb-5">月変チェック 新規追加</h2>
-
-        {/* ① 顧問先名 */}
-        <div className="mb-4">
-          <label className="block text-sm font-semibold text-gray-600 mb-1">① 顧問先名 <span className="text-red-500">*</span></label>
-          <select value={custOther ? '__text__' : customerName} onChange={e=>{
-            const val = e.target.value;
-            if (val === '__text__') { setCustOther(true); setCustomerName(''); setNo(''); }
-            else { setCustOther(false); const c=masters.customers.find(x=>x.name===val); setCustomerName(val); setNo(c?.no||''); }
-          }}>
-            <option value="">選択してください</option>
-            {masters.customers.filter(c=>!c.terminated&&c.name!=='スポット'&&c.name!=='その他（直接入力）').map(c=>(
-              <option key={c.id} value={c.name}>{c.no ? `${c.no}. ` : ''}{c.name}</option>
-            ))}
-            <option value="__text__">その他（直接入力）</option>
-          </select>
-          {custOther && (
-            <>
-              <input value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder="顧問先名を入力..." style={{marginTop:'8px'}} />
-              <p style={{color:'#ea580c', fontSize:'12px', marginTop:'6px', fontWeight:'500', lineHeight:'1.5'}}>
-                ⚠️ 顧問先マスタに登録済みの顧問先は必ず選択してください。「その他」は顧問先マスタにない場合のみ使用してください。
-              </p>
-            </>
-          )}
-        </div>
-
-        {/* ② 昇(降)給年月 | ③ 改定年月 */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">② 昇(降)給年月</label>
-            <YearMonthPicker value={salaryMonth} onChange={v=>setSalaryMonth(v)} placeholder="年月を選択" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">③ 改定年月</label>
-            <YearMonthPicker value={revisionMonth} onChange={v=>setRevisionMonth(v)} placeholder="年月を選択" />
-          </div>
-        </div>
-
-        {/* ④ 担当者 | ⑤ 対象年月 */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">④ 担当者</label>
-            <select value={assignee} onChange={e=>setAssignee(e.target.value)}>
-              <option value="">選択してください</option>
-              {masters.assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-600 mb-1">⑤ 対象年月<span className="text-xs font-normal text-gray-400 ml-1">（請求対象月）</span></label>
-            <YearMonthPicker value={targetMonth} onChange={v=>setTargetMonth(v)} placeholder="年月を選択" />
-          </div>
-        </div>
-
-        {/* ⑥ メモ */}
-        <div className="mb-6">
-          <label className="block text-sm font-semibold text-gray-600 mb-1">⑥ メモ（任意）</label>
-          <textarea value={memo} onChange={e=>setMemo(e.target.value)} rows={2} placeholder="メモ..." style={{resize:'none', width:'100%'}} />
-        </div>
-
-        <div className="flex gap-3 justify-end">
-          <button className="btn btn-secondary" onClick={onClose}>キャンセル</button>
-          <button className="btn btn-primary" onClick={handleSave}>保存</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════
    COPY FROM CASES MODAL (月変チェック用)
 ══════════════════════════════════════════ */
 function CopyFromCasesModal({cases, checks, onCopy, onClose}) {
@@ -2939,7 +2845,6 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
   const [cancelItem, setCancelItem]       = useState(null);
   const [filterMonth, setFilterMonth]       = useState('');
   const [showCancelled, setShowCancelled]   = useState(false);
-  const [showBulkModal, setShowBulkModal]   = useState(false);
   const [bulkBillMsg,   setBulkBillMsg]     = useState('');
 
   /* 登録済みデータから対象年月の選択肢を動的生成 */
@@ -2966,29 +2871,6 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
     setShowModal(false); setEditItem(null);
   };
 
-  const handleBulkRegister = ({customerName, no, salaryMonth, revisionMonth, assignee, targetMonth, memo}) => {
-    setChecks(p => {
-      const id = nextId(p);
-      return [...p, {
-        id,
-        no: no || '',
-        customerName,
-        checker: '',
-        procedureBy: '',
-        count: '',
-        assignee,
-        memo,
-        targetMonth,
-        salaryMonth: salaryMonth || '',
-        revisionMonth: revisionMonth || '',
-        status: '依頼受付',
-        manualBillingAmount: '',
-        cancelled: false,
-      }];
-    });
-    setShowBulkModal(false);
-  };
-
   const handleBulkBill = () => {
     const targets = rows.filter(c => c.status === '納品済');
     if (targets.length === 0) { alert('表示中の納品済データがありません。'); return; }
@@ -3009,7 +2891,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
               納品済を一括請求済に
             </button>
           )}
-          <button className="btn btn-primary" onClick={()=>setShowBulkModal(true)}>＋新規追加</button>
+          <button className="btn btn-primary" onClick={()=>{setEditItem(null);setShowModal(true);}}>＋新規追加</button>
         </div>
       </div>
       {bulkBillMsg && (
@@ -3117,7 +2999,6 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
         )}
       </div>
       {showModal && <MonthlyCheckModal item={editItem} onSave={handleSave} onClose={()=>{setShowModal(false);setEditItem(null);}} masters={masters} currentUser={currentUser} />}
-      {showBulkModal && <MonthlyCheckBulkModal checks={checks} masters={masters} onRegister={handleBulkRegister} onClose={()=>setShowBulkModal(false)} />}
       {cancelItem && (
         cancelItem.cancelled
           ? <ConfirmModal
