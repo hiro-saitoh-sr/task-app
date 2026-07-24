@@ -10,6 +10,7 @@
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
+  <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="initial_data.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -541,6 +542,28 @@ function formatDate(str) {
   if (!d) return str;
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
   return `${y}/${m}/${day}`;
+}
+
+/* ── 案件データ Excel出力（バックアップ用） ── */
+const TASK_EXPORT_STATUSES = ['依頼待ち', '依頼受付', '手続き済', '納品済'];
+const TASK_EXCEL_HEADERS = ['No', '顧客名', '手続き内容', 'ステータス', '担当者', '受付日', '対象年月', 'メモ'];
+function taskExcelFilenameDate() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function buildTaskExportRows(cases) {
+  return cases
+    .filter(c => !c.cancelled && !c.isAnnualOnly && TASK_EXPORT_STATUSES.includes(c.status))
+    .map(c => ({
+      'No':        c.no || '',
+      '顧客名':     c.customerName || '',
+      '手続き内容': c.procedure || '',
+      'ステータス': c.status || '',
+      '担当者':     c.assignee || '',
+      '受付日':     formatDate(c.receivedDate),
+      '対象年月':   c.targetMonth || '',
+      'メモ':       c.memo || '',
+    }));
 }
 function daysSince(str) {
   const d = parseDate(str); if (!d) return null;
@@ -1076,6 +1099,17 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
     setTimeout(() => setBulkBillMsg(''), 4000);
   };
 
+  const handleExportExcel = () => {
+    if (typeof XLSX === 'undefined') { alert('Excel出力ライブラリの読み込みに失敗しました。ページを再読み込みしてください。'); return; }
+    const exportRows = buildTaskExportRows(cases);
+    if (exportRows.length === 0) { alert('出力する案件データがありません'); return; }
+    const ws = XLSX.utils.json_to_sheet(exportRows, { header: TASK_EXCEL_HEADERS });
+    ws['!cols'] = [{wch:8},{wch:26},{wch:20},{wch:12},{wch:12},{wch:12},{wch:14},{wch:34}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '案件データ');
+    XLSX.writeFile(wb, `task-app-backup-${taskExcelFilenameDate()}.xlsx`);
+  };
+
   const hasFilter = !!(filter.customerName||filter.assignee||filter.targetMonth||filter.status||filter.procedure||showCancelled);
   const isViewOnly = activeTab !== '全件';
   const isHiro = currentUser?.email === 'hiro@saitoh-sr.com';
@@ -1171,7 +1205,15 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
             <span className="text-sm font-semibold text-gray-700">絞り込みフィルター</span>
             {hasFilter && <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold">適用中</span>}
           </div>
-          <span className="text-gray-400 text-xs">{filterOpen?'▲':'▼'}</span>
+          <div className="flex items-center gap-3">
+            <button
+              className="btn btn-secondary text-xs py-1 px-3"
+              onClick={e=>{ e.stopPropagation(); handleExportExcel(); }}
+              title="依頼待ち・依頼受付・手続き済・納品済の案件データをExcel出力（バックアップ用）">
+              📥 案件データ出力
+            </button>
+            <span className="text-gray-400 text-xs">{filterOpen?'▲':'▼'}</span>
+          </div>
         </div>
         {filterOpen && (
           <div className="mt-3 flex flex-wrap gap-3 items-end">
