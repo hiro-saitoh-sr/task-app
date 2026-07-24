@@ -544,13 +544,19 @@ function formatDate(str) {
   return `${y}/${m}/${day}`;
 }
 
-/* ── 案件データ Excel出力（バックアップ用） ── */
+/* ── データ一括出力 Excel（バックアップ用） ── */
 const TASK_EXPORT_STATUSES = ['依頼待ち', '依頼受付', '手続き済', '納品済'];
-const TASK_EXCEL_HEADERS = ['No', '顧客名', '手続き内容', 'ステータス', '担当者', '受付日', '対象年月', 'メモ'];
+const TASK_EXCEL_HEADERS = ['No', '顧客名', '手続き内容', 'メモ', '担当者', 'ステータス', '受付日', '対象年月'];
+const CHECK_EXCEL_HEADERS = ['No', '顧客名', '昇(降)給月', '改定年月', 'メモ', 'チェック対象者', '手続き対象者', '改定人数', '担当者', 'ステータス', '請求額', '対象年月'];
+const ANNUAL_EXCEL_HEADERS = ['No', '顧客名', '手続き名', '対象年度', 'メモ', '担当者', 'ステータス', '受付日', '対象人数', '請求額', '対象年月'];
+const PAYROLL_EXCEL_HEADERS = ['顧問先名', '担当者', '年', '月', '受取日', '送信日', '人数', '納品日', '賞与人数', '賞与納品日', '締日', '支給日', '年末調整還付月', '賞与支給月', '納品方法', 'その他メモ'];
+const CUSTOMER_MASTER_EXCEL_HEADERS = ['No', '名称', '業種', '代表者名', '代表者メール', '担当者名', '担当者メール', '担当者名②', '担当者メール②', '決算月', '契約サービス', '36協定起算日', 'その他労使協定の届出', '東京SR特別加入'];
+
 function taskExcelFilenameDate() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
+
 function buildTaskExportRows(cases) {
   return cases
     .filter(c => !c.cancelled && !c.isAnnualOnly && TASK_EXPORT_STATUSES.includes(c.status))
@@ -564,12 +570,150 @@ function buildTaskExportRows(cases) {
       'No':        c.no || '',
       '顧客名':     c.customerName || '',
       '手続き内容': c.procedure || '',
-      'ステータス': c.status || '',
+      'メモ':       c.memo || '',
       '担当者':     c.assignee || '',
+      'ステータス': c.status || '',
       '受付日':     formatDate(c.receivedDate),
       '対象年月':   c.targetMonth || '',
-      'メモ':       c.memo || '',
     }));
+}
+
+function buildCheckExportRows(checks) {
+  return (checks || [])
+    .filter(c => c.status !== '請求済')
+    .sort((a, b) => {
+      const ym = parseYM(b.targetMonth) - parseYM(a.targetMonth);
+      if (ym !== 0) return ym;
+      return (b.id || 0) - (a.id || 0);
+    })
+    .map(c => {
+      const countNum = Number(c.count);
+      const autoBilling = c.count && !isNaN(countNum) && countNum > 0 ? 2500 + countNum * 200 : null;
+      const isManualBilling = c.manualBillingAmount !== '' && c.manualBillingAmount != null;
+      const billing = isManualBilling ? Number(c.manualBillingAmount) : autoBilling;
+      return {
+        'No':           c.no || '',
+        '顧客名':        c.customerName || '',
+        '昇(降)給月':    c.salaryMonth || '',
+        '改定年月':      c.revisionMonth || '',
+        'メモ':          c.memo || '',
+        'チェック対象者': c.checker || '',
+        '手続き対象者':  c.procedureBy || '',
+        '改定人数':      c.count || '',
+        '担当者':        c.assignee || '',
+        'ステータス':    c.status || '依頼受付',
+        '請求額':        billing != null ? billing : '',
+        '対象年月':      c.targetMonth || '',
+      };
+    });
+}
+
+function buildAnnualExportRows(cases) {
+  const calcBilling = (count) => {
+    const n = Number(count);
+    if (count === '' || count == null || isNaN(n)) return '';
+    return 13000 + n * 200;
+  };
+  return (cases || [])
+    .filter(c => ANNUAL_PROCEDURES.includes(c.procedure) && c.status !== '請求済')
+    .sort((a, b) => {
+      const ym = parseYM(b.targetMonth) - parseYM(a.targetMonth);
+      if (ym !== 0) return ym;
+      return (b.id || 0) - (a.id || 0);
+    })
+    .map(c => {
+      const isManualBilling = c.manualBillingAmount !== '' && c.manualBillingAmount != null;
+      const billing = isManualBilling ? Number(c.manualBillingAmount) : calcBilling(c.annualTargetCount);
+      return {
+        'No':        c.no || '',
+        '顧客名':     c.customerName || '',
+        '手続き名':   c.procedure || '',
+        '対象年度':   c.annualTargetYear || '',
+        'メモ':       c.memo || '',
+        '担当者':     c.assignee || '',
+        'ステータス': c.status || '',
+        '受付日':     formatDate(c.receivedDate),
+        '対象人数':   c.annualTargetCount || '',
+        '請求額':     billing !== '' ? billing : '',
+        '対象年月':   c.targetMonth || '',
+      };
+    });
+}
+
+function buildPayrollExportRows(payrolls) {
+  const rows = [];
+  (payrolls || []).forEach(p => {
+    const years = Object.keys(p.yearData || {}).sort((a, b) => Number(a) - Number(b));
+    years.forEach(year => {
+      const yd = p.yearData[year] || {};
+      for (let m = 1; m <= 12; m++) {
+        const md = yd[m];
+        if (!md) continue;
+        if (!(md.受取日 || md.送信日 || md.人数 || md.納品日 || md.賞与人数 || md.賞与納品日)) continue;
+        rows.push({
+          '顧問先名':       p.customerName || '',
+          '担当者':         p.assignee || '',
+          '年':             year,
+          '月':             m,
+          '受取日':         md.受取日 || '',
+          '送信日':         md.送信日 || '',
+          '人数':           md.人数 || '',
+          '納品日':         md.納品日 || '',
+          '賞与人数':       md.賞与人数 || '',
+          '賞与納品日':     md.賞与納品日 || '',
+          '締日':           p.締日 || '',
+          '支給日':         p.支給日 || '',
+          '年末調整還付月': p.年末調整還付月 || '',
+          '賞与支給月':     p.賞与支給月 || '',
+          '納品方法':       p.納品方法 || '',
+          'その他メモ':     p.その他メモ || '',
+        });
+      }
+    });
+  });
+  return rows;
+}
+
+function buildCustomerMasterExportRows(customers) {
+  return (customers || [])
+    .filter(c => !c.terminated)
+    .map(c => ({
+      'No':                   c.no || '',
+      '名称':                 c.name || '',
+      '業種':                 c.業種 || '',
+      '代表者名':             c.代表者名 || '',
+      '代表者メール':         c.代表者メール || '',
+      '担当者名':             c.担当者名 || '',
+      '担当者メール':         c.担当者メール || '',
+      '担当者名②':           c['担当者名②'] || '',
+      '担当者メール②':       c['担当者メール②'] || '',
+      '決算月':               c.決算月 || '',
+      '契約サービス':         (c.契約サービス || []).join('・'),
+      '36協定起算日':         c['36協定起算日'] || '',
+      'その他労使協定の届出': c['その他労使協定の届出'] || '',
+      '東京SR特別加入':       c['東京SR特別加入'] || '',
+    }));
+}
+
+function addSheet(wb, headers, rows, colWidths, sheetName) {
+  const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+  ws['!cols'] = colWidths;
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+}
+
+function buildBackupWorkbook({cases, checks, payrolls, masters}) {
+  const wb = XLSX.utils.book_new();
+  addSheet(wb, TASK_EXCEL_HEADERS,   buildTaskExportRows(cases),
+    [{wch:8},{wch:26},{wch:20},{wch:34},{wch:12},{wch:12},{wch:12},{wch:14}], '案件管理');
+  addSheet(wb, CHECK_EXCEL_HEADERS,  buildCheckExportRows(checks),
+    [{wch:8},{wch:26},{wch:12},{wch:12},{wch:24},{wch:20},{wch:20},{wch:10},{wch:12},{wch:12},{wch:10},{wch:14}], '月変チェック');
+  addSheet(wb, ANNUAL_EXCEL_HEADERS, buildAnnualExportRows(cases),
+    [{wch:8},{wch:26},{wch:14},{wch:10},{wch:24},{wch:12},{wch:12},{wch:12},{wch:10},{wch:10},{wch:14}], '年更・算定');
+  addSheet(wb, PAYROLL_EXCEL_HEADERS, buildPayrollExportRows(payrolls),
+    [{wch:22},{wch:12},{wch:6},{wch:5},{wch:10},{wch:10},{wch:8},{wch:10},{wch:10},{wch:12},{wch:10},{wch:14},{wch:14},{wch:12},{wch:12},{wch:24}], '給与計算');
+  addSheet(wb, CUSTOMER_MASTER_EXCEL_HEADERS, buildCustomerMasterExportRows(masters && masters.customers),
+    [{wch:8},{wch:26},{wch:14},{wch:14},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:10},{wch:20},{wch:14},{wch:16},{wch:14}], '顧問先マスタ');
+  return wb;
 }
 function daysSince(str) {
   const d = parseDate(str); if (!d) return null;
@@ -1016,7 +1160,7 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
 /* ══════════════════════════════════════════
    CASE LIST SCREEN
 ══════════════════════════════════════════ */
-function CaseListScreen({cases, setCases, masters, currentUser}) {
+function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls}) {
   const [activeTab, setActiveTab] = useState('全件');
   const [search, setSearch]       = useState('');
   const [filter, setFilter]       = useState({customerName:'',assignee:'',targetMonth:'',status:'',procedure:''});
@@ -1107,12 +1251,7 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
 
   const handleExportExcel = () => {
     if (typeof XLSX === 'undefined') { alert('Excel出力ライブラリの読み込みに失敗しました。ページを再読み込みしてください。'); return; }
-    const exportRows = buildTaskExportRows(cases);
-    if (exportRows.length === 0) { alert('出力する案件データがありません'); return; }
-    const ws = XLSX.utils.json_to_sheet(exportRows, { header: TASK_EXCEL_HEADERS });
-    ws['!cols'] = [{wch:8},{wch:26},{wch:20},{wch:12},{wch:12},{wch:12},{wch:14},{wch:34}];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '案件データ');
+    const wb = buildBackupWorkbook({cases, checks, payrolls, masters});
     XLSX.writeFile(wb, `task-app-backup-${taskExcelFilenameDate()}.xlsx`);
   };
 
@@ -1215,8 +1354,8 @@ function CaseListScreen({cases, setCases, masters, currentUser}) {
             <button
               className="btn btn-secondary text-xs py-1 px-3"
               onClick={e=>{ e.stopPropagation(); handleExportExcel(); }}
-              title="依頼待ち・依頼受付・手続き済・納品済の案件データをExcel出力（バックアップ用）">
-              📥 案件データ出力
+              title="案件管理・月変チェック・年更算定・給与計算・顧問先マスタのデータを1つのExcelファイルに出力（バックアップ用）">
+              📥 データ一括出力
             </button>
             <span className="text-gray-400 text-xs">{filterOpen?'▲':'▼'}</span>
           </div>
@@ -4459,7 +4598,7 @@ function App() {
       </header>
 
       <div className="px-2 py-4">
-        {screen==='案件管理'            && <CaseListScreen cases={cases} setCases={setCases} masters={masters} currentUser={currentUser} />}
+        {screen==='案件管理'            && <CaseListScreen cases={cases} setCases={setCases} masters={masters} currentUser={currentUser} checks={checks} payrolls={payrolls} />}
         {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} payrolls={payrolls} payrollRates={payrollRates} setPayrollRates={setPayrollRates} billingSnapshots={billingSnapshots} setBillingSnapshots={setBillingSnapshots} currentUser={currentUser} checks={checks} />}
         {screen==='月変チェック'        && <MonthlyCheckScreen checks={checks} setChecks={setChecks} masters={masters} cases={cases} currentUser={currentUser} />}
         {screen==='年更・算定案件管理'  && <AnnualUpdateScreen cases={cases} setCases={setCases} masters={masters} currentUser={currentUser} />}
