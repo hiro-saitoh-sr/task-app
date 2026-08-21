@@ -1865,7 +1865,9 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
           map[name].賞与人数 = 賞与人;
           if(rateData?.賞与固定金額!=null && rateData.賞与固定金額!==''){
             map[name].賞与請求額 = Number(rateData.賞与固定金額)||0;
-          } else {
+          } else if(!rateData?.賞与単価除外){
+            // 賞与単価除外：一括引き継ぎで自動セットされた段階単価のみの月は、賞与固定金額が
+            // 個別に確認・保存されるまで賞与請求額を自動計算しない（PayrollRateModalで保存すると解除される）
             const tierN = 人数>0 ? 人数 : 賞与人;
             const price = getUnitPrice(rateData, tierN);
             map[name].賞与請求額 = price != null ? 賞与人 * price : null;
@@ -1974,6 +1976,9 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
         if (v!=null && v!=='') setting[key] = Number(v);
       });
       if (Object.keys(setting).length===0) return; // 引き継ぐデータがない
+      // 賞与単価除外：段階単価は共有引き継ぎするが、賞与請求額の自動計算には使わせない
+      // （個別にPayrollRateModalで確認・保存すると、このフラグ自体が上書きされて解除される）
+      setting.賞与単価除外 = true;
 
       // 月別設定構造に統一（PayrollRateModalの保存処理と同様、旧フラット構造のキーは除去）
       const { 月別追加案件, 単価_20以下, 単価_21_50, 単価_51_100, 単価_101_300, 単価_301以上,
