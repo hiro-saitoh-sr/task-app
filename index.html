@@ -1834,8 +1834,8 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
       map[c.name] = blankRow(c.name);
     });
 
-    // 案件請求（契約解除済みの顧問先は除く）
-    cases.filter(c=>c.targetMonth===sel && c.status==='請求済' && c.billingAmount!=='請求なし' && activeNames.has(c.customerName)).forEach(c=>{
+    // 案件請求（契約解除済みの顧問先・取消済み案件は除く）
+    cases.filter(c=>!c.cancelled && c.targetMonth===sel && c.status==='請求済' && c.billingAmount!=='請求なし' && activeNames.has(c.customerName)).forEach(c=>{
       if(!map[c.customerName]) map[c.customerName]=blankRow(c.customerName);
       map[c.customerName].count++;
       map[c.customerName].total+=Number(c.billingAmount)||0;
