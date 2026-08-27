@@ -1171,16 +1171,27 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
 /* ══════════════════════════════════════════
    納品メール下書き作成ポップアップ
 ══════════════════════════════════════════ */
+const DELIVERY_MAIL_SIGNATURE = '--\n社会保険労務士齊藤事務所\n\n174-0072 東京都板橋区南常盤台1-22-7-402\nTEL：03-6325-1208\nFAX：03-6332-8265\nMail：info@saitoh-sr.com\nWeb：https://saitoh-sr.com/\n\n〜社会保険手続きや給与計算のご相談は当事務所まで〜';
+
 function DeliveryMailModal({caseData, masters, onClose}) {
-  const [folderName, setFolderName] = useState('');
+  const [folders, setFolders] = useState([{name:'', note:''}]);
   const master = (masters.customers||[]).find(m => m.name === caseData.customerName) || null;
   const companyName = (master && master.name) || caseData.customerName || '';
   const email = (master && master.担当者メール) || '';
   const surnames = extractSurnames(master && master.担当者名);
   const greetingLines = (surnames.length > 0 ? surnames : ['']).map(s => `${s}様`);
 
+  const updateFolder = (idx, field, value) => setFolders(f => f.map((x,i)=>i===idx?{...x,[field]:value}:x));
+  const addFolder    = () => setFolders(f => [...f, {name:'', note:''}]);
+  const removeFolder = idx => setFolders(f => f.filter((_,i)=>i!==idx));
+
+  const folderBlocks = folders
+    .filter(f => f.name.trim() !== '')
+    .map(f => `フォルダ名：${f.name.trim()}${f.note.trim() ? '\n'+f.note.trim() : ''}`)
+    .join('\n\n');
+
   const subject = '【お手続き完了のお知らせ】社会保険労務士齊藤事務所';
-  const body = `${companyName}\n${greetingLines.join('\n')}\n\nお世話になっております。\n社会保険労務士齊藤事務所でございます。\n\n次の手続きが完了しDriveに格納いたしました。\n\nフォルダ名：${folderName}\n\n以上となります。\nどうぞよろしくお願いいたします。`;
+  const body = `${companyName}\n${greetingLines.join('\n')}\n\nお世話になっております。\n社会保険労務士齊藤事務所でございます。\n\n次の手続きが完了しDriveに格納いたしました。\n\n${folderBlocks}\n\n以上となります。\nどうぞよろしくお願いいたします。\n\n${DELIVERY_MAIL_SIGNATURE}`;
 
   function handleCreateDraft() {
     const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -1189,7 +1200,7 @@ function DeliveryMailModal({caseData, masters, onClose}) {
 
   return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="modal-box" style={{width:'440px'}}>
+      <div className="modal-box" style={{width:'480px'}}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-800">📧 納品メール下書き作成</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
@@ -1202,7 +1213,24 @@ function DeliveryMailModal({caseData, masters, onClose}) {
           </div>
         </div>
         <label className="block text-sm font-semibold text-gray-600 mb-1">フォルダ名</label>
-        <input value={folderName} onChange={e=>setFolderName(e.target.value)} placeholder="例：2026年8月分" className="mb-5" />
+        {folders.map((f, idx) => (
+          <div key={idx} className="mb-3 pb-3" style={{borderBottom: idx < folders.length-1 ? '1px solid #e5e7eb' : 'none'}}>
+            <input value={f.name} onChange={e=>updateFolder(idx,'name',e.target.value)}
+              placeholder="例：20260827_株式会社天山工務店_田辺 伶生様_雇用保険喪失(離職票あり)" className="mb-1" />
+            <textarea value={f.note} onChange={e=>updateFolder(idx,'note',e.target.value)}
+              rows={2} placeholder="説明書き（任意）" />
+            {folders.length > 1 && (
+              <button type="button" onClick={()=>removeFolder(idx)}
+                className="text-xs px-2 py-1 mt-1 bg-orange-50 text-orange-600 rounded hover:bg-orange-100 font-medium">
+                削除
+              </button>
+            )}
+          </div>
+        ))}
+        <button type="button" onClick={addFolder}
+          className="text-xs px-2 py-1 mb-5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">
+          ＋ フォルダを追加
+        </button>
         <div className="flex gap-3 justify-end">
           <button className="btn btn-secondary" onClick={onClose}>閉じる</button>
           <button className="btn btn-primary" onClick={handleCreateDraft}>Gmailに下書きを作成</button>
@@ -1548,7 +1576,6 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
                             onChange={!isHiro&&c.status==='請求済' ? undefined : e=>{
                               const newStatus = e.target.value;
                               setCases(p=>p.map(x=>x.id===c.id?{...x,status:newStatus}:x));
-                              if (newStatus==='納品済' && c.status!=='納品済') setMailPopupCase({...c, status:newStatus});
                             }}
                             disabled={!isHiro&&c.status==='請求済'}
                             className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full border-0 ${!isHiro&&c.status==='請求済'?'':'cursor-pointer'}`}
