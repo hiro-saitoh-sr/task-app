@@ -787,13 +787,11 @@ function formatTargetYMD(targetMonth, targetDay) {
   if (!targetMonth) return targetMonth;
   return targetDay ? `${targetMonth}${targetDay}日` : targetMonth;
 }
-// 担当者名から苗字のみを抽出し配列で返す（例：「田中里子、浅野」→['田中','浅野']）
-// 区切り文字は「、」のみ（「・」は区切りとして扱わず氏名の一部とみなす）
-// 1人ずつの氏名とみなし先頭2文字を苗字とみなす（簡易的な推定のため長い苗字は下書き確認時に修正が必要）
-function extractSurnames(raw) {
+// 担当者名を「、」区切りで氏名の配列に分割する（マスタ登録値をそのまま使用。自動抽出・文字数による切り詰めは行わない）
+// 例：「田中、浅野」→['田中','浅野']、「Maria Santos」→['Maria Santos']
+function splitNames(raw) {
   if (!raw) return [];
-  return raw.split('、').map(s => s.trim()).filter(Boolean)
-    .map(entry => entry.length <= 2 ? entry : entry.slice(0, 2));
+  return raw.split('、').map(s => s.trim()).filter(Boolean);
 }
 
 /* ══════════════════════════════════════════
@@ -1206,8 +1204,8 @@ function DeliveryMailModal({caseData, masters, onClose}) {
   const email = (master && master.担当者メール) || '';
   const ccRaw = (master && master.CCメール) || '';
   const cc = ccRaw.split('、').map(s => s.trim()).filter(Boolean).join(',');
-  const surnames = extractSurnames(master && master.担当者名);
-  const greetingLines = (surnames.length > 0 ? surnames : ['']).map(s => `${s}様`);
+  const names = splitNames(master && master.担当者名);
+  const greetingLines = (names.length > 0 ? names : ['']).map(s => `${s}様`);
 
   const updateFolder = (idx, field, value) => setFolders(f => f.map((x,i)=>i===idx?{...x,[field]:value}:x));
   const addFolder    = () => setFolders(f => [...f, {name:'', note:''}]);
