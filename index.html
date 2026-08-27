@@ -1205,7 +1205,7 @@ function DeliveryMailModal({caseData, masters, onClose}) {
   const ccRaw = (master && master.CCメール) || '';
   const cc = ccRaw.split('、').map(s => s.trim()).filter(Boolean).join(',');
   const names = splitNames(master && master.担当者名);
-  const greetingLines = (names.length > 0 ? names : ['']).map(s => `${s}様`);
+  const greetingLines = names.length > 0 ? names : [''];
 
   const updateFolder = (idx, field, value) => setFolders(f => f.map((x,i)=>i===idx?{...x,[field]:value}:x));
   const addFolder    = () => setFolders(f => [...f, {name:'', note:''}]);
@@ -3871,7 +3871,7 @@ function CustomerDetailModal({item, onClose, onEdit}) {
     {k:'業種',                v:item.業種},
     {k:'代表者名',             v:item.代表者名},
     {k:'代表者メール',         v:item.代表者メール,         copy:true},
-    {k:'担当者名',              v:item.担当者名},
+    {k:'宛名',                  v:item.担当者名},
     {k:'担当者メール',          v:item.担当者メール,         copy:true},
     {k:'CCメール',              v:item.CCメール,             copy:true},
     {k:'決算月',               v:item.決算月},
@@ -3953,8 +3953,8 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
             </div>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
-                <label className="block text-sm font-semibold text-gray-600 mb-1">担当者名</label>
-                <input value={form.担当者名||''} onChange={e=>set('担当者名',e.target.value)} placeholder="メールに表示する名前。複数は「、」区切り（例：田中、浅野）" />
+                <label className="block text-sm font-semibold text-gray-600 mb-1">宛名</label>
+                <input value={form.担当者名||''} onChange={e=>set('担当者名',e.target.value)} placeholder="メールに表示する名前。複数は「、」区切り（例：田中様、浅野様）" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-600 mb-1">担当者メール（To）</label>
@@ -4213,7 +4213,7 @@ function MasterScreen({masters, setMasters}) {
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">{tab==='提携先'?'提携先名':'名称'}</th>
                 {tab==='顧問先' && <>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">代表者名</th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当者名</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">宛名</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">CCメール</th>
                   <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">36協定起算日</th>
                   <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">その他労使協定</th>
