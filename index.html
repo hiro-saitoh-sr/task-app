@@ -770,6 +770,18 @@ function formatTargetYMD(targetMonth, targetDay) {
   if (!targetMonth) return targetMonth;
   return targetDay ? `${targetMonth}${targetDay}日` : targetMonth;
 }
+// 担当者名から苗字のみを抽出（例：「田中里子、浅野」→「田中・浅野」）
+// 「、」「,」区切りは1人ずつの氏名とみなし先頭2文字を苗字とみなす（簡易的な推定のため長い苗字は下書き確認時に修正が必要）
+// 「・」区切りは元データ側で既に氏名単位に分かれているとみなしそのまま使う
+function extractSurnames(raw) {
+  if (!raw) return '';
+  return raw.split(/[、,，]+/).map(s => s.trim()).filter(Boolean)
+    .flatMap(entry => entry.includes('・')
+      ? entry.split('・').map(s => s.trim()).filter(Boolean)
+      : [entry.length <= 2 ? entry : entry.slice(0, 2)]
+    )
+    .join('・');
+}
 
 /* ══════════════════════════════════════════
    STATUS BADGE
@@ -1158,6 +1170,48 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
 }
 
 /* ══════════════════════════════════════════
+   納品メール下書き作成ポップアップ
+══════════════════════════════════════════ */
+function DeliveryMailModal({caseData, masters, onClose}) {
+  const [folderName, setFolderName] = useState('');
+  const master = (masters.customers||[]).find(m => m.name === caseData.customerName) || null;
+  const companyName = (master && master.name) || caseData.customerName || '';
+  const email = (master && master.担当者メール) || '';
+  const surnames = extractSurnames(master && master.担当者名);
+
+  const subject = '【お手続き完了のお知らせ】社会保険労務士齊藤事務所';
+  const body = `${companyName}\n${surnames}様\n\nお世話になっております。\n社会保険労務士齊藤事務所でございます。\n\n次の手続きが完了しDriveに格納いたしました。\n\nフォルダ名：${folderName}\n\n以上となります。\nどうぞよろしくお願いいたします。`;
+
+  function handleCreateDraft() {
+    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(url, '_blank');
+  }
+
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal-box" style={{width:'440px'}}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-800">📧 納品メール下書き作成</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+        </div>
+        <div className="text-sm text-gray-600 mb-4 space-y-0.5">
+          <div>{companyName}　{surnames}様</div>
+          <div>
+            宛先：{email || <span className="text-gray-400">（担当者メール未登録のため空欄で作成されます）</span>}
+          </div>
+        </div>
+        <label className="block text-sm font-semibold text-gray-600 mb-1">フォルダ名</label>
+        <input value={folderName} onChange={e=>setFolderName(e.target.value)} placeholder="例：2026年8月分" className="mb-5" />
+        <div className="flex gap-3 justify-end">
+          <button className="btn btn-secondary" onClick={onClose}>閉じる</button>
+          <button className="btn btn-primary" onClick={handleCreateDraft}>Gmailに下書きを作成</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
    CASE LIST SCREEN
 ══════════════════════════════════════════ */
 function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls}) {
@@ -1172,6 +1226,7 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
   const [showTerminatedFilter, setShowTerminatedFilter] = useState(false);
   const [showAlert36, setShowAlert36] = useState(false);
   const [bulkBillMsg, setBulkBillMsg] = useState('');
+  const [mailPopupCase, setMailPopupCase] = useState(null);
 
   const alertCustomers36 = useMemo(()=>{
     return (masters.customers||[]).filter(c => {
@@ -1444,6 +1499,7 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
               <col style={{width:'316px'}} />
               <col style={{width:'88px'}} />
               <col style={{width:'104px'}} />
+              <col style={{width:'36px'}} />
               <col style={{width:'92px'}} />
               {isHiro && <col style={{width:'116px'}} />}
               <col style={{width:'116px'}} />
@@ -1457,6 +1513,7 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
                 <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">メモ</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">担当者</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">ステータス</th>
+                <th className="px-3 py-3 bg-gray-50"></th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">受付日</th>
                 {isHiro && <th className="px-3 py-3 text-right font-semibold text-gray-600 bg-gray-50">請求金額</th>}
                 <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">対象年月</th>
@@ -1487,13 +1544,25 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
                     {(isViewOnly||c.cancelled)
                       ? <StatusBadge status={c.status} />
                       : <select value={c.status}
-                            onChange={!isHiro&&c.status==='請求済' ? undefined : e=>setCases(p=>p.map(x=>x.id===c.id?{...x,status:e.target.value}:x))}
+                            onChange={!isHiro&&c.status==='請求済' ? undefined : e=>{
+                              const newStatus = e.target.value;
+                              setCases(p=>p.map(x=>x.id===c.id?{...x,status:newStatus}:x));
+                              if (newStatus==='納品済' && c.status!=='納品済') setMailPopupCase({...c, status:newStatus});
+                            }}
                             disabled={!isHiro&&c.status==='請求済'}
                             className={`status-${c.status} text-xs font-semibold px-2 py-1 rounded-full border-0 ${!isHiro&&c.status==='請求済'?'':'cursor-pointer'}`}
                             style={{appearance:'none',textAlign:'center',width:'100%',opacity:1}}>
                             {STATUSES.filter(s=>s!=='請求済'||isHiro||s===c.status).map(s=><option key={s}>{s}</option>)}
                           </select>
                     }
+                  </td>
+                  <td className="px-1 py-2.5 text-center">
+                    {!c.cancelled && c.status==='納品済' && (
+                      <button onClick={()=>setMailPopupCase(c)} title="納品メール下書きを作成"
+                        className="text-sm leading-none hover:opacity-70">
+                        📧
+                      </button>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{formatDate(c.receivedDate)}</td>
                   {isHiro && (
@@ -1542,6 +1611,7 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
               onConfirm={()=>{setCases(p=>p.map(c=>c.id===cancelCase.id?{...c,cancelled:true}:c));setCancelCase(null);}}
               onClose={()=>setCancelCase(null)} />
       )}
+      {mailPopupCase && <DeliveryMailModal caseData={mailPopupCase} masters={masters} onClose={()=>setMailPopupCase(null)} />}
       {showAlert36 && (
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowAlert36(false)}>
           <div className="modal-box" style={{width:'480px', maxHeight:'80vh', overflowY:'auto'}}>
