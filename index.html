@@ -771,15 +771,12 @@ function formatTargetYMD(targetMonth, targetDay) {
   return targetDay ? `${targetMonth}${targetDay}日` : targetMonth;
 }
 // 担当者名から苗字のみを抽出し配列で返す（例：「田中里子、浅野」→['田中','浅野']）
-// 「、」「,」区切りは1人ずつの氏名とみなし先頭2文字を苗字とみなす（簡易的な推定のため長い苗字は下書き確認時に修正が必要）
-// 「・」区切りは元データ側で既に氏名単位に分かれているとみなしそのまま使う
+// 区切り文字は「、」のみ（「・」は区切りとして扱わず氏名の一部とみなす）
+// 1人ずつの氏名とみなし先頭2文字を苗字とみなす（簡易的な推定のため長い苗字は下書き確認時に修正が必要）
 function extractSurnames(raw) {
   if (!raw) return [];
-  return raw.split(/[、,，]+/).map(s => s.trim()).filter(Boolean)
-    .flatMap(entry => entry.includes('・')
-      ? entry.split('・').map(s => s.trim()).filter(Boolean)
-      : [entry.length <= 2 ? entry : entry.slice(0, 2)]
-    );
+  return raw.split('、').map(s => s.trim()).filter(Boolean)
+    .map(entry => entry.length <= 2 ? entry : entry.slice(0, 2));
 }
 
 /* ══════════════════════════════════════════
@@ -1227,8 +1224,7 @@ function DeliveryMailModal({caseData, masters, onClose}) {
         <label className="block text-sm font-semibold text-gray-600 mb-1">フォルダ名</label>
         {folders.map((f, idx) => (
           <div key={idx} className="mb-3 pb-3" style={{borderBottom: idx < folders.length-1 ? '1px solid #e5e7eb' : 'none'}}>
-            <input value={f.name} onChange={e=>updateFolder(idx,'name',e.target.value)}
-              placeholder="例：20260827_株式会社天山工務店_田辺 伶生様_雇用保険喪失(離職票あり)" className="mb-1" />
+            <input value={f.name} onChange={e=>updateFolder(idx,'name',e.target.value)} className="mb-1" />
             <textarea value={f.note} onChange={e=>updateFolder(idx,'note',e.target.value)}
               rows={2} placeholder="説明書き（任意）" />
             {folders.length > 1 && (
