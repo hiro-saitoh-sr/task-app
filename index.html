@@ -1199,7 +1199,7 @@ function DeliveryMailModal({caseData, masters, onClose}) {
   }
 
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{width:'480px'}}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-800">📧 納品メール下書き作成</h2>
