@@ -791,7 +791,7 @@ function StatusBadge({status}) {
 ══════════════════════════════════════════ */
 function ConfirmModal({title, body, onConfirm, onClose, confirmLabel='削除する', confirmClass='btn-danger', note='この操作は取り消せません。'}) {
   return (
-    <div className="modal-overlay" onClick={e => e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{width:'400px'}}>
         <h2 className="text-lg font-bold mb-3 text-gray-800">{title}</h2>
         <p className="text-sm text-gray-600 mb-5">{body}</p>
@@ -1042,7 +1042,7 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
   };
 
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box">
         <h2 className="text-xl font-bold mb-6 text-gray-800">{isNew?'新規案件登録':'案件編集'}</h2>
         <form onSubmit={handleSubmit}>
@@ -1649,7 +1649,7 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
       )}
       {mailPopupCase && <DeliveryMailModal caseData={mailPopupCase} masters={masters} onClose={()=>setMailPopupCase(null)} />}
       {showAlert36 && (
-        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowAlert36(false)}>
+        <div className="modal-overlay">
           <div className="modal-box" style={{width:'480px', maxHeight:'80vh', overflowY:'auto'}}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800">⚠️ 36協定 起算日が近い顧問先</h2>
@@ -1755,7 +1755,7 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
   const [noPrevSysMsg, setNoPrevSysMsg] = useState(false);
 
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{width:'560px'}}>
         <h2 className="text-lg font-bold mb-1">給与単価設定</h2>
         <p className="text-sm text-gray-500 mb-1">{customerName}</p>
@@ -2339,7 +2339,7 @@ function MonthlyCheckModal({item, onSave, onClose, masters, currentUser}) {
     else { setCheckCustOther(false); const c=masters.customers.find(x=>x.name===val); set('customerName',val); if(c) set('no',c.no); }
   };
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box">
         <h2 className="text-xl font-bold mb-6">{item?'編集':'新規追加'} — 月額変更届チェック</h2>
         <form onSubmit={e=>{e.preventDefault();onSave(form);}}>
@@ -2488,7 +2488,7 @@ function AnnualBulkModal({cases, masters, onRegister, onClose}) {
   };
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay">
       <div style={{
         background:'white', borderRadius:'12px', width:'640px', maxWidth:'95vw',
         maxHeight:'95vh', display:'flex', flexDirection:'column',
@@ -2632,7 +2632,7 @@ function AnnualEditModal({caseData, onSave, onClose, masters, currentUser}) {
   };
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box">
         <h2 className="text-xl font-bold mb-4 text-gray-800">年更・算定 案件編集</h2>
         <form onSubmit={handleSubmit}>
@@ -3140,7 +3140,7 @@ function CopyFromCasesModal({cases, checks, onCopy, onClose}) {
   };
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{width:'660px'}}>
         <h2 className="text-xl font-bold mb-3">案件管理からコピー</h2>
         <p className="text-sm text-gray-500 mb-4">「月額変更届」の案件を月変チェックに追加します。同じ顧問先・同じ対象年月がすでに登録済みの場合は除外しています。</p>
@@ -3377,7 +3377,7 @@ function PayrollCustomerModal({item, onSave, onClose, masters}) {
   const [form,setForm]=useState(item?{customerName:item.customerName,assignee:item.assignee,締日:item.締日,支給日:item.支給日,年末調整還付月:item.年末調整還付月,賞与支給月:item.賞与支給月,納品方法:item.納品方法,その他メモ:item.その他メモ}:blank);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{width:'620px'}}>
         <h2 className="text-xl font-bold mb-6">{item?'顧問先情報編集':'顧問先追加'} — 給与計算スケジュール</h2>
         <form onSubmit={e=>{e.preventDefault();if(!form.customerName.trim()){alert('顧問先名は必須です');return;}onSave(form);}}>
@@ -3426,7 +3426,7 @@ function PayrollMonthModal({payroll, month, year, onSave, onClose}) {
   const [form,setForm]=useState({...PB(),...md});
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{width:'480px'}}>
         <h2 className="text-xl font-bold mb-1">{payroll.customerName}</h2>
         <p className="text-sm text-gray-500 mb-5">{year}年 {month}月 — 月次データ入力</p>
@@ -3771,7 +3771,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters}) {
 
       {/* ── 固定情報モーダル ── */}
       {detailItem && (
-        <div className="modal-overlay" onClick={()=>setDetailItem(null)}>
+        <div className="modal-overlay">
           <div className="modal-box" style={{width:'520px'}} onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800">{detailItem.customerName}</h2>
@@ -3865,7 +3865,7 @@ function CustomerDetailModal({item, onClose, onEdit}) {
     {k:'東京SR特別加入',       v:item['東京SR特別加入']},
   ];
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{width:'480px'}}>
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -3906,7 +3906,7 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
   const SERVICES = ['労務顧問','給与計算','処遇改善加算'];
   const MONTHS   = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{width:'760px', maxHeight:'90vh', overflowY:'auto'}}>
         <h2 className="text-lg font-bold mb-4">{title}</h2>
         <form onSubmit={e=>{e.preventDefault();if(!form.name.trim()){alert('名称は必須です');return;}onSave(form);}}>
@@ -4010,7 +4010,7 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
 
 function PartnerDetailModal({item, onClose, onEdit}) {
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{width:'480px'}}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-800">{item.name}</h2>
@@ -4056,7 +4056,7 @@ function PartnerItemModal({title, item, onSave, onClose, customers}) {
   };
   const activeCusts = (customers||[]).filter(c=>!c.terminated);
   return (
-    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{width:'560px', maxHeight:'90vh', overflowY:'auto'}}>
         <h2 className="text-lg font-bold mb-4">{title}</h2>
         <form onSubmit={e=>{e.preventDefault();if(!form.name.trim()){alert('提携先名は必須です');return;}onSave(form);}}>
@@ -4326,7 +4326,7 @@ function MasterScreen({masters, setMasters}) {
             />
       )}
       {showAlert36 && (
-        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setShowAlert36(false)}>
+        <div className="modal-overlay">
           <div className="modal-box" style={{width:'480px', maxHeight:'80vh', overflowY:'auto'}}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-800">⚠️ 36協定 起算日が近い顧問先</h2>
