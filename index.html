@@ -3954,7 +3954,7 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
                 <label className="block text-sm font-semibold text-gray-600 mb-1">担当者名</label>
-                <input value={form.担当者名||''} onChange={e=>set('担当者名',e.target.value)} placeholder="苗字のみ。複数人は「、」区切り（例：田中、浅野）" />
+                <input value={form.担当者名||''} onChange={e=>set('担当者名',e.target.value)} placeholder="メールに表示する名前。複数は「、」区切り（例：田中、浅野）" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-600 mb-1">担当者メール（To）</label>
