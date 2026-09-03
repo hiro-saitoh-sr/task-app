@@ -2145,7 +2145,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
       if (r.労務顧問 != null)    add('01', r.労務顧問);
       if (r.処遇改善加算 != null) add(!hasRomu ? '28' : hasKyuyo ? '03' : '02', r.処遇改善加算);
       if (r.給与人数 > 0 && r.給与請求額 != null) add('26', r.給与請求額);
-      if (r.システム利用料 != null) add('27', r.システム利用料);
+      // システム利用料（内訳コード27）はSTEP1自動計算・STEP3 CSVに統合されるため、かつ・かいしゅう用CSVには出力しない（入力欄・画面表示は維持）
       if ((r.total||0) > 0) add('36', r.total);
       if ((r.追加金額||0) > 0) add('36', r.追加金額);
       if (r.賞与人数 > 0 && r.賞与請求額 != null) add('56', r.賞与請求額);
