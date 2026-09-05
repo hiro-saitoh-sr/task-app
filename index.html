@@ -1009,10 +1009,11 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
   const isHiro = currentUser?.email === 'hiro@saitoh-sr.com';
   const isNew = !caseData;
   const todayStr = (()=>{const d=new Date();const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}/${m}/${day}`;})();
-  const blank = {no:'',customerName:'',procedure:'',memo:'',assignee:'',status:'依頼受付',receivedDate:todayStr,billingAmount:'',targetMonth:''};
+  const blank = {no:'',customerName:'',procedure:'',memo:'',assignee:'',status:'依頼受付',receivedDate:todayStr,billingAmount:'',targetMonth:'',dateFields:{}};
   const [form, setForm] = useState(caseData ? {...caseData} : blank);
   const [errors, setErrors] = useState({receivedDate:'', targetMonth:''});
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const setDateField = (f,v) => setForm(fm=>({...fm, dateFields:{...(fm.dateFields||{}), [f]:v}}));
   // 「日」は任意。未選択時はキー自体を持たせない（Firebaseはundefined不可のため）
   const setDay = v => setForm(f => { const nf={...f}; if(v) nf.targetDay=v; else delete nf.targetDay; return nf; });
   const clearErr = k => { if(errors[k]) setErrors(er=>({...er,[k]:''})); };
@@ -1033,6 +1034,8 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
 
   const custInMaster = masters.customers.some(c=>c.name===form.customerName);
   const procInMaster = masters.procedures.some(p=>p.name===form.procedure);
+  const selectedProcedure = masters.procedures.find(p=>p.name===form.procedure);
+  const requiredDateFields = selectedProcedure?.必須日付フィールド || [];
   const [custMode, setCustMode] = useState(!isNew && !custInMaster && masters.customers.length>0 ? 'text' : 'select');
   const [procMode, setProcMode] = useState(!isNew && !procInMaster && masters.procedures.length>0 ? 'text' : 'select');
 
@@ -1050,6 +1053,11 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
     const amt = form.billingAmount.trim();
     if (amt !== '' && amt !== '請求なし' && isNaN(Number(amt))) {
       alert('請求金額には半角数字（例：2500）または「請求なし」を入力してください。');
+      return;
+    }
+    const missingDateFields = requiredDateFields.filter(f => !(form.dateFields||{})[f]);
+    if (missingDateFields.length > 0) {
+      alert(`${missingDateFields.join('、')}を入力してください。`);
       return;
     }
     const newErrors = {receivedDate:'', targetMonth:''};
@@ -1140,6 +1148,19 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
               </div>
             )}
           </div>
+
+          {requiredDateFields.length > 0 && (
+            <div className="mb-4">
+              <div className="grid grid-cols-2 gap-4">
+                {requiredDateFields.map(f => (
+                  <div key={f}>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">{f} <span className="text-red-500">*</span></label>
+                    <input type="date" value={(form.dateFields||{})[f]||''} onChange={e=>setDateField(f,e.target.value)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mb-4">
             <label className="block text-sm font-semibold text-gray-600 mb-1">メモ</label>
