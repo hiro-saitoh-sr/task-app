@@ -3486,10 +3486,11 @@ function PayrollMonthModal({payroll, month, year, cases, checks, onSave, onClose
   const [form,setForm]=useState({...PB(),...md});
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
 
-  const nextMonth = month===12 ? 1 : month+1;
-  const nextYear  = month===12 ? year+1 : year;
+  // 案件・月変チェックは「日付が当月」または「日付が前月（＝当月が翌月にあたる）」の場合に表示する
+  const prevMonth = month===1 ? 12 : month-1;
+  const prevYear  = month===1 ? year-1 : year;
   const targetYMInt = year*100 + month;
-  const nextYMInt   = nextYear*100 + nextMonth;
+  const prevYMInt   = prevYear*100 + prevMonth;
   // 日付フィールド（YYYY-MM-DD）→ YYYYMM整数。文字列比較ではなく数値比較にすることでゼロ埋め有無等の表記ゆれの影響を受けない
   const parseISOYM = s => {
     const m = String(s||'').match(/^(\d{4})-(\d{1,2})-\d{1,2}$/);
@@ -3500,16 +3501,16 @@ function PayrollMonthModal({payroll, month, year, cases, checks, onSave, onClose
     .map(c => {
       const matches = Object.entries(c.dateFields||{}).filter(([,v]) => {
         const ym = parseISOYM(v);
-        return ym && (ym===targetYMInt || ym===nextYMInt);
+        return ym && (ym===targetYMInt || ym===prevYMInt);
       });
       return matches.length>0 ? {procedure:c.procedure, matches} : null;
     })
     .filter(Boolean);
-  // 月変チェックの改定月（revisionMonth）が当月・翌月に該当するもの
+  // 月変チェックの改定月（revisionMonth）が当月・前月に該当するもの
   const relatedChecks = (checks||[]).filter(c => {
     if (c.cancelled || c.customerName!==payroll.customerName) return false;
     const ym = parseYM(c.revisionMonth);
-    return ym && (ym===targetYMInt || ym===nextYMInt);
+    return ym && (ym===targetYMInt || ym===prevYMInt);
   });
 
   return (
@@ -3519,7 +3520,7 @@ function PayrollMonthModal({payroll, month, year, cases, checks, onSave, onClose
         <p className="text-sm text-gray-500 mb-5">{year}年 {month}月 — 月次データ入力</p>
         {(relatedCases.length>0 || relatedChecks.length>0) && (
           <div className="mb-5 p-3 rounded-lg" style={{background:'#fff7ed', border:'1px solid #fdba74'}}>
-            <p className="text-xs font-semibold mb-2" style={{color:'#9a3412'}}>⚠️ 関連する案件（{month}月・{nextMonth}月）</p>
+            <p className="text-xs font-semibold mb-2" style={{color:'#9a3412'}}>⚠️ 関連する案件（{prevMonth}月・{month}月）</p>
             <div className="space-y-1.5">
               {relatedCases.map((rc,i)=>(
                 <div key={`case-${i}`} className="text-sm" style={{color:'#374151'}}>
@@ -3531,9 +3532,8 @@ function PayrollMonthModal({payroll, month, year, cases, checks, onSave, onClose
               ))}
               {relatedChecks.map((rc,i)=>(
                 <div key={`chk-${i}`} className="text-sm" style={{color:'#374151'}}>
-                  <span className="font-semibold">月額変更届</span>
-                  <span className="ml-2 text-gray-500">改定月：{rc.revisionMonth}</span>
-                  {rc.salaryMonth && <span className="ml-2 text-gray-500">昇(降)給月：{rc.salaryMonth}</span>}
+                  <span className="font-semibold">月額変更届｜</span>
+                  <span className="text-gray-500">改定月：{rc.revisionMonth}｜{(rc.procedureBy||'').replace(/\n/g,'、')}</span>
                 </div>
               ))}
             </div>
