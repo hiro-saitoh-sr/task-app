@@ -253,6 +253,7 @@ function LoginScreen({ onLogin }) {
 
 const STATUSES = ['依頼待ち', '依頼受付', '手続き済', '納品済', '請求済'];
 const CHECK_STATUSES = ['依頼受付', '手続き済', '納品済', '請求済'];
+const PROCEDURE_GROUPS = ['入社', '退職', '身上異動', '給与変更・賞与支給', '出産・育児・介護', '労働保険申告', '算定基礎届', '協定届', 'その他'];
 const SK = {
   cases:    'task_app_cases',
   masters:  'task_app_masters',
@@ -1112,7 +1113,24 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
             {masters.procedures.length>0 && procMode==='select' ? (
               <select value={form.procedure} onChange={e=>handleProcSelect(e.target.value)}>
                 <option value="">選択してください</option>
-                {masters.procedures.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
+                {PROCEDURE_GROUPS.map(g => {
+                  const items = masters.procedures.filter(p=>p.グループ===g);
+                  if (items.length===0) return null;
+                  return (
+                    <optgroup key={g} label={g}>
+                      {items.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
+                    </optgroup>
+                  );
+                })}
+                {(() => {
+                  const ungrouped = masters.procedures.filter(p=>!PROCEDURE_GROUPS.includes(p.グループ));
+                  if (ungrouped.length===0) return null;
+                  return (
+                    <optgroup label="未分類">
+                      {ungrouped.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
+                    </optgroup>
+                  );
+                })()}
               </select>
             ) : (
               <div className="flex gap-2">
@@ -3912,8 +3930,8 @@ function CustomerDetailModal({item, onClose, onEdit}) {
   );
 }
 
-function MasterItemModal({title, item, onSave, onClose, showNo}) {
-  const defForm = {no:'', name:'', 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', CCメール:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
+function MasterItemModal({title, item, onSave, onClose, showNo, tab}) {
+  const defForm = {no:'', name:'', グループ:'', 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', CCメール:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
   const [form, setForm] = useState(item ? {...defForm, ...item} : defForm);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const toggleSv = sv => {
@@ -3937,6 +3955,15 @@ function MasterItemModal({title, item, onSave, onClose, showNo}) {
             <label className="block text-sm font-semibold text-gray-600 mb-1">名称 <span className="text-red-500">*</span></label>
             <input value={form.name} onChange={e=>set('name',e.target.value)} placeholder="名称を入力" />
           </div>
+          {tab==='手続き' && (
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">グループ</label>
+              <select value={form.グループ||''} onChange={e=>set('グループ',e.target.value)}>
+                <option value="">—</option>
+                {PROCEDURE_GROUPS.map(g=><option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+          )}
           {showNo && (<>
             <div className="mb-3">
               <label className="block text-sm font-semibold text-gray-600 mb-1">業種</label>
@@ -4316,6 +4343,7 @@ function MasterScreen({masters, setMasters}) {
           onSave={handleSave}
           onClose={()=>{setShowModal(false);setEditItem(null);}}
           showNo={tab==='顧問先'}
+          tab={tab}
         />
       )}
       {delItem && (
