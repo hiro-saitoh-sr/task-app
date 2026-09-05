@@ -3481,39 +3481,59 @@ function PayrollCustomerModal({item, onSave, onClose, masters}) {
   );
 }
 
-function PayrollMonthModal({payroll, month, year, cases, onSave, onClose}) {
+function PayrollMonthModal({payroll, month, year, cases, checks, onSave, onClose}) {
   const md = (payroll.yearData&&payroll.yearData[year]&&payroll.yearData[year][month]) || PB();
   const [form,setForm]=useState({...PB(),...md});
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const nextMonth = month===12 ? 1 : month+1;
   const nextYear  = month===12 ? year+1 : year;
-  const pad = n => String(n).padStart(2,'0');
-  const targetYM = `${year}-${pad(month)}`;
-  const nextYM   = `${nextYear}-${pad(nextMonth)}`;
+  const targetYMInt = year*100 + month;
+  const nextYMInt   = nextYear*100 + nextMonth;
+  // 日付フィールド（YYYY-MM-DD）→ YYYYMM整数。文字列比較ではなく数値比較にすることでゼロ埋め有無等の表記ゆれの影響を受けない
+  const parseISOYM = s => {
+    const m = String(s||'').match(/^(\d{4})-(\d{1,2})-\d{1,2}$/);
+    return m ? Number(m[1])*100 + Number(m[2]) : 0;
+  };
   const relatedCases = (cases||[])
     .filter(c => !c.cancelled && c.customerName===payroll.customerName)
     .map(c => {
-      const matches = Object.entries(c.dateFields||{}).filter(([,v]) => v && (v.slice(0,7)===targetYM || v.slice(0,7)===nextYM));
+      const matches = Object.entries(c.dateFields||{}).filter(([,v]) => {
+        const ym = parseISOYM(v);
+        return ym && (ym===targetYMInt || ym===nextYMInt);
+      });
       return matches.length>0 ? {procedure:c.procedure, matches} : null;
     })
     .filter(Boolean);
+  // 月変チェックの改定月（revisionMonth）が当月・翌月に該当するもの
+  const relatedChecks = (checks||[]).filter(c => {
+    if (c.cancelled || c.customerName!==payroll.customerName) return false;
+    const ym = parseYM(c.revisionMonth);
+    return ym && (ym===targetYMInt || ym===nextYMInt);
+  });
 
   return (
     <div className="modal-overlay">
       <div className="modal-box" style={{width:'480px'}}>
         <h2 className="text-xl font-bold mb-1">{payroll.customerName}</h2>
         <p className="text-sm text-gray-500 mb-5">{year}年 {month}月 — 月次データ入力</p>
-        {relatedCases.length>0 && (
+        {(relatedCases.length>0 || relatedChecks.length>0) && (
           <div className="mb-5 p-3 rounded-lg" style={{background:'#fff7ed', border:'1px solid #fdba74'}}>
             <p className="text-xs font-semibold mb-2" style={{color:'#9a3412'}}>⚠️ 関連する案件（{month}月・{nextMonth}月）</p>
             <div className="space-y-1.5">
               {relatedCases.map((rc,i)=>(
-                <div key={i} className="text-sm" style={{color:'#374151'}}>
+                <div key={`case-${i}`} className="text-sm" style={{color:'#374151'}}>
                   <span className="font-semibold">{rc.procedure}</span>
                   {rc.matches.map(([field,date])=>(
-                    <span key={field} className="ml-2 text-gray-500">{field}: {date}</span>
+                    <span key={field} className="ml-2 text-gray-500">{field}：{date}</span>
                   ))}
+                </div>
+              ))}
+              {relatedChecks.map((rc,i)=>(
+                <div key={`chk-${i}`} className="text-sm" style={{color:'#374151'}}>
+                  <span className="font-semibold">月額変更届</span>
+                  <span className="ml-2 text-gray-500">改定月：{rc.revisionMonth}</span>
+                  {rc.salaryMonth && <span className="ml-2 text-gray-500">昇(降)給月：{rc.salaryMonth}</span>}
                 </div>
               ))}
             </div>
@@ -3545,7 +3565,7 @@ function PayrollMonthModal({payroll, month, year, cases, onSave, onClose}) {
   );
 }
 
-function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases}) {
+function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks}) {
   const [viewMode, setViewMode]             = useState('annual');
   const [selMonth, setSelMonth]             = useState(new Date().getMonth()+1);
   const [selYear, setSelYear]               = useState(2026);
@@ -3891,7 +3911,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases}) {
 
       {/* ── モーダル ── */}
       {showCustModal && <PayrollCustomerModal item={editCust} onSave={handleSaveCust} onClose={()=>{setShowCustModal(false);setEditCust(null);}} masters={masters} />}
-      {editMD && <PayrollMonthModal payroll={editMD.payroll} month={editMD.month} year={editMD.year} cases={cases} onSave={handleSaveMonth} onClose={()=>setEditMD(null)} />}
+      {editMD && <PayrollMonthModal payroll={editMD.payroll} month={editMD.month} year={editMD.year} cases={cases} checks={checks} onSave={handleSaveMonth} onClose={()=>setEditMD(null)} />}
       {termCust && (
         termCust.terminated
           ? <ConfirmModal
@@ -4890,7 +4910,7 @@ function App() {
         {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} payrolls={payrolls} payrollRates={payrollRates} setPayrollRates={setPayrollRates} billingSnapshots={billingSnapshots} setBillingSnapshots={setBillingSnapshots} currentUser={currentUser} checks={checks} />}
         {screen==='月変チェック'        && <MonthlyCheckScreen checks={checks} setChecks={setChecks} masters={masters} cases={cases} currentUser={currentUser} />}
         {screen==='年更・算定案件管理'  && <AnnualUpdateScreen cases={cases} setCases={setCases} masters={masters} currentUser={currentUser} />}
-        {screen==='給与計算スケジュール'&& <PayrollScheduleScreen payrolls={payrolls} setPayrolls={setPayrolls} masters={masters} cases={cases} />}
+        {screen==='給与計算スケジュール'&& <PayrollScheduleScreen payrolls={payrolls} setPayrolls={setPayrolls} masters={masters} cases={cases} checks={checks} />}
         {screen==='マスタ管理'          && <MasterScreen masters={masters} setMasters={setMasters} />}
       </div>
 
