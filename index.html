@@ -3503,7 +3503,7 @@ function PayrollMonthModal({payroll, month, year, cases, checks, onSave, onClose
         const ym = parseISOYM(v);
         return ym && (ym===targetYMInt || ym===prevYMInt);
       });
-      return matches.length>0 ? {procedure:c.procedure, matches} : null;
+      return matches.length>0 ? {procedure:c.procedure, matches, memo:c.memo} : null;
     })
     .filter(Boolean);
   // 月変チェックの改定月（revisionMonth）が当月・前月に該当するもの
@@ -3515,21 +3515,22 @@ function PayrollMonthModal({payroll, month, year, cases, checks, onSave, onClose
 
   return (
     <div className="modal-overlay">
-      <div className="modal-box" style={{width:'480px'}}>
+      <div className="modal-box" style={{width:'640px'}}>
         <h2 className="text-xl font-bold mb-1">{payroll.customerName}</h2>
         <p className="text-sm text-gray-500 mb-5">{year}年 {month}月 — 月次データ入力</p>
         {(relatedCases.length>0 || relatedChecks.length>0) && (
           <div className="mb-5 p-3 rounded-lg" style={{background:'#fff7ed', border:'1px solid #fdba74'}}>
             <p className="text-xs font-semibold mb-2" style={{color:'#9a3412'}}>⚠️ 関連する案件（{prevMonth}月・{month}月）</p>
             <div className="space-y-1.5">
-              {relatedCases.map((rc,i)=>(
-                <div key={`case-${i}`} className="text-sm" style={{color:'#374151'}}>
-                  <span className="font-semibold">{rc.procedure}</span>
-                  {rc.matches.map(([field,date])=>(
-                    <span key={field} className="ml-2 text-gray-500">{field}：{date}</span>
-                  ))}
-                </div>
-              ))}
+              {relatedCases.map((rc,i)=>{
+                const dateText = rc.matches.map(([field,date])=>`${field}：${date}`).join('、');
+                return (
+                  <div key={`case-${i}`} className="text-sm" style={{color:'#374151'}}>
+                    <span className="font-semibold">{rc.procedure}</span>
+                    <span className="text-gray-500">｜{dateText}{rc.memo ? `｜${rc.memo}` : ''}</span>
+                  </div>
+                );
+              })}
               {relatedChecks.map((rc,i)=>(
                 <div key={`chk-${i}`} className="text-sm" style={{color:'#374151'}}>
                   <span className="font-semibold">月額変更届｜</span>
