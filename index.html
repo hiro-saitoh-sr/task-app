@@ -254,6 +254,7 @@ function LoginScreen({ onLogin }) {
 const STATUSES = ['依頼待ち', '依頼受付', '手続き済', '納品済', '請求済'];
 const CHECK_STATUSES = ['依頼受付', '手続き済', '納品済', '請求済'];
 const PROCEDURE_GROUPS = ['入社', '退職', '身上異動', '給与変更・賞与支給', '出産・育児・介護', '年齢到達', 'ケガ・病気・死亡', '労働保険申告', '算定基礎届', '協定届', '事業所に関する届出', 'その他'];
+const PROCEDURE_DATE_FIELDS = ['取得日', '喪失日', '退職日', '出産予定日', '出産日', '産前開始日', '産後終了日', '育児休業開始日', '育児休業終了日'];
 const SK = {
   cases:    'task_app_cases',
   masters:  'task_app_masters',
@@ -3931,12 +3932,16 @@ function CustomerDetailModal({item, onClose, onEdit}) {
 }
 
 function MasterItemModal({title, item, onSave, onClose, showNo, tab}) {
-  const defForm = {no:'', name:'', グループ:'', 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', CCメール:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
+  const defForm = {no:'', name:'', グループ:'', 必須日付フィールド:[], 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', CCメール:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
   const [form, setForm] = useState(item ? {...defForm, ...item} : defForm);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const toggleSv = sv => {
     const cur = form.契約サービス || [];
     set('契約サービス', cur.includes(sv) ? cur.filter(x=>x!==sv) : [...cur, sv]);
+  };
+  const toggleDateField = f => {
+    const cur = form.必須日付フィールド || [];
+    set('必須日付フィールド', cur.includes(f) ? cur.filter(x=>x!==f) : [...cur, f]);
   };
   const SERVICES = ['労務顧問','給与計算','処遇改善加算'];
   const MONTHS   = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -3962,6 +3967,22 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab}) {
                 <option value="">—</option>
                 {PROCEDURE_GROUPS.map(g=><option key={g} value={g}>{g}</option>)}
               </select>
+            </div>
+          )}
+          {tab==='手続き' && (
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">必須日付フィールド</label>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                {PROCEDURE_DATE_FIELDS.map(f=>(
+                  <label key={f} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                    <input type="checkbox"
+                      checked={(form.必須日付フィールド||[]).includes(f)}
+                      onChange={()=>toggleDateField(f)}
+                      style={{width:'15px',height:'15px',cursor:'pointer'}} />
+                    {f}
+                  </label>
+                ))}
+              </div>
             </div>
           )}
           {showNo && (<>
