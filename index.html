@@ -4147,6 +4147,7 @@ function MasterScreen({masters, setMasters}) {
   const [delItem, setDelItem]       = useState(null);
   const [showTerminated, setShowTerminated] = useState(false);
   const [search, setSearch]             = useState('');
+  const [groupFilter, setGroupFilter]   = useState('');
   const [showAlert36, setShowAlert36]   = useState(false);
 
   const alertCustomers = (masters.customers||[]).filter(c => {
@@ -4169,6 +4170,11 @@ function MasterScreen({masters, setMasters}) {
     if (tab==='顧問先' && search.trim()) {
       const q = search.trim().toLowerCase();
       arr = arr.filter(i => i.name.toLowerCase().includes(q));
+    }
+    if (tab==='手続き' && groupFilter) {
+      arr = groupFilter==='未分類'
+        ? arr.filter(i => !PROCEDURE_GROUPS.includes(i.グループ))
+        : arr.filter(i => i.グループ===groupFilter);
     }
     return arr;
   })();
@@ -4207,7 +4213,7 @@ function MasterScreen({masters, setMasters}) {
       )}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         {TABS.map(t=>(
-          <button key={t} onClick={()=>{setTab(t);setShowModal(false);setEditItem(null);setShowTerminated(false);setSearch('');}}
+          <button key={t} onClick={()=>{setTab(t);setShowModal(false);setEditItem(null);setShowTerminated(false);setSearch('');setGroupFilter('');}}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab===t?'bg-blue-600 text-white':'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
             {t}マスタ
           </button>
@@ -4228,6 +4234,16 @@ function MasterScreen({masters, setMasters}) {
             契約解除済みを表示
           </label>
         </>)}
+        {tab==='手続き' && (
+          <div className="flex items-center gap-1.5 ml-2">
+            <label style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>グループ</label>
+            <select value={groupFilter} onChange={e=>setGroupFilter(e.target.value)} style={{width:'180px',fontSize:'13px'}}>
+              <option value="">すべて</option>
+              {PROCEDURE_GROUPS.map(g=><option key={g} value={g}>{g}</option>)}
+              <option value="未分類">未分類</option>
+            </select>
+          </div>
+        )}
         <button className="btn btn-primary ml-auto" onClick={()=>{setEditItem(null);setShowModal(true);}}>＋ 追加</button>
       </div>
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 220px)'}}>
