@@ -255,6 +255,20 @@ const STATUSES = ['依頼待ち', '依頼受付', '手続き済', '納品済', '
 const CHECK_STATUSES = ['依頼受付', '手続き済', '納品済', '請求済'];
 const PROCEDURE_GROUPS = ['入社', '退職', '身上異動', '給与変更・賞与支給', '出産・育児・介護', '年齢到達', 'ケガ・病気・死亡', '労働保険申告', '算定基礎届', '協定届', '事業所に関する届出', 'その他'];
 const PROCEDURE_DATE_FIELDS = ['取得日', '喪失日', '退職日', '出産予定日', '出産日', '産前開始日', '産後終了日', '育児休業開始日', '育児休業終了日'];
+/* 給与計算 全体イベント（該当月固定・コード埋め込み） */
+const PAYROLL_EVENTS = [
+  {name:'社会保険料率改定', months:[3]},
+  {name:'雇用保険料率改定', months:[4]},
+  {name:'住民税更新',       months:[6]},
+  {name:'算定基礎届適用',   months:[9]},
+  {name:'最低賃金改定',     months:[10]},
+  {name:'年末調整還付',     months:[12,1]},
+];
+/* 該当月または翌月（＝その月が「該当月の翌月」にあたる場合）に表示する */
+const isPayrollEventActive = (event, month) => {
+  const prevMonth = month===1 ? 12 : month-1;
+  return event.months.includes(month) || event.months.includes(prevMonth);
+};
 const SK = {
   cases:    'task_app_cases',
   masters:  'task_app_masters',
@@ -3609,6 +3623,9 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks}) 
     return <span style={{...s,background:'#f3f4f6',color:'#d1d5db',fontWeight:'400'}}>–</span>;
   };
   const MONTHS=[1,2,3,4,5,6,7,8,9,10,11,12];
+  // 給与計算 全体イベント：選択中の年度・月ではなく、実際の「今月」を基準に判定する
+  const currentRealMonth = new Date().getMonth()+1;
+  const activePayrollEvents = PAYROLL_EVENTS.filter(e => isPayrollEventActive(e, currentRealMonth));
 
   const filteredPayrolls = useMemo(()=>{
     return payrolls.filter(p=>{
@@ -3670,6 +3687,16 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks}) 
           <button className="btn btn-primary" onClick={()=>{setEditCust(null);setShowCustModal(true);}}>＋ 顧問先追加</button>
         </div>
       </div>
+
+      {/* ── 全体イベント ── */}
+      {activePayrollEvents.length>0 && (
+        <div className="flex items-center gap-2 mb-3 flex-wrap" style={{background:'#eff6ff',border:'1px solid #93c5fd',borderRadius:'8px',padding:'8px 14px'}}>
+          <span style={{fontSize:'13px',fontWeight:700,color:'#1e40af',whiteSpace:'nowrap'}}>📅 {currentRealMonth}月のイベント：</span>
+          {activePayrollEvents.map(e=>(
+            <span key={e.name} style={{fontSize:'13px',fontWeight:600,color:'#1d4ed8',background:'white',border:'1px solid #bfdbfe',borderRadius:'9999px',padding:'2px 10px'}}>{e.name}</span>
+          ))}
+        </div>
+      )}
 
       {/* ── フィルターバー ── */}
       <div className="flex items-center gap-2 mb-3 flex-wrap bg-white border border-gray-200 rounded-lg px-3 py-2">
