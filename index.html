@@ -256,18 +256,37 @@ const CHECK_STATUSES = ['依頼受付', '手続き済', '納品済', '請求済'
 const PROCEDURE_GROUPS = ['入社', '退職', '身上異動', '給与変更・賞与支給', '出産・育児・介護', '年齢到達', 'ケガ・病気・死亡', '労働保険申告', '算定基礎届', '協定届', '事業所に関する届出', 'その他'];
 const PROCEDURE_DATE_FIELDS = ['取得日', '喪失日', '退職日', '出産予定日', '出産日', '産前開始日', '産後終了日', '育児休業開始日', '育児休業終了日'];
 /* 給与計算 全体イベント（該当月固定・コード埋め込み） */
+/* split:true のイベントは「当月徴収」（該当月）「翌月徴収」（翌月）の2件に分けて表示する */
 const PAYROLL_EVENTS = [
-  {name:'社会保険料率改定', months:[3]},
+  {name:'社会保険料率改定', months:[3], split:true},
   {name:'雇用保険料率改定', months:[4]},
   {name:'住民税更新',       months:[6]},
-  {name:'算定基礎届適用',   months:[9]},
+  {name:'算定基礎届適用',   months:[9], split:true},
   {name:'最低賃金改定',     months:[10]},
   {name:'年末調整還付',     months:[12,1]},
 ];
-/* 該当月または翌月（＝その月が「該当月の翌月」にあたる場合）に表示する */
-const isPayrollEventActive = (event, month) => {
+/* 該当月なら'current'、翌月（＝その月が「該当月の翌月」にあたる場合）なら'next'、それ以外は'none' */
+const getPayrollEventState = (months, month) => {
   const prevMonth = month===1 ? 12 : month-1;
-  return event.months.includes(month) || event.months.includes(prevMonth);
+  if (months.includes(month)) return 'current';
+  if (months.includes(prevMonth)) return 'next';
+  return 'none';
+};
+/* 全体イベントを表示用アイテム（{key,label,state}）に展開する。split対象イベントは当月徴収・翌月徴収の2件に分解し、
+   どちらか一方でも該当月・翌月として有効な間は両方を表示、実際にその月に該当する側を'current'、もう一方を'next'とする */
+const getPayrollEventDisplayItems = (month) => {
+  return PAYROLL_EVENTS.flatMap(e => {
+    if (e.split) {
+      const m1 = e.months[0];
+      const m2 = m1===12 ? 1 : m1+1;
+      const groupState = getPayrollEventState(e.months, month);
+      return [
+        {key:`${e.name}-cur`, label:`${m1}月 ${e.name}（当月徴収）`, state: groupState==='none' ? 'none' : (month===m1?'current':'next')},
+        {key:`${e.name}-nxt`, label:`${m2}月 ${e.name}（翌月徴収）`, state: groupState==='none' ? 'none' : (month===m2?'current':'next')},
+      ];
+    }
+    return [{key:e.name, label:`${e.months.map(m=>`${m}月`).join('・')} ${e.name}`, state: getPayrollEventState(e.months, month)}];
+  });
 };
 const SK = {
   cases:    'task_app_cases',
@@ -3721,18 +3740,13 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks}) 
       {/* ── 全体イベント ── */}
       <div className="flex items-center gap-2 mb-3 flex-wrap" style={{background:'#eff6ff',border:'1px solid #93c5fd',borderRadius:'8px',padding:'8px 14px'}}>
         <span style={{fontSize:'13px',fontWeight:700,color:'#1e40af',whiteSpace:'nowrap'}}>📅</span>
-        {PAYROLL_EVENTS.map(e=>{
-          const active = isPayrollEventActive(e, currentRealMonth);
-          const label = e.months.map(m=>`${m}月`).join('・');
-          return active ? (
-            <span key={e.name} style={{fontSize:'13px',fontWeight:700,color:'#1d4ed8',background:'white',border:'1px solid #93c5fd',borderRadius:'6px',padding:'2px 8px',whiteSpace:'nowrap'}}>
-              {label} {e.name}
-            </span>
-          ) : (
-            <span key={e.name} style={{fontSize:'13px',fontWeight:400,color:'#93a3b8',whiteSpace:'nowrap'}}>
-              {label} {e.name}
-            </span>
-          );
+        {getPayrollEventDisplayItems(currentRealMonth).map(item=>{
+          const style = item.state==='current'
+            ? {fontSize:'13px',fontWeight:700,color:'#ffffff',background:'#2563eb',border:'1px solid #2563eb',borderRadius:'6px',padding:'2px 8px',whiteSpace:'nowrap'}
+            : item.state==='next'
+            ? {fontSize:'13px',fontWeight:700,color:'#1d4ed8',background:'#dbeafe',border:'1px solid #93c5fd',borderRadius:'6px',padding:'2px 8px',whiteSpace:'nowrap'}
+            : {fontSize:'13px',fontWeight:400,color:'#93a3b8',whiteSpace:'nowrap'};
+          return <span key={item.key} style={style}>{item.label}</span>;
         })}
       </div>
 
