@@ -3495,10 +3495,11 @@ function PayrollCustomerModal({item, onSave, onClose, masters}) {
   );
 }
 
-function PayrollMonthModal({payroll, month, year, cases, checks, onSave, onClose}) {
+function PayrollMonthModal({payroll, month, year, cases, checks, masters, onSave, onClose}) {
   const md = (payroll.yearData&&payroll.yearData[year]&&payroll.yearData[year][month]) || PB();
   const [form,setForm]=useState({...PB(),...md});
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const [expandedGroups,setExpandedGroups]=useState({});
 
   // 案件・月変チェックは「日付が当月」または「日付が前月（＝当月が翌月にあたる）」の場合に表示する
   const prevMonth = month===1 ? 12 : month-1;
@@ -3520,6 +3521,16 @@ function PayrollMonthModal({payroll, month, year, cases, checks, onSave, onClose
       return matches.length>0 ? {procedure:c.procedure, matches, memo:c.memo} : null;
     })
     .filter(Boolean);
+  // 手続きマスタのグループ設定に基づき関連案件をグルーピング（未設定・未登録の手続きは「その他」）
+  const groupedCases = useMemo(() => {
+    const map = {};
+    relatedCases.forEach(rc => {
+      const proc = (masters.procedures||[]).find(p => p.name===rc.procedure);
+      const g = proc && PROCEDURE_GROUPS.includes(proc.グループ) ? proc.グループ : 'その他';
+      (map[g] = map[g] || []).push(rc);
+    });
+    return map;
+  }, [relatedCases, masters.procedures]);
   // 月変チェックの改定月（revisionMonth）が当月・前月に該当するもの
   const relatedChecks = (checks||[]).filter(c => {
     if (c.cancelled || c.customerName!==payroll.customerName) return false;
@@ -3536,12 +3547,32 @@ function PayrollMonthModal({payroll, month, year, cases, checks, onSave, onClose
           <div className="mb-5 p-3 rounded-lg" style={{background:'#fff7ed', border:'1px solid #fdba74'}}>
             <p className="text-xs font-semibold mb-2" style={{color:'#9a3412'}}>⚠️ 関連する案件（{prevMonth}月・{month}月）</p>
             <div className="space-y-1.5">
-              {relatedCases.map((rc,i)=>{
-                const dateText = rc.matches.map(([field,date])=>`${field}：${date}`).join('、');
+              {PROCEDURE_GROUPS.map(g => {
+                const items = groupedCases[g];
+                if (!items || items.length===0) return null;
+                const expanded = !!expandedGroups[g];
                 return (
-                  <div key={`case-${i}`} className="text-sm" style={{color:'#374151'}}>
-                    <span className="font-semibold">{rc.procedure}</span>
-                    <span className="text-gray-500">｜{dateText}{rc.memo ? `｜${rc.memo}` : ''}</span>
+                  <div key={g}>
+                    <div
+                      className="text-sm font-semibold cursor-pointer select-none"
+                      style={{color:'#9a3412'}}
+                      onClick={()=>setExpandedGroups(eg=>({...eg,[g]:!eg[g]}))}
+                    >
+                      {expanded?'▼':'▶'} {g} {items.length}件
+                    </div>
+                    {expanded && (
+                      <div className="pl-4 space-y-1 mt-1">
+                        {items.map((rc,i)=>{
+                          const dateText = rc.matches.map(([field,date])=>`${field}：${date}`).join('、');
+                          return (
+                            <div key={`case-${g}-${i}`} className="text-sm" style={{color:'#374151'}}>
+                              <span className="font-semibold">{rc.procedure}</span>
+                              <span className="text-gray-500">｜{dateText}{rc.memo ? `｜${rc.memo}` : ''}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -3946,7 +3977,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks}) 
 
       {/* ── モーダル ── */}
       {showCustModal && <PayrollCustomerModal item={editCust} onSave={handleSaveCust} onClose={()=>{setShowCustModal(false);setEditCust(null);}} masters={masters} />}
-      {editMD && <PayrollMonthModal payroll={editMD.payroll} month={editMD.month} year={editMD.year} cases={cases} checks={checks} onSave={handleSaveMonth} onClose={()=>setEditMD(null)} />}
+      {editMD && <PayrollMonthModal payroll={editMD.payroll} month={editMD.month} year={editMD.year} cases={cases} checks={checks} masters={masters} onSave={handleSaveMonth} onClose={()=>setEditMD(null)} />}
       {termCust && (
         termCust.terminated
           ? <ConfirmModal
