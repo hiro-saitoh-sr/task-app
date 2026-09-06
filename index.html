@@ -3566,8 +3566,9 @@ function PayrollMonthModal({payroll, month, year, cases, checks, masters, onSave
           <div className="mb-5 p-3 rounded-lg" style={{background:'#fff7ed', border:'1px solid #fdba74'}}>
             <p className="text-xs font-semibold mb-2" style={{color:'#9a3412'}}>⚠️ 関連する案件（{prevMonth}月・{month}月）</p>
             <div className="space-y-1.5">
-              {PROCEDURE_GROUPS.map(g => {
-                const items = groupedCases[g];
+              {[...PROCEDURE_GROUPS, '月額変更届'].map(g => {
+                const isCheckGroup = g==='月額変更届';
+                const items = isCheckGroup ? relatedChecks : groupedCases[g];
                 if (!items || items.length===0) return null;
                 const expanded = !!expandedGroups[g];
                 return (
@@ -3581,7 +3582,12 @@ function PayrollMonthModal({payroll, month, year, cases, checks, masters, onSave
                     </div>
                     {expanded && (
                       <div className="pl-4 space-y-1 mt-1">
-                        {items.map((rc,i)=>{
+                        {isCheckGroup ? items.map((rc,i)=>(
+                          <div key={`chk-${i}`} className="text-sm" style={{color:'#374151'}}>
+                            <span className="font-semibold">月額変更届｜</span>
+                            <span className="text-gray-500">改定月：{rc.revisionMonth}｜{(rc.procedureBy||'').replace(/\n/g,'、')}</span>
+                          </div>
+                        )) : items.map((rc,i)=>{
                           const dateText = rc.matches.map(([field,date])=>`${field}：${date}`).join('、');
                           return (
                             <div key={`case-${g}-${i}`} className="text-sm" style={{color:'#374151'}}>
@@ -3595,12 +3601,6 @@ function PayrollMonthModal({payroll, month, year, cases, checks, masters, onSave
                   </div>
                 );
               })}
-              {relatedChecks.map((rc,i)=>(
-                <div key={`chk-${i}`} className="text-sm" style={{color:'#374151'}}>
-                  <span className="font-semibold">月額変更届｜</span>
-                  <span className="text-gray-500">改定月：{rc.revisionMonth}｜{(rc.procedureBy||'').replace(/\n/g,'、')}</span>
-                </div>
-              ))}
             </div>
           </div>
         )}
