@@ -294,7 +294,7 @@ const SK = {
   checks:   'task_app_monthly_checks',
   payrolls: 'task_app_payroll_schedules',
 };
-const MASTER_VERSION = 4;
+const MASTER_VERSION = 5;
 const CHECKS_VERSION = 1;
 const PAYROLL_VERSION = 3;
 
@@ -543,6 +543,24 @@ function migrateCustomersV3toV4(customers) {
   });
 }
 
+// v4 → v5: CCメール（単一文字列）を廃止し、CC①②③（名前＋メール）へ移行。既存のCCメールはCC①のメールに移行
+function migrateCustomersV4toV5(customers) {
+  return (customers || []).map(c => {
+    if (c.CCメール === undefined) return c;
+    const rest = {...c};
+    delete rest.CCメール;
+    return {
+      ...rest,
+      CC1名:     rest.CC1名 || '',
+      CC1メール: rest.CC1メール || c.CCメール || '',
+      CC2名:     rest.CC2名 || '',
+      CC2メール: rest.CC2メール || '',
+      CC3名:     rest.CC3名 || '',
+      CC3メール: rest.CC3メール || '',
+    };
+  });
+}
+
 function loadMasters() {
   try {
     const saved = localStorage.getItem(SK.masters);
@@ -555,11 +573,15 @@ function loadMasters() {
         }
         return parsed;
       }
-      // v3 → v4: 担当者名②・担当者メール②を廃止しCCメールへ移行
-      if (parsed.version === 3 && Array.isArray(parsed.customers)) {
-        return {...parsed, customers: migrateCustomersV3toV4(parsed.customers), version: MASTER_VERSION};
+      // v4 → v5: CCメールを廃止しCC①②③（名前＋メール）へ移行
+      if (parsed.version === 4 && Array.isArray(parsed.customers)) {
+        return {...parsed, customers: migrateCustomersV4toV5(parsed.customers), version: MASTER_VERSION};
       }
-      // v2 → v4: merge new fields (業種・担当者名・メール等) into existing customers, add new customers、その後v4へ移行
+      // v3 → v5: 担当者名②・担当者メール②を廃止しCCメールへ移行、その後CC①②③へ移行
+      if (parsed.version === 3 && Array.isArray(parsed.customers)) {
+        return {...parsed, customers: migrateCustomersV4toV5(migrateCustomersV3toV4(parsed.customers)), version: MASTER_VERSION};
+      }
+      // v2 → v5: merge new fields (業種・担当者名・メール等) into existing customers, add new customers、その後v5へ移行
       if (parsed.version === 2 && Array.isArray(parsed.customers)) {
         const defaults = initMasters();
         const defMap = Object.fromEntries(defaults.customers.map(c=>[c.id, c]));
@@ -571,7 +593,7 @@ function loadMasters() {
         const newCusts = defaults.customers.filter(c=>!oldIds.has(c.id));
         return {
           ...parsed,
-          customers: migrateCustomersV3toV4([...merged, ...newCusts]),
+          customers: migrateCustomersV4toV5(migrateCustomersV3toV4([...merged, ...newCusts])),
           version: MASTER_VERSION,
         };
       }
@@ -604,7 +626,7 @@ const TASK_EXCEL_HEADERS = ['No', '顧客名', '手続き内容', 'メモ', '担
 const CHECK_EXCEL_HEADERS = ['No', '顧客名', '昇(降)給月', '改定年月', 'メモ', 'チェック対象者', '手続き対象者', '改定人数', '担当者', 'ステータス', '請求額', '対象年月'];
 const ANNUAL_EXCEL_HEADERS = ['No', '顧客名', '手続き名', '対象年度', 'メモ', '担当者', 'ステータス', '受付日', '対象人数', '請求額', '対象年月'];
 const PAYROLL_EXCEL_HEADERS = ['顧問先名', '担当者', '年', '月', '受取日', '送信日', '人数', '納品日', '賞与人数', '賞与納品日', '締日', '支給日', '年末調整還付月', '賞与支給月', '納品方法', 'その他メモ'];
-const CUSTOMER_MASTER_EXCEL_HEADERS = ['No', '名称', '業種', '代表者名', '代表者メール', '担当者名', '担当者メール', 'CCメール', '決算月', '契約サービス', '36協定起算日', 'その他労使協定の届出', '東京SR特別加入'];
+const CUSTOMER_MASTER_EXCEL_HEADERS = ['No', '名称', '業種', '代表者名', '代表者メール', '担当者名', '担当者メール', 'CC①名', 'CC①メール', 'CC②名', 'CC②メール', 'CC③名', 'CC③メール', '事務所担当者', '決算月', '契約サービス', '36協定起算日', 'その他労使協定の届出', '東京SR特別加入'];
 
 function taskExcelFilenameDate() {
   const d = new Date();
@@ -739,7 +761,13 @@ function buildCustomerMasterExportRows(customers) {
       '代表者メール':         c.代表者メール || '',
       '担当者名':             c.担当者名 || '',
       '担当者メール':         c.担当者メール || '',
-      'CCメール':             c.CCメール || '',
+      'CC①名':               c.CC1名 || '',
+      'CC①メール':           c.CC1メール || '',
+      'CC②名':               c.CC2名 || '',
+      'CC②メール':           c.CC2メール || '',
+      'CC③名':               c.CC3名 || '',
+      'CC③メール':           c.CC3メール || '',
+      '事務所担当者':         c.事務所担当者 || '',
       '決算月':               c.決算月 || '',
       '契約サービス':         (c.契約サービス || []).join('・'),
       '36協定起算日':         c['36協定起算日'] || '',
@@ -765,7 +793,7 @@ function buildBackupWorkbook({cases, checks, payrolls, masters}) {
   addSheet(wb, PAYROLL_EXCEL_HEADERS, buildPayrollExportRows(payrolls),
     [{wch:22},{wch:12},{wch:6},{wch:5},{wch:10},{wch:10},{wch:8},{wch:10},{wch:10},{wch:12},{wch:10},{wch:14},{wch:14},{wch:12},{wch:12},{wch:24}], '給与計算');
   addSheet(wb, CUSTOMER_MASTER_EXCEL_HEADERS, buildCustomerMasterExportRows(masters && masters.customers),
-    [{wch:8},{wch:26},{wch:14},{wch:14},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:10},{wch:20},{wch:14},{wch:16},{wch:14}], '顧問先マスタ');
+    [{wch:8},{wch:26},{wch:14},{wch:14},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:10},{wch:20},{wch:14},{wch:16},{wch:14}], '顧問先マスタ');
   return wb;
 }
 function daysSince(str) {
@@ -1276,8 +1304,12 @@ function DeliveryMailModal({caseData, masters, onClose}) {
   const master = (masters.customers||[]).find(m => m.name === caseData.customerName) || null;
   const companyName = (master && master.name) || caseData.customerName || '';
   const email = (master && master.担当者メール) || '';
-  const ccRaw = (master && master.CCメール) || '';
-  const cc = ccRaw.split('、').map(s => s.trim()).filter(Boolean).join(',');
+  const cc = master ? joinCcEmails(master).split('、').filter(Boolean).join(',') : '';
+  const ccRaw = master ? [
+    formatCcDisplay(master.CC1名, master.CC1メール),
+    formatCcDisplay(master.CC2名, master.CC2メール),
+    formatCcDisplay(master.CC3名, master.CC3メール),
+  ].filter(Boolean).join('、') : '';
   const names = splitNames(master && master.担当者名);
   const greetingLines = names.length > 0 ? names : [''];
 
@@ -4035,6 +4067,15 @@ function CopyButton({text}) {
   );
 }
 
+function formatCcDisplay(name, mail) {
+  if (name && mail) return `${name}　${mail}`;
+  return name || mail || '';
+}
+
+function joinCcEmails(item) {
+  return [item.CC1メール, item.CC2メール, item.CC3メール].filter(Boolean).join('、');
+}
+
 function CustomerDetailModal({item, onClose, onEdit}) {
   const fields = [
     {k:'業種',                v:item.業種},
@@ -4042,9 +4083,12 @@ function CustomerDetailModal({item, onClose, onEdit}) {
     {k:'代表者メール',         v:item.代表者メール,         copy:true},
     {k:'宛名',                  v:item.担当者名},
     {k:'担当者メール',          v:item.担当者メール,         copy:true},
-    {k:'CCメール',              v:item.CCメール,             copy:true},
+    {k:'CC①',                  v:formatCcDisplay(item.CC1名, item.CC1メール), copy:true},
+    {k:'CC②',                  v:formatCcDisplay(item.CC2名, item.CC2メール), copy:true},
+    {k:'CC③',                  v:formatCcDisplay(item.CC3名, item.CC3メール), copy:true},
     {k:'決算月',               v:item.決算月},
     {k:'契約サービス',         v:(item.契約サービス||[]).join('・')},
+    {k:'事務所担当者',         v:item.事務所担当者},
     {k:'36協定起算日',         v:item['36協定起算日']},
     {k:'その他労使協定の届出', v:item['その他労使協定の届出']},
     {k:'東京SR特別加入',       v:item['東京SR特別加入']},
@@ -4080,8 +4124,8 @@ function CustomerDetailModal({item, onClose, onEdit}) {
   );
 }
 
-function MasterItemModal({title, item, onSave, onClose, showNo, tab}) {
-  const defForm = {no:'', name:'', グループ:'', 必須日付フィールド:[], 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', CCメール:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
+function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees}) {
+  const defForm = {no:'', name:'', グループ:'', 必須日付フィールド:[], 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', CC1名:'', CC1メール:'', CC2名:'', CC2メール:'', CC3名:'', CC3メール:'', 事務所担当者:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
   const [form, setForm] = useState(item ? {...defForm, ...item} : defForm);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
   const toggleSv = sv => {
@@ -4160,8 +4204,25 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab}) {
               </div>
             </div>
             <div className="mb-3">
-              <label className="block text-sm font-semibold text-gray-600 mb-1">CCメール</label>
-              <input value={form.CCメール||''} onChange={e=>set('CCメール',e.target.value)} placeholder="複数可。「、」区切り（例：a@example.com、b@example.com）" />
+              <label className="block text-sm font-semibold text-gray-600 mb-1">CC①</label>
+              <div className="grid grid-cols-2 gap-3">
+                <input value={form.CC1名||''} onChange={e=>set('CC1名',e.target.value)} placeholder="名前（任意）" />
+                <input value={form.CC1メール||''} onChange={e=>set('CC1メール',e.target.value)} placeholder="メールアドレス（任意）" />
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">CC②</label>
+              <div className="grid grid-cols-2 gap-3">
+                <input value={form.CC2名||''} onChange={e=>set('CC2名',e.target.value)} placeholder="名前（任意）" />
+                <input value={form.CC2メール||''} onChange={e=>set('CC2メール',e.target.value)} placeholder="メールアドレス（任意）" />
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">CC③</label>
+              <div className="grid grid-cols-2 gap-3">
+                <input value={form.CC3名||''} onChange={e=>set('CC3名',e.target.value)} placeholder="名前（任意）" />
+                <input value={form.CC3メール||''} onChange={e=>set('CC3メール',e.target.value)} placeholder="メールアドレス（任意）" />
+              </div>
             </div>
             <div className="mb-3">
               <label className="block text-sm font-semibold text-gray-600 mb-1">契約サービス</label>
@@ -4176,6 +4237,17 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab}) {
                   </label>
                 ))}
               </div>
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">事務所担当者</label>
+              {(assignees||[]).length>0 ? (
+                <select value={form.事務所担当者||''} onChange={e=>set('事務所担当者',e.target.value)}>
+                  <option value="">選択してください</option>
+                  {assignees.map(a=><option key={a.id} value={a.name}>{a.name}</option>)}
+                </select>
+              ) : (
+                <input value={form.事務所担当者||''} onChange={e=>set('事務所担当者',e.target.value)} placeholder="担当者名" />
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
@@ -4428,7 +4500,8 @@ function MasterScreen({masters, setMasters}) {
                 {tab==='顧問先' && <>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">代表者名</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">宛名</th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">CCメール</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">CC</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">事務所担当者</th>
                   <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">36協定起算日</th>
                   <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">その他労使協定</th>
                   <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">特別加入</th>
@@ -4460,7 +4533,8 @@ function MasterScreen({masters, setMasters}) {
                   {tab==='顧問先' && <>
                     <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.代表者名||''}</td>
                     <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}</td>
-                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.CCメール||''}</td>
+                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{joinCcEmails(item)}</td>
+                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.事務所担当者||''}</td>
                     <td className="px-3 py-3 text-sm text-gray-600 text-center whitespace-nowrap">{item['36協定起算日']||''}</td>
                     <td className="px-3 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
                       {item['その他労使協定の届出']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">あり</span>}
@@ -4530,6 +4604,7 @@ function MasterScreen({masters, setMasters}) {
           onClose={()=>{setShowModal(false);setEditItem(null);}}
           showNo={tab==='顧問先'}
           tab={tab}
+          assignees={masters.assignees||[]}
         />
       )}
       {delItem && (
@@ -4649,14 +4724,16 @@ function App() {
       }
 
       const loadedMasters = msSnap.val();
-      if (loadedMasters && loadedMasters.customers && (loadedMasters.version === MASTER_VERSION || loadedMasters.version === 3)) {
-        const needsFieldMigration = loadedMasters.version === 3;
-        let custs = needsFieldMigration ? migrateCustomersV3toV4(loadedMasters.customers) : loadedMasters.customers;
+      if (loadedMasters && loadedMasters.customers && [3, 4, MASTER_VERSION].includes(loadedMasters.version)) {
+        const fromVersion = loadedMasters.version;
+        let custs = loadedMasters.customers;
+        if (fromVersion === 3) custs = migrateCustomersV3toV4(custs);
+        if (fromVersion === 3 || fromVersion === 4) custs = migrateCustomersV4toV5(custs);
         const hasSpot = custs.some(c => c.name === 'スポット');
         if (hasSpot) custs = custs.map(c => c.name === 'スポット' ? {...c, name: 'その他（直接入力）'} : c);
         const migratedMasters = {...loadedMasters, customers: custs, version: MASTER_VERSION};
         mastersRef.current = migratedMasters; setMastersRaw(migratedMasters); save(SK.masters, migratedMasters);
-        if (needsFieldMigration || hasSpot) db.ref('masters').set(migratedMasters);
+        if (fromVersion !== MASTER_VERSION || hasSpot) db.ref('masters').set(migratedMasters);
       } else {
         db.ref('masters').set(mastersRef.current);
       }

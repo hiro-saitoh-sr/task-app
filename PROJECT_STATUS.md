@@ -19,6 +19,13 @@
 - CodexとClaude Codeは対等な開発担当であり、共通Git手順と競合停止ルールを適用する
 
 ## 直近の変更
+- 顧問先マスタのCC欄を3名分（名前＋メール）に拡張・事務所担当者欄を追加（2026-09-18）。
+  - 修正1（CC欄拡張）：単一の「CCメール」（文字列、「、」区切り）を廃止し、`CC1名`/`CC1メール`/`CC2名`/`CC2メール`/`CC3名`/`CC3メール`の3組（各任意入力）に変更。編集フォーム（`MasterItemModal`）・詳細表示（`CustomerDetailModal`）・一覧テーブル・Excel一括出力（`CUSTOMER_MASTER_EXCEL_HEADERS`/`buildCustomerMasterExportRows`）・納品メール下書き（`DeliveryMailModal`のCC欄・Gmail下書きURL）を対応する形式に更新。
+  - データ移行：`MASTER_VERSION`を4→5に更新し、`migrateCustomersV4toV5`を新規追加。既存の「CCメール」の値はそのままCC①のメール（`CC1メール`）に移行（複数アドレスが「、」区切りで入っていた場合も分割せずCC①へ一括移行、名前は空欄）。ローカル保存（`loadMasters`）・Firebase初回同期（`App`内`loadFromDB`相当の処理）の両方でv3→v5・v4→v5のマイグレーションを通すよう修正。
+    - 重要：修正前のFirebase初回同期ロジックは`loadedMasters.version === MASTER_VERSION || loadedMasters.version === 3`のみを許容しており、`MASTER_VERSION`を単純に5へ上げると本番のv4データ（現行データはこの版）が条件に一致せず、初期化用のローカルデフォルト顧客データでFirebase上のmastersを上書きしてしまうバグを内包していた。`[3, 4, MASTER_VERSION].includes(loadedMasters.version)`に修正し、v3・v4のいずれからもv5へ正しく移行してから書き戻すよう変更済み（本番データの上書き事故を回避）。
+  - 修正2（事務所担当者欄追加）：顧問先マスタに`事務所担当者`（文字列、担当者マスタの氏名を保持）を追加。編集フォームに「契約サービス」欄の下へ、担当者マスタ（`masters.assignees`）から選択するプルダウンを配置（案件管理の「担当者」欄と同じUIパターン）。詳細表示・一覧テーブルにも表示列を追加。`MasterScreen`から`MasterItemModal`へ`assignees`propを新規で渡すよう変更。
+  - 影響範囲：顧問先マスタのCC・事務所担当者関連の表示・入力・出力ロジックのみ。案件管理・請求集計・月変チェック・年更算定・給与計算・提携先マスタ・shogu-app連携データには変更なし。
+  - Babel（`@babel/preset-react`相当、esbuildでJSX構文検証）で構文検証済み。Chrome拡張機能が未接続のため実ブラウザでの入力・表示・移行動作の確認は未実施。
 - 給与計算「月次データ入力」ポップアップの月変チェック（改定月）を「月額変更届」グループとして折りたたみ表示に追加（2026-09-06）。
   - 修正前：手続きマスタのグループ設定に基づく関連案件（`cases`）はグループ別折りたたみ表示になっていたが、月変チェック（`checks`、`relatedChecks`）はグループ化されず、折りたたみ一覧の下に常時フラット表示されていた。
   - 修正後：`PayrollMonthModal`の表示ループを`PROCEDURE_GROUPS.map(...)`から`[...PROCEDURE_GROUPS, '月額変更届'].map(...)`に変更し、末尾に「月額変更届」という専用グループを追加。このグループのみ`items`に`groupedCases[g]`ではなく`relatedChecks`を使用（`isCheckGroup`フラグで分岐）し、他のグループと同じ「▶/▼ グループ名 件数」の見出し・クリック開閉（`expandedGroups` state）に統一。展開時の子要素の表示内容（「月額変更届｜改定月：〇〇｜手続き対象者」）は変更前と同一。
