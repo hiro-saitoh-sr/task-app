@@ -4081,15 +4081,14 @@ function joinCcNames(item) {
 }
 
 function CustomerDetailModal({item, onClose, onEdit}) {
-  const fields = [
+  const fieldsBefore = [
     {k:'業種',                v:item.業種},
     {k:'代表者名',             v:item.代表者名},
     {k:'代表者メール',         v:item.代表者メール,         copy:true},
     {k:'宛名',                  v:item.担当者名},
     {k:'担当者メール',          v:item.担当者メール,         copy:true},
-    {k:'CC①',                  v:formatCcDisplay(item.CC1名, item.CC1メール), copy:true},
-    {k:'CC②',                  v:formatCcDisplay(item.CC2名, item.CC2メール), copy:true},
-    {k:'CC③',                  v:formatCcDisplay(item.CC3名, item.CC3メール), copy:true},
+  ];
+  const fieldsAfter = [
     {k:'決算月',               v:item.決算月},
     {k:'契約サービス',         v:(item.契約サービス||[]).join('・')},
     {k:'事務所担当者',         v:item.事務所担当者},
@@ -4097,6 +4096,13 @@ function CustomerDetailModal({item, onClose, onEdit}) {
     {k:'その他労使協定の届出', v:item['その他労使協定の届出']},
     {k:'東京SR特別加入',       v:item['東京SR特別加入']},
   ];
+  const renderField = ({k,v,copy}) => (
+    <div key={k} className="flex items-center gap-3 py-2.5 text-sm">
+      <span className="font-semibold text-gray-500 whitespace-nowrap w-36 shrink-0">{k}</span>
+      <span className="text-gray-800 break-all flex-1">{v || <span className="text-gray-300">—</span>}</span>
+      {copy && v && <CopyButton text={v} />}
+    </div>
+  );
   return (
     <div className="modal-overlay">
       <div className="modal-box" style={{width:'480px'}}>
@@ -4111,13 +4117,24 @@ function CustomerDetailModal({item, onClose, onEdit}) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </div>
         <div className="divide-y divide-gray-100">
-          {fields.map(({k,v,copy})=>(
-            <div key={k} className="flex items-center gap-3 py-2.5 text-sm">
-              <span className="font-semibold text-gray-500 whitespace-nowrap w-36 shrink-0">{k}</span>
-              <span className="text-gray-800 break-all flex-1">{v || <span className="text-gray-300">—</span>}</span>
-              {copy && v && <CopyButton text={v} />}
-            </div>
-          ))}
+          {fieldsBefore.map(renderField)}
+          {[1,2,3].map(n=>{
+            const name = item[`CC${n}名`];
+            const mail = item[`CC${n}メール`];
+            return (
+              <div key={`cc${n}`} className="flex items-start gap-3 py-2.5 text-sm">
+                <span className="font-semibold text-gray-500 whitespace-nowrap w-36 shrink-0">CC{['①','②','③'][n-1]}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-800 break-all">名前：{name || <span className="text-gray-300">—</span>}</div>
+                  <div className="text-gray-800 break-all flex items-center gap-2">
+                    <span>メール：{mail || <span className="text-gray-300">—</span>}</span>
+                    {mail && <CopyButton text={mail} />}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {fieldsAfter.map(renderField)}
         </div>
         <div className="flex justify-between mt-5">
           <button className="btn btn-secondary" onClick={onClose}>閉じる</button>
