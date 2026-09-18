@@ -4122,11 +4122,15 @@ function CustomerDetailModal({item, onClose, onEdit}) {
             const name = item[`CC${n}名`];
             const mail = item[`CC${n}メール`];
             return (
-              <div key={`cc${n}`} className="flex items-center gap-3 py-2.5 text-sm whitespace-nowrap">
+              <div key={`cc${n}`} className="flex items-start gap-3 py-2.5 text-sm">
                 <span className="font-semibold text-gray-500 whitespace-nowrap w-36 shrink-0">CC{['①','②','③'][n-1]}</span>
-                <span className="text-gray-800">名前：{name || <span className="text-gray-300">—</span>}</span>
-                <span className="text-gray-800">メール：{mail || <span className="text-gray-300">—</span>}</span>
-                {mail && <CopyButton text={mail} />}
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-800 whitespace-nowrap">名前：{name || <span className="text-gray-300">—</span>}</div>
+                  <div className="text-gray-800 whitespace-nowrap flex items-center gap-2">
+                    <span>メール：{mail || <span className="text-gray-300">—</span>}</span>
+                    {mail && <CopyButton text={mail} />}
+                  </div>
+                </div>
               </div>
             );
           })}
