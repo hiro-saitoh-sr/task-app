@@ -775,6 +775,50 @@ function buildCustomerMasterExportRows(customers) {
     }));
 }
 
+const PROCEDURE_MASTER_EXCEL_HEADERS = ['id', '手続き名', 'グループ', '日付フィールド設定'];
+const ASSIGNEE_MASTER_EXCEL_HEADERS  = ['id', '名称'];
+const PARTNER_MASTER_BASE_HEADERS    = ['id', '名称', '担当者名', 'メールアドレス', '担当顧問先'];
+
+const masterList = v => Array.isArray(v) ? v.filter(Boolean) : (v && typeof v === 'object' ? Object.values(v).filter(Boolean) : []);
+const masterCellValue = v => Array.isArray(v) ? v.join('・') : (v == null ? '' : (typeof v === 'object' ? JSON.stringify(v) : v));
+
+function buildProcedureMasterExportRows(procedures) {
+  return masterList(procedures).map(p => ({
+    'id':               p.id ?? '',
+    '手続き名':         p.name || '',
+    'グループ':         p.グループ || '',
+    '日付フィールド設定': masterList(p.必須日付フィールド).join('・'),
+  }));
+}
+
+function buildAssigneeMasterExportRows(assignees) {
+  return masterList(assignees).map(a => ({
+    'id':   a.id ?? '',
+    '名称': a.name || '',
+  }));
+}
+
+// 提携先は登録されている項目をすべて出力する（既知の項目以外もキー名のまま列として追加）
+function buildPartnerMasterExport(partners) {
+  const list = masterList(partners);
+  const known = new Set(['id', 'name', '担当者名', 'メールアドレス', '担当顧問先']);
+  const extraKeys = [];
+  list.forEach(p => Object.keys(p).forEach(k => { if (!known.has(k) && !extraKeys.includes(k)) extraKeys.push(k); }));
+  const headers = [...PARTNER_MASTER_BASE_HEADERS, ...extraKeys];
+  const rows = list.map(p => {
+    const row = {
+      'id':             p.id ?? '',
+      '名称':           p.name || '',
+      '担当者名':       p.担当者名 || '',
+      'メールアドレス': p.メールアドレス || '',
+      '担当顧問先':     masterList(p.担当顧問先).join('・'),
+    };
+    extraKeys.forEach(k => { row[k] = masterCellValue(p[k]); });
+    return row;
+  });
+  return { headers, rows };
+}
+
 function addSheet(wb, headers, rows, colWidths, sheetName) {
   const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
   ws['!cols'] = colWidths;
@@ -793,6 +837,13 @@ function buildBackupWorkbook({cases, checks, payrolls, masters}) {
     [{wch:22},{wch:12},{wch:6},{wch:5},{wch:10},{wch:10},{wch:8},{wch:10},{wch:10},{wch:12},{wch:10},{wch:14},{wch:14},{wch:12},{wch:12},{wch:24}], '給与計算');
   addSheet(wb, CUSTOMER_MASTER_EXCEL_HEADERS, buildCustomerMasterExportRows(masters && masters.customers),
     [{wch:8},{wch:26},{wch:14},{wch:14},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:10},{wch:20},{wch:14},{wch:16},{wch:14}], '顧問先マスタ');
+  addSheet(wb, PROCEDURE_MASTER_EXCEL_HEADERS, buildProcedureMasterExportRows(masters && masters.procedures),
+    [{wch:8},{wch:26},{wch:14},{wch:40}], '手続きマスタ');
+  addSheet(wb, ASSIGNEE_MASTER_EXCEL_HEADERS, buildAssigneeMasterExportRows(masters && masters.assignees),
+    [{wch:8},{wch:16}], '担当者マスタ');
+  const partnerExport = buildPartnerMasterExport(masters && masters.partners);
+  addSheet(wb, partnerExport.headers, partnerExport.rows,
+    [{wch:8},{wch:26},{wch:14},{wch:28},{wch:40}, ...partnerExport.headers.slice(5).map(() => ({wch:16}))], '提携先マスタ');
   return wb;
 }
 function daysSince(str) {
@@ -1570,7 +1621,7 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
             <button
               className="btn btn-secondary text-xs py-1 px-3"
               onClick={e=>{ e.stopPropagation(); handleExportExcel(); }}
-              title="案件管理・月変チェック・年更算定・給与計算・顧問先マスタのデータを1つのExcelファイルに出力（バックアップ用）">
+              title="案件管理・月変チェック・年更算定・給与計算・顧問先・手続き・担当者・提携先マスタのデータを1つのExcelファイルに出力（バックアップ用）">
               📥 データ一括出力
             </button>
             <span className="text-gray-400 text-xs">{filterOpen?'▲':'▼'}</span>
