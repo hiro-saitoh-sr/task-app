@@ -524,7 +524,6 @@ function initMasters() {
   ];
   const assignees = [
     {id:1, name:'齊藤'},
-    {id:2, name:'武井'},
   ];
   return { customers, procedures, assignees, partners: [], nextId: 9000, version: MASTER_VERSION };
 }
@@ -4743,8 +4742,12 @@ function App() {
         const migratedMasters = {...loadedMasters, customers: custs, version: MASTER_VERSION};
         mastersRef.current = migratedMasters; setMastersRaw(migratedMasters); save(SK.masters, migratedMasters);
         if (fromVersion !== MASTER_VERSION || hasSpot) db.ref('masters').set(migratedMasters);
-      } else {
+      } else if (loadedMasters === null) {
+        // Firebaseにmastersノード自体が存在しない場合のみ初期データを書き込む
         db.ref('masters').set(mastersRef.current);
+      } else {
+        // 既存データのバージョンが認識できない場合は上書きしない（データ消失防止）
+        console.error('[masters] Firebase上のマスタデータのversionが認識できないため読み込み・書き込みをスキップしました', loadedMasters && loadedMasters.version);
       }
 
       const loadedChecks = fbToChecks(ckSnap.val());
