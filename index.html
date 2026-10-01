@@ -2214,12 +2214,10 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
   const grandBonusAmt   = rows.reduce((s,r)=>r.賞与請求額!=null?s+r.賞与請求額:s, 0);
   const grandRomuAmt    = rows.reduce((s,r)=>r.労務顧問!=null?s+r.労務顧問:s, 0);
   const grandShoguAmt   = rows.reduce((s,r)=>r.処遇改善加算!=null?s+r.処遇改善加算:s, 0);
-  const grandSysAmt     = rows.reduce((s,r)=>r.システム利用料!=null?s+r.システム利用料:s, 0);
   const hasPayAmt       = rows.some(r=>r.給与請求額!=null);
   const hasBonusAmt     = rows.some(r=>r.賞与請求額!=null);
   const hasRomuAmt      = rows.some(r=>r.労務顧問!=null);
   const hasShoguAmt     = rows.some(r=>r.処遇改善加算!=null);
-  const hasSysAmt       = rows.some(r=>r.システム利用料!=null);
   const hasAddAmt       = rows.some(r=>(r.追加金額||0)>0);
   const hasMonthly      = rows.some(r=>r.月変請求!=null);
   const hasAnnual       = rows.some(r=>r.年更算定請求!=null);
@@ -2231,7 +2229,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
   };
 
   // 「← 前月を一括引き継ぎ」：PayrollRateModalのinherited()と同じ規則（当月保存済みなら触らない／前月設定→旧フラット構造の順に参照）を全顧問先に適用
-  const INHERIT_KEYS = ['単価_20以下','単価_21_50','単価_51_100','単価_101_300','単価_301以上','労務顧問','処遇改善加算','給与固定金額','システム利用料'];
+  const INHERIT_KEYS = ['単価_20以下','単価_21_50','単価_51_100','単価_101_300','単価_301以上','労務顧問','処遇改善加算','給与固定金額']; // システム利用料はポータルの請求業務ウィザードSTEP1で自動計算するため引き継がない
   const handleBulkInherit = () => {
     if (!sel) return;
     if (!window.confirm(`${sel}の単価設定を、全顧問先について前月から引き継ぎます。よろしいですか？`)) return;
@@ -2406,7 +2404,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
         <div className="text-center py-20 text-gray-400"><p>該当する案件がありません</p></div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 200px)'}}>
-          <table className="text-sm" style={{minWidth:'1420px'}}>
+          <table className="text-sm" style={{minWidth:'1300px'}}>
             <thead>
               <tr style={{background:hdBg}} className="border-b border-gray-200">
                 <th className="px-3 py-3 text-right font-semibold text-gray-600" style={{minWidth:'44px'}}>No</th>
@@ -2415,7 +2413,6 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
                 <th className="px-3 py-3 text-right font-semibold text-gray-600" style={{minWidth:'76px'}}>給与人数</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'90px'}}>給与請求</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'112px'}}>処遇改善加算</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'120px'}}>システム利用料</th>
                 <th className="px-3 py-3 text-right font-semibold text-gray-600" style={{minWidth:'60px'}}>件数</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'90px'}}>案件請求</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-600" style={{minWidth:'112px'}}>追加案件請求</th>
@@ -2441,7 +2438,6 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
                   <td className="px-3 py-3 text-right text-gray-700">{r.給与人数>0?`${r.給与人数}人`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.給与人数>0&&r.給与請求額!=null?`¥${r.給与請求額.toLocaleString()}`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.処遇改善加算!=null?`¥${r.処遇改善加算.toLocaleString()}`:'—'}</td>
-                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.システム利用料!=null?`¥${r.システム利用料.toLocaleString()}`:'—'}</td>
                   <td className="px-3 py-3 text-right text-gray-700">{(r.count||0)>0?`${r.count}件`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{(r.total||0)>0?`¥${r.total.toLocaleString()}`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{(r.追加金額||0)>0?`¥${r.追加金額.toLocaleString()}`:'—'}</td>
@@ -2460,7 +2456,6 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
                 <td className="px-3 py-3 text-right" style={{color:ftColor}}>{grandPayCnt>0?`${grandPayCnt}人`:''}</td>
                 <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasPayAmt?`¥${grandPayAmt.toLocaleString()}`:''}</td>
                 <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasShoguAmt?`¥${grandShoguAmt.toLocaleString()}`:''}</td>
-                <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasSysAmt?`¥${grandSysAmt.toLocaleString()}`:''}</td>
                 <td className="px-3 py-3 text-right" style={{color:ftColor}}>{grandCount>0?`${grandCount}件`:''}</td>
                 <td className="px-4 py-3 text-right" style={{color:ftColor}}>{grandTotal>0?`¥${grandTotal.toLocaleString()}`:''}</td>
                 <td className="px-4 py-3 text-right" style={{color:ftColor}}>{hasAddAmt?`¥${grandAddAmt.toLocaleString()}`:''}</td>
