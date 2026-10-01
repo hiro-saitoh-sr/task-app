@@ -1142,8 +1142,15 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
     if (v === '' || v == null) { delete nf.bonusTargetCount; if (wasAuto) nf.billingAmount = ''; return nf; }
     nf.bonusTargetCount = v;
     const n = parseTargetCount(v);
-    if (n != null) nf.billingAmount = String(calcCountBilling(n));
+    if (n != null && f.billingAmount !== '請求なし') nf.billingAmount = String(calcCountBilling(n)); // 「請求なし」チェック中は請求金額を上書きしない
     return nf;
+  });
+  // 「請求なし」チェック：請求金額欄を既存の「請求なし」表記にする（請求集計の対象外になる）。外すと対象人数から再計算。対象人数はどちらでも保持
+  const isNoBilling = form.billingAmount === '請求なし';
+  const setNoBilling = checked => setForm(f => {
+    if (checked) return {...f, billingAmount: '請求なし'};
+    const n = parseTargetCount(f.bonusTargetCount);
+    return {...f, billingAmount: n != null ? String(calcCountBilling(n)) : ''};
   });
   const clearErr = k => { if(errors[k]) setErrors(er=>({...er,[k]:''})); };
 
@@ -1301,12 +1308,22 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
           {showTargetCount && (
             <div className="mb-4">
               <label className="block text-sm font-semibold text-gray-600 mb-1">対象人数</label>
-              <input type="number" min="0" step="1" value={form.bonusTargetCount ?? ''} onChange={e=>setTargetCount(e.target.value)} placeholder="人数を入力" style={{width:'160px'}} />
+              <div className="flex items-center gap-2">
+                <input type="number" min="0" step="1" value={form.bonusTargetCount ?? ''} onChange={e=>setTargetCount(e.target.value)} placeholder="人数を入力" style={{width:'160px'}} />
+                <span className="text-sm text-gray-600">人</span>
+              </div>
+              <label className="flex items-center gap-1.5 cursor-pointer text-sm mt-2" style={{width:'fit-content'}}>
+                <input type="checkbox" checked={isNoBilling} onChange={e=>setNoBilling(e.target.checked)} style={{width:'15px',height:'15px',cursor:'pointer'}} />
+                請求なし（賞与計算込みのため）
+              </label>
               {isHiro && targetCountNum != null && (
                 <div className="text-sm mt-2" style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:'6px',padding:'8px 12px',color:'#0c4a6e',lineHeight:'1.7'}}>
-                  <div>基本料金：{COUNT_BILLING_BASE.toLocaleString()}円</div>
-                  <div>人数料金：{targetCountNum}人 × {COUNT_BILLING_PER_PERSON}円 = {(targetCountNum*COUNT_BILLING_PER_PERSON).toLocaleString()}円</div>
-                  <div style={{fontWeight:'700'}}>合計請求額：{calcCountBilling(targetCountNum).toLocaleString()}円<span style={{fontWeight:'400',fontSize:'12px',color:'#0369a1',marginLeft:'8px'}}>（請求金額欄に自動入力）</span></div>
+                  <div style={isNoBilling?{opacity:0.5}:{}}>
+                    <div>基本料金：{COUNT_BILLING_BASE.toLocaleString()}円</div>
+                    <div>人数料金：{targetCountNum}人 × {COUNT_BILLING_PER_PERSON}円 = {(targetCountNum*COUNT_BILLING_PER_PERSON).toLocaleString()}円</div>
+                    <div style={{fontWeight:'700'}}>合計請求額：{calcCountBilling(targetCountNum).toLocaleString()}円</div>
+                  </div>
+                  <div style={{fontSize:'12px',color:'#0369a1'}}>{isNoBilling ? '※ 請求なしのため、請求金額欄は「請求なし」になります' : '※ 請求金額欄に自動入力されます'}</div>
                 </div>
               )}
             </div>
