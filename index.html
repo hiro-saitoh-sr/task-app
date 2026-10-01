@@ -4269,7 +4269,7 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
                   checked={!!form.対象人数入力}
                   onChange={e=>set('対象人数入力', e.target.checked)}
                   style={{width:'15px',height:'15px',cursor:'pointer'}} />
-                案件登録時に対象人数を入力し、請求額を自動計算する（{COUNT_BILLING_BASE.toLocaleString()}円＋人数×{COUNT_BILLING_PER_PERSON}円）
+                案件登録時に対象人数を入力する
               </label>
             </div>
           )}
