@@ -255,6 +255,11 @@ const STATUSES = ['依頼待ち', '依頼受付', '手続き済', '納品済', '
 const CHECK_STATUSES = ['依頼受付', '手続き済', '納品済', '請求済'];
 const PROCEDURE_GROUPS = ['入社', '退職', '身上異動', '給与変更・賞与支給', '出産・育児・介護', '年齢到達', 'ケガ・病気・死亡', '労働保険申告', '算定基礎届', '協定届', '事業所に関する届出', 'その他'];
 const PROCEDURE_DATE_FIELDS = ['取得日', '喪失日', '退職日', '出産予定日', '出産日', '産前開始日', '産後終了日', '育児休業開始日', '育児休業終了日'];
+// 手続きマスタで「対象人数入力」をオンにした手続き（賞与支払届）の請求額：基本料金＋対象人数×人数単価
+const COUNT_BILLING_BASE = 2500;
+const COUNT_BILLING_PER_PERSON = 200;
+const calcCountBilling = n => COUNT_BILLING_BASE + n * COUNT_BILLING_PER_PERSON;
+const parseTargetCount = v => { const s = v == null ? '' : String(v).trim(); return /^\d+$/.test(s) ? Number(s) : null; };
 /* 給与計算 全体イベント（該当月固定・コード埋め込み） */
 /* split:true のイベントは「当月徴収」（該当月）「翌月徴収」（翌月）の2件に分けて表示する */
 const PAYROLL_EVENTS = [
@@ -775,7 +780,7 @@ function buildCustomerMasterExportRows(customers) {
     }));
 }
 
-const PROCEDURE_MASTER_EXCEL_HEADERS = ['id', '手続き名', 'グループ', '日付フィールド設定'];
+const PROCEDURE_MASTER_EXCEL_HEADERS = ['id', '手続き名', 'グループ', '日付フィールド設定', '対象人数入力'];
 const ASSIGNEE_MASTER_EXCEL_HEADERS  = ['id', '名称'];
 const PARTNER_MASTER_BASE_HEADERS    = ['id', '名称', '担当者名', 'メールアドレス', '担当顧問先'];
 
@@ -788,6 +793,7 @@ function buildProcedureMasterExportRows(procedures) {
     '手続き名':         p.name || '',
     'グループ':         p.グループ || '',
     '日付フィールド設定': masterList(p.必須日付フィールド).join('・'),
+    '対象人数入力':     p.対象人数入力 ? 'あり' : '',
   }));
 }
 
@@ -1127,6 +1133,18 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
   const setDateField = (f,v) => setForm(fm=>({...fm, dateFields:{...(fm.dateFields||{}), [f]:v}}));
   // 「日」は任意。未選択時はキー自体を持たせない（Firebaseはundefined不可のため）
   const setDay = v => setForm(f => { const nf={...f}; if(v) nf.targetDay=v; else delete nf.targetDay; return nf; });
+  // 対象人数：入力に合わせて請求金額を自動計算。人数を消したときは、自動計算した金額のままなら請求金額も空に戻す
+  // （未入力時はキー自体を持たせない＝既存案件・他の手続きの案件にはフィールドが増えない）
+  const setTargetCount = v => setForm(f => {
+    const nf = {...f};
+    const prevN = parseTargetCount(f.bonusTargetCount);
+    const wasAuto = prevN != null && String(f.billingAmount ?? '') === String(calcCountBilling(prevN));
+    if (v === '' || v == null) { delete nf.bonusTargetCount; if (wasAuto) nf.billingAmount = ''; return nf; }
+    nf.bonusTargetCount = v;
+    const n = parseTargetCount(v);
+    if (n != null) nf.billingAmount = String(calcCountBilling(n));
+    return nf;
+  });
   const clearErr = k => { if(errors[k]) setErrors(er=>({...er,[k]:''})); };
 
   const validateDateInput = str => {
@@ -1147,6 +1165,8 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
   const procInMaster = masters.procedures.some(p=>p.name===form.procedure);
   const selectedProcedure = masters.procedures.find(p=>p.name===form.procedure);
   const requiredDateFields = selectedProcedure?.必須日付フィールド || [];
+  const showTargetCount = !!selectedProcedure?.対象人数入力;
+  const targetCountNum = parseTargetCount(form.bonusTargetCount);
   const [custMode, setCustMode] = useState(!isNew && !custInMaster && masters.customers.length>0 ? 'text' : 'select');
   const [procMode, setProcMode] = useState(!isNew && !procInMaster && masters.procedures.length>0 ? 'text' : 'select');
 
@@ -1156,6 +1176,7 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
   };
   const handleProcSelect = v => {
     set('procedure',v);
+    if (!masters.procedures.find(p=>p.name===v)?.対象人数入力) setTargetCount(''); // 対象人数のない手続きに切り替えたら人数をクリア
   };
 
   const handleSubmit = e => {
@@ -1164,6 +1185,10 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
     const amt = form.billingAmount.trim();
     if (amt !== '' && amt !== '請求なし' && isNaN(Number(amt))) {
       alert('請求金額には半角数字（例：2500）または「請求なし」を入力してください。');
+      return;
+    }
+    if (showTargetCount && form.bonusTargetCount != null && form.bonusTargetCount !== '' && targetCountNum == null) {
+      alert('対象人数には0以上の半角整数を入力してください。');
       return;
     }
     const missingDateFields = requiredDateFields.filter(f => !(form.dateFields||{})[f]);
@@ -1270,6 +1295,20 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {showTargetCount && (
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">対象人数</label>
+              <input type="number" min="0" step="1" value={form.bonusTargetCount ?? ''} onChange={e=>setTargetCount(e.target.value)} placeholder="人数を入力" style={{width:'160px'}} />
+              {isHiro && targetCountNum != null && (
+                <div className="text-sm mt-2" style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:'6px',padding:'8px 12px',color:'#0c4a6e',lineHeight:'1.7'}}>
+                  <div>基本料金：{COUNT_BILLING_BASE.toLocaleString()}円</div>
+                  <div>人数料金：{targetCountNum}人 × {COUNT_BILLING_PER_PERSON}円 = {(targetCountNum*COUNT_BILLING_PER_PERSON).toLocaleString()}円</div>
+                  <div style={{fontWeight:'700'}}>合計請求額：{calcCountBilling(targetCountNum).toLocaleString()}円<span style={{fontWeight:'400',fontSize:'12px',color:'#0369a1',marginLeft:'8px'}}>（請求金額欄に自動入力）</span></div>
+                </div>
+              )}
             </div>
           )}
 
@@ -4220,6 +4259,18 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
                   </label>
                 ))}
               </div>
+            </div>
+          )}
+          {tab==='手続き' && (
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">対象人数入力</label>
+              <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+                <input type="checkbox"
+                  checked={!!form.対象人数入力}
+                  onChange={e=>set('対象人数入力', e.target.checked)}
+                  style={{width:'15px',height:'15px',cursor:'pointer'}} />
+                案件登録時に対象人数を入力し、請求額を自動計算する（{COUNT_BILLING_BASE.toLocaleString()}円＋人数×{COUNT_BILLING_PER_PERSON}円）
+              </label>
             </div>
           )}
           {showNo && (<>
