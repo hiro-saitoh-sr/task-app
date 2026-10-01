@@ -258,7 +258,7 @@ const PROCEDURE_DATE_FIELDS = ['取得日', '喪失日', '退職日', '出産予
 // 手続きマスタで「対象人数入力」をオンにした手続き（賞与支払届）の請求額：基本料金＋対象人数×人数単価
 const COUNT_BILLING_BASE = 2500;
 const COUNT_BILLING_PER_PERSON = 200;
-const calcCountBilling = n => COUNT_BILLING_BASE + n * COUNT_BILLING_PER_PERSON;
+const calcCountBilling = (n, base = COUNT_BILLING_BASE, per = COUNT_BILLING_PER_PERSON) => base + n * per;
 const parseTargetCount = v => { const s = v == null ? '' : String(v).trim(); return /^\d+$/.test(s) ? Number(s) : null; };
 /* 給与計算 全体イベント（該当月固定・コード埋め込み） */
 /* split:true のイベントは「当月徴収」（該当月）「翌月徴収」（翌月）の2件に分けて表示する */
@@ -1135,22 +1135,32 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
   const setDay = v => setForm(f => { const nf={...f}; if(v) nf.targetDay=v; else delete nf.targetDay; return nf; });
   // 対象人数：入力に合わせて請求金額を自動計算。人数を消したときは、自動計算した金額のままなら請求金額も空に戻す
   // （未入力時はキー自体を持たせない＝既存案件・他の手続きの案件にはフィールドが増えない）
+  // 基本料金・1人あたり単価：案件ごとに広幸さんのみ変更可。未設定（キーなし）・空欄ならデフォルト値（2,500円・200円）で計算
+  const feeBase = f => parseTargetCount(f.bonusBaseFee) ?? COUNT_BILLING_BASE;
+  const feePer  = f => parseTargetCount(f.bonusPerPersonFee) ?? COUNT_BILLING_PER_PERSON;
+  const autoAmountOf = f => { const n = parseTargetCount(f.bonusTargetCount); return n != null ? calcCountBilling(n, feeBase(f), feePer(f)) : null; };
   const setTargetCount = v => setForm(f => {
     const nf = {...f};
-    const prevN = parseTargetCount(f.bonusTargetCount);
-    const wasAuto = prevN != null && String(f.billingAmount ?? '') === String(calcCountBilling(prevN));
+    const prevAuto = autoAmountOf(f);
+    const wasAuto = prevAuto != null && String(f.billingAmount ?? '') === String(prevAuto);
     if (v === '' || v == null) { delete nf.bonusTargetCount; if (wasAuto) nf.billingAmount = ''; return nf; }
     nf.bonusTargetCount = v;
-    const n = parseTargetCount(v);
-    if (n != null && f.billingAmount !== '請求なし') nf.billingAmount = String(calcCountBilling(n)); // 「請求なし」チェック中は請求金額を上書きしない
+    const amt = autoAmountOf(nf);
+    if (amt != null && f.billingAmount !== '請求なし') nf.billingAmount = String(amt); // 「賞与計算委託あり」チェック中は請求金額を上書きしない
     return nf;
   });
-  // 「請求なし」チェック：請求金額欄を既存の「請求なし」表記にする（請求集計の対象外になる）。外すと対象人数から再計算。対象人数はどちらでも保持
+  const setFee = (k, v) => setForm(f => {
+    const nf = {...f, [k]: v};
+    const amt = autoAmountOf(nf);
+    if (amt != null && f.billingAmount !== '請求なし') nf.billingAmount = String(amt);
+    return nf;
+  });
+  // 「賞与計算委託あり」チェック：請求金額欄を既存の「請求なし」表記にする（請求集計の対象外になる）。外すと対象人数から再計算。対象人数はどちらでも保持
   const isNoBilling = form.billingAmount === '請求なし';
   const setNoBilling = checked => setForm(f => {
     if (checked) return {...f, billingAmount: '請求なし'};
-    const n = parseTargetCount(f.bonusTargetCount);
-    return {...f, billingAmount: n != null ? String(calcCountBilling(n)) : ''};
+    const amt = autoAmountOf(f);
+    return {...f, billingAmount: amt != null ? String(amt) : ''};
   });
   const clearErr = k => { if(errors[k]) setErrors(er=>({...er,[k]:''})); };
 
@@ -1183,7 +1193,10 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
   };
   const handleProcSelect = v => {
     set('procedure',v);
-    if (!masters.procedures.find(p=>p.name===v)?.対象人数入力) setTargetCount(''); // 対象人数のない手続きに切り替えたら人数をクリア
+    if (!masters.procedures.find(p=>p.name===v)?.対象人数入力) { // 対象人数のない手続きに切り替えたら人数・基本料金・単価をクリア
+      setTargetCount('');
+      setForm(f => { const nf={...f}; delete nf.bonusBaseFee; delete nf.bonusPerPersonFee; return nf; });
+    }
   };
 
   const handleSubmit = e => {
@@ -1198,6 +1211,11 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
       alert('対象人数には0以上の半角整数を入力してください。');
       return;
     }
+    const feeInvalid = ['bonusBaseFee','bonusPerPersonFee'].some(k => form[k] != null && String(form[k]).trim() !== '' && parseTargetCount(form[k]) == null);
+    if (showTargetCount && feeInvalid) {
+      alert('基本料金・1人あたり単価には0以上の半角整数を入力してください。');
+      return;
+    }
     const missingDateFields = requiredDateFields.filter(f => !(form.dateFields||{})[f]);
     if (missingDateFields.length > 0) {
       alert(`${missingDateFields.join('、')}を入力してください。`);
@@ -1207,7 +1225,13 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
     if (!validateDateInput(form.receivedDate)) newErrors.receivedDate='正しい日付を入力してください（例：2026/4/1）';
     if (!form.targetMonth) newErrors.targetMonth='対象年月を選択してください';
     if (newErrors.receivedDate || newErrors.targetMonth) { setErrors(newErrors); return; }
-    onSave({...form, billingAmount: amt, receivedDate: formatDate(form.receivedDate)});
+    // 基本料金・単価は、空欄またはデフォルト値と同じなら保存しない（デフォルトで計算される）
+    const saved = {...form, billingAmount: amt, receivedDate: formatDate(form.receivedDate)};
+    if (feeBase(saved) === COUNT_BILLING_BASE)      delete saved.bonusBaseFee;
+    else saved.bonusBaseFee = feeBase(saved);
+    if (feePer(saved) === COUNT_BILLING_PER_PERSON) delete saved.bonusPerPersonFee;
+    else saved.bonusPerPersonFee = feePer(saved);
+    onSave(saved);
   };
 
   return (
@@ -1314,16 +1338,26 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
               </div>
               <label className="flex items-center gap-1.5 cursor-pointer text-sm mt-2" style={{width:'fit-content'}}>
                 <input type="checkbox" checked={isNoBilling} onChange={e=>setNoBilling(e.target.checked)} style={{width:'15px',height:'15px',cursor:'pointer'}} />
-                請求なし（賞与計算込みのため）
+                賞与計算委託あり
               </label>
+              {isHiro && (
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-2 text-sm text-gray-600">
+                  <label className="flex items-center gap-1.5">基本料金：
+                    <input type="number" min="0" step="1" value={form.bonusBaseFee ?? String(COUNT_BILLING_BASE)} onChange={e=>setFee('bonusBaseFee', e.target.value)} style={{width:'110px'}} />円
+                  </label>
+                  <label className="flex items-center gap-1.5">1人あたり単価：
+                    <input type="number" min="0" step="1" value={form.bonusPerPersonFee ?? String(COUNT_BILLING_PER_PERSON)} onChange={e=>setFee('bonusPerPersonFee', e.target.value)} style={{width:'90px'}} />円
+                  </label>
+                </div>
+              )}
               {isHiro && targetCountNum != null && (
                 <div className="text-sm mt-2" style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:'6px',padding:'8px 12px',color:'#0c4a6e',lineHeight:'1.7'}}>
                   <div style={isNoBilling?{opacity:0.5}:{}}>
-                    <div>基本料金：{COUNT_BILLING_BASE.toLocaleString()}円</div>
-                    <div>人数料金：{targetCountNum}人 × {COUNT_BILLING_PER_PERSON}円 = {(targetCountNum*COUNT_BILLING_PER_PERSON).toLocaleString()}円</div>
-                    <div style={{fontWeight:'700'}}>合計請求額：{calcCountBilling(targetCountNum).toLocaleString()}円</div>
+                    <div>基本料金：{feeBase(form).toLocaleString()}円</div>
+                    <div>人数料金：{targetCountNum}人 × {feePer(form).toLocaleString()}円 = {(targetCountNum*feePer(form)).toLocaleString()}円</div>
+                    <div style={{fontWeight:'700'}}>合計請求額：{autoAmountOf(form).toLocaleString()}円</div>
                   </div>
-                  <div style={{fontSize:'12px',color:'#0369a1'}}>{isNoBilling ? '※ 請求なしのため、請求金額欄は「請求なし」になります' : '※ 請求金額欄に自動入力されます'}</div>
+                  <div style={{fontSize:'12px',color:'#0369a1'}}>{isNoBilling ? '※ 賞与計算委託ありのため、請求金額欄は「請求なし」になります' : '※ 請求金額欄に自動入力されます'}</div>
                 </div>
               )}
             </div>
