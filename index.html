@@ -780,7 +780,7 @@ function buildCustomerMasterExportRows(customers) {
     }));
 }
 
-const PROCEDURE_MASTER_EXCEL_HEADERS = ['id', '手続き名', 'グループ', '日付フィールド設定', '対象人数入力'];
+const PROCEDURE_MASTER_EXCEL_HEADERS = ['id', '手続き名', 'グループ', '日付フィールド設定', '対象人数入力', '標準請求金額'];
 const ASSIGNEE_MASTER_EXCEL_HEADERS  = ['id', '名称'];
 const PARTNER_MASTER_BASE_HEADERS    = ['id', '名称', '担当者名', 'メールアドレス', '担当顧問先'];
 
@@ -794,6 +794,7 @@ function buildProcedureMasterExportRows(procedures) {
     'グループ':         p.グループ || '',
     '日付フィールド設定': masterList(p.必須日付フィールド).join('・'),
     '対象人数入力':     p.対象人数入力 ? 'あり' : '',
+    '標準請求金額':     p.標準請求金額 ?? '',
   }));
 }
 
@@ -1191,12 +1192,21 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
     if (v==='__text__') { setCustMode('text'); set('customerName',''); set('no',''); }
     else { setCustMode('select'); const c=masters.customers.find(x=>x.name===v); set('customerName',v); if(c) set('no',c.no); }
   };
+  const standardFeeOf = name => { const p = masters.procedures.find(x=>x.name===name); return p && !p.対象人数入力 ? parseTargetCount(p.標準請求金額) : null; };
   const handleProcSelect = v => {
+    const prevFee = standardFeeOf(form.procedure);
     set('procedure',v);
     if (!masters.procedures.find(p=>p.name===v)?.対象人数入力) { // 対象人数のない手続きに切り替えたら人数・基本料金・単価をクリア
       setTargetCount('');
       setForm(f => { const nf={...f}; delete nf.bonusBaseFee; delete nf.bonusPerPersonFee; return nf; });
     }
+    // 標準請求金額：請求金額が空欄、または前の手続きの標準請求金額のまま（＝自動入力した値）のときだけ自動入力する。
+    // 手入力した金額・「請求なし」は上書きしない。対象人数入力ありの手続き（賞与支払届）は人数×単価の計算を優先
+    const fee = standardFeeOf(v);
+    if (fee != null) setForm(f => {
+      const cur = String(f.billingAmount ?? '').trim();
+      return (cur === '' || (prevFee != null && cur === String(prevFee))) ? {...f, billingAmount: String(fee)} : f;
+    });
   };
 
   const handleSubmit = e => {
@@ -4276,7 +4286,17 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
     <div className="modal-overlay">
       <div className="modal-box" style={{width:'760px', maxHeight:'90vh', overflowY:'auto'}}>
         <h2 className="text-lg font-bold mb-4">{title}</h2>
-        <form onSubmit={e=>{e.preventDefault();if(!form.name.trim()){alert('名称は必須です');return;}onSave(form);}}>
+        <form onSubmit={e=>{
+          e.preventDefault();
+          if(!form.name.trim()){alert('名称は必須です');return;}
+          if(tab!=='手続き'){onSave(form);return;}
+          // 標準請求金額：空欄ならキー自体を持たせない（既存の手続きマスタにはフィールドが増えない）
+          const fee = String(form.標準請求金額 ?? '').trim();
+          if(fee!=='' && parseTargetCount(fee)==null){alert('標準請求金額には0以上の半角整数を入力してください（例：2500）。');return;}
+          const saved = {...form};
+          if(fee==='') delete saved.標準請求金額; else saved.標準請求金額 = Number(fee);
+          onSave(saved);
+        }}>
           {showNo && (
             <div className="mb-3">
               <label className="block text-sm font-semibold text-gray-600 mb-1">No</label>
@@ -4322,6 +4342,16 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
                   style={{width:'15px',height:'15px',cursor:'pointer'}} />
                 案件登録時に対象人数を入力する
               </label>
+            </div>
+          )}
+          {tab==='手続き' && (
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">標準請求金額</label>
+              <div className="flex items-center gap-1.5">
+                <input type="text" inputMode="numeric" value={form.標準請求金額 ?? ''} onChange={e=>set('標準請求金額', e.target.value)} placeholder="例：2500（空欄可）" style={{width:'160px'}} />
+                <span className="text-sm text-gray-600">円</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">案件登録時にこの手続きを選ぶと請求金額に自動入力されます（対象人数入力ありの手続きは人数による計算が優先）</p>
             </div>
           )}
           {showNo && (<>
