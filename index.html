@@ -630,7 +630,7 @@ const TASK_EXCEL_HEADERS = ['No', '顧客名', '手続き内容', 'メモ', '担
 const CHECK_EXCEL_HEADERS = ['No', '顧客名', '昇(降)給月', '改定年月', 'メモ', 'チェック対象者', '手続き対象者', '改定人数', '担当者', 'ステータス', '請求額', '対象年月'];
 const ANNUAL_EXCEL_HEADERS = ['No', '顧客名', '手続き名', '対象年度', 'メモ', '担当者', 'ステータス', '受付日', '対象人数', '請求額', '対象年月'];
 const PAYROLL_EXCEL_HEADERS = ['顧問先名', '担当者', '年', '月', '受取日', '送信日', '人数', '納品日', '賞与人数', '賞与納品日', '締日', '支給日', '年末調整還付月', '賞与支給月', '納品方法', 'その他メモ'];
-const CUSTOMER_MASTER_EXCEL_HEADERS = ['No', '名称', '業種', '代表者名', '代表者メール', '担当者名', '担当者メール', 'CC①名', 'CC①メール', 'CC②名', 'CC②メール', 'CC③名', 'CC③メール', '事務所担当者', '決算月', '契約サービス', '36協定起算日', 'その他労使協定の届出', '東京SR特別加入'];
+const CUSTOMER_MASTER_EXCEL_HEADERS = ['No', '名称', '業種', '代表者名', '代表者メール', '担当者名', '担当者メール', 'CC①名', 'CC①メール', 'CC②名', 'CC②メール', 'CC③名', 'CC③メール', '事務所担当者', '決算月', '契約サービス', '36協定起算日', 'その他労使協定の届出', '東京SR特別加入', 'DriveフォルダID'];
 
 function taskExcelFilenameDate() {
   const d = new Date();
@@ -777,6 +777,7 @@ function buildCustomerMasterExportRows(customers) {
       '36協定起算日':         c['36協定起算日'] || '',
       'その他労使協定の届出': c['その他労使協定の届出'] || '',
       '東京SR特別加入':       c['東京SR特別加入'] || '',
+      'DriveフォルダID':      c.DriveフォルダID || '',
     }));
 }
 
@@ -925,6 +926,62 @@ function ccGreetingLine(master) {
   return ccNames.length > 0 ? `（CC:${ccNames.join('　')}）` : '';
 }
 const DELIVERY_MAIL_BCC = 'info@saitoh-sr.com';
+
+/* ── Google Drive：納品フォルダ名の自動取得 ──
+   ログイン（Googleでログイン）で受け取るのは本人確認用のIDトークンのみでDriveは読めないため、
+   フォルダ取得時だけGoogle Identity Servicesのトークンクライアントで「Driveのメタデータ読み取り」権限のアクセストークンを取得する。
+   トークンはメモリ上にのみ保持（約1時間有効。期限切れ後は再取得、同意済みなら確認画面は通常出ない） */
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.metadata.readonly';
+let driveTokenCache = null; // {token, expiresAt}
+// フォルダURL（…/folders/ID?usp=…）またはIDそのものからIDを取り出す。形式が不正ならnull
+function extractDriveFolderId(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return null;
+  const m = s.match(/\/folders\/([A-Za-z0-9_-]+)/) || s.match(/[?&]id=([A-Za-z0-9_-]+)/);
+  if (m) return m[1];
+  return /^[A-Za-z0-9_-]{10,}$/.test(s) ? s : null;
+}
+function getDriveToken() {
+  if (driveTokenCache && driveTokenCache.expiresAt > Date.now() + 60000) return Promise.resolve(driveTokenCache.token);
+  return new Promise((resolve, reject) => {
+    if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) { reject(new Error('Googleの認証ライブラリを読み込めませんでした。')); return; }
+    const client = window.google.accounts.oauth2.initTokenClient({
+      client_id: GSI_CLIENT_ID,
+      scope: DRIVE_SCOPE,
+      hint: (fbAuth.currentUser && fbAuth.currentUser.email) || undefined,
+      callback: resp => {
+        if (resp.error || !resp.access_token) { reject(new Error('Driveへのアクセス許可が得られませんでした（' + (resp.error_description || resp.error || '不明') + '）。')); return; }
+        driveTokenCache = { token: resp.access_token, expiresAt: Date.now() + Number(resp.expires_in || 3600) * 1000 };
+        resolve(resp.access_token);
+      },
+      error_callback: err => reject(new Error(err && err.type === 'popup_failed_to_open'
+        ? 'Googleの確認画面を開けませんでした（ポップアップがブロックされた可能性があります）。'
+        : 'Googleの確認画面が閉じられました。')),
+    });
+    client.requestAccessToken({ prompt: '' });
+  });
+}
+// 指定フォルダ直下のサブフォルダを更新日時の新しい順で取得（共有ドライブ対応）
+async function fetchDriveSubfolders(folderId) {
+  const token = await getDriveToken();
+  const q = `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const params = new URLSearchParams({
+    q, orderBy: 'modifiedTime desc', pageSize: '100', fields: 'files(id,name,modifiedTime)',
+    supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
+  });
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    if (res.status === 401) driveTokenCache = null;
+    let reason = '';
+    try { const j = await res.json(); reason = (j.error && j.error.errors && j.error.errors[0] && j.error.errors[0].reason) || ''; } catch (e) {}
+    if (reason === 'accessNotConfigured') throw new Error('Google Drive APIが有効になっていません（Google Cloudの管理画面で有効化が必要です）。');
+    if (res.status === 404) throw new Error('フォルダが見つかりません。顧問先マスタのフォルダIDと、Driveの共有設定を確認してください。');
+    if (res.status === 401) throw new Error('Driveの認証が切れました。もう一度お試しください。');
+    throw new Error(`Driveからフォルダを取得できませんでした（エラー${res.status}${reason ? '：' + reason : ''}）。`);
+  }
+  const data = await res.json();
+  return data.files || [];
+}
 
 /* ══════════════════════════════════════════
    STATUS BADGE
@@ -1463,6 +1520,27 @@ Web：https://saitoh-sr.com/
 function DeliveryMailModal({caseData, masters, onClose}) {
   const [folders, setFolders] = useState([{name:'', note:''}]);
   const master = (masters.customers||[]).find(m => m.name === caseData.customerName) || null;
+  // Driveフォルダ自動取得：顧問先マスタにDriveフォルダIDがあるときだけ。未登録なら従来の手動入力のみ
+  const driveFolderId = master && master.DriveフォルダID ? master.DriveフォルダID : '';
+  const [drive, setDrive] = useState({status: driveFolderId ? 'loading' : 'off', list: [], error: ''});
+  const loadDrive = () => {
+    setDrive({status: 'loading', list: [], error: ''});
+    fetchDriveSubfolders(driveFolderId)
+      .then(list => setDrive({status: 'done', list, error: ''}))
+      .catch(e => setDrive({status: 'error', list: [], error: e.message || String(e)}));
+  };
+  useEffect(() => { if (driveFolderId) loadDrive(); }, []);
+  // チェックしたフォルダ名をフォルダ名欄に追加（空欄の行があればそこに入れる）、外したら該当行を削除
+  const isFolderChecked = name => folders.some(f => f.name.trim() === name);
+  const toggleDriveFolder = name => setFolders(fs => {
+    if (fs.some(f => f.name.trim() === name)) {
+      const rest = fs.filter(f => f.name.trim() !== name);
+      return rest.length > 0 ? rest : [{name:'', note:''}];
+    }
+    const blankIdx = fs.findIndex(f => f.name.trim() === '' && f.note.trim() === '');
+    return blankIdx >= 0 ? fs.map((f,i) => i===blankIdx ? {...f, name} : f) : [...fs, {name, note:''}];
+  });
+  const formatDriveDate = iso => { const d = new Date(iso); return isNaN(d) ? '' : `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; };
   const companyName = (master && master.name) || caseData.customerName || '';
   const email = (master && master.担当者メール) || '';
   const cc = master ? joinCcEmails(master).split('、').filter(Boolean).join(',') : '';
@@ -1509,6 +1587,33 @@ function DeliveryMailModal({caseData, masters, onClose}) {
           {ccRaw && <div>CC：{ccRaw}</div>}
           <div>BCC：{DELIVERY_MAIL_BCC}</div>
         </div>
+        {drive.status !== 'off' && (
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">Driveの納品フォルダ（01_手続き完了）</label>
+            {drive.status === 'loading' && <div className="text-sm text-gray-500 py-2">🔄 Driveからフォルダを取得中...</div>}
+            {drive.status === 'error' && (
+              <div className="text-sm rounded p-2" style={{background:'#fee2e2', color:'#991b1b'}}>
+                <div className="mb-2">{drive.error}</div>
+                <div className="flex gap-2">
+                  <button type="button" className="text-xs px-2 py-1 bg-white rounded border border-red-200 hover:bg-red-50 font-medium" onClick={loadDrive}>再試行</button>
+                  <button type="button" className="text-xs px-2 py-1 bg-white rounded border border-red-200 hover:bg-red-50 font-medium" onClick={()=>setDrive({status:'off', list:[], error:''})}>手動入力に切り替え</button>
+                </div>
+              </div>
+            )}
+            {drive.status === 'done' && (drive.list.length === 0
+              ? <div className="text-sm text-gray-500 py-2">フォルダ内にサブフォルダがありません。下の欄に手動で入力してください。</div>
+              : <div className="border border-gray-200 rounded p-2 space-y-1" style={{maxHeight:'200px', overflowY:'auto'}}>
+                  {drive.list.map(d => (
+                    <label key={d.id} className="flex items-start gap-1.5 cursor-pointer text-sm">
+                      <input type="checkbox" checked={isFolderChecked(d.name)} onChange={()=>toggleDriveFolder(d.name)}
+                        style={{width:'15px',height:'15px',cursor:'pointer',marginTop:'3px',flexShrink:0}} />
+                      <span className="break-all">{d.name}<span className="text-xs text-gray-400 ml-2">{formatDriveDate(d.modifiedTime)}</span></span>
+                    </label>
+                  ))}
+                </div>
+            )}
+          </div>
+        )}
         <label className="block text-sm font-semibold text-gray-600 mb-1">フォルダ名</label>
         {folders.map((f, idx) => (
           <div key={idx} className="mb-3 pb-3" style={{borderBottom: idx < folders.length-1 ? '1px solid #e5e7eb' : 'none'}}>
@@ -4231,6 +4336,7 @@ function CustomerDetailModal({item, onClose, onEdit}) {
     {k:'36協定起算日',         v:item['36協定起算日']},
     {k:'その他労使協定の届出', v:item['その他労使協定の届出']},
     {k:'東京SR特別加入',       v:item['東京SR特別加入']},
+    {k:'DriveフォルダID',      v:item.DriveフォルダID},
   ];
   const renderField = ({k,v,copy}) => (
     <div key={k} className="flex items-center gap-3 py-2.5 text-sm">
@@ -4302,6 +4408,14 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
         <form onSubmit={e=>{
           e.preventDefault();
           if(!form.name.trim()){alert('名称は必須です');return;}
+          if(tab==='顧問先'){
+            // DriveフォルダID：URLが貼られたらID部分だけ取り出す。空欄ならキー自体を持たせない（既存の顧問先データにはフィールドが増えない）
+            const driveId = extractDriveFolderId(form.DriveフォルダID);
+            if(String(form.DriveフォルダID ?? '').trim()!=='' && !driveId){alert('Google DriveフォルダIDの形式が正しくありません。フォルダのURLまたはIDを貼り付けてください。');return;}
+            const saved = {...form};
+            if(driveId) saved.DriveフォルダID = driveId; else delete saved.DriveフォルダID;
+            onSave(saved);return;
+          }
           if(tab!=='手続き'){onSave(form);return;}
           // 標準請求金額：空欄ならキー自体を持たせない（既存の手続きマスタにはフィールドが増えない）
           const fee = String(form.標準請求金額 ?? '').trim();
@@ -4455,6 +4569,11 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
                   <option value="あり">あり</option>
                 </select>
               </div>
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">Google DriveフォルダID（01_手続き完了）</label>
+              <input value={form.DriveフォルダID||''} onChange={e=>set('DriveフォルダID',e.target.value)} placeholder="フォルダのURL（https://drive.google.com/drive/folders/…）またはIDを貼り付け（空欄可）" />
+              <p className="text-xs text-gray-400 mt-1">URLを貼り付けた場合は、保存時にID部分だけを取り出して登録します。登録すると納品メール下書きでフォルダ名を自動取得できます</p>
             </div>
           </>)}
           <div className="flex gap-3 justify-end">
