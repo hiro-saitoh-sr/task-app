@@ -914,6 +914,12 @@ function splitNames(raw) {
   if (!raw) return [];
   return raw.split('、').map(s => s.trim()).filter(Boolean);
 }
+// 宛名に「様」をつける。すでに末尾が「様」なら（例：マスタに「田中様」と登録済み）二重にしない
+// 例：「浅野」→「浅野 様」、「田中様」→「田中様」
+function withSama(name) {
+  return /様$/.test(name) ? name : `${name} 様`;
+}
+const DELIVERY_MAIL_BCC = 'info@saitoh-sr.com';
 
 /* ══════════════════════════════════════════
    STATUS BADGE
@@ -1460,7 +1466,8 @@ function DeliveryMailModal({caseData, masters, onClose}) {
     formatCcDisplay(master.CC2名, master.CC2メール),
     formatCcDisplay(master.CC3名, master.CC3メール),
   ].filter(Boolean).join('、') : '';
-  const names = splitNames(master && master.担当者名);
+  // 本文の宛名：宛名（担当者名）→CC①②③の名前の順に1人1行、それぞれ「様」をつける
+  const names = master ? [master.担当者名, master.CC1名, master.CC2名, master.CC3名].flatMap(splitNames).map(withSama) : [];
   const greetingLines = names.length > 0 ? names : [''];
 
   const updateFolder = (idx, field, value) => setFolders(f => f.map((x,i)=>i===idx?{...x,[field]:value}:x));
@@ -1477,7 +1484,7 @@ function DeliveryMailModal({caseData, masters, onClose}) {
 
   function handleCreateDraft() {
     const ccParam = cc ? `&cc=${encodeURIComponent(cc)}` : '';
-    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}${ccParam}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}${ccParam}&bcc=${encodeURIComponent(DELIVERY_MAIL_BCC)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(url, '_blank');
   }
 
@@ -1495,6 +1502,7 @@ function DeliveryMailModal({caseData, masters, onClose}) {
             宛先：{email || <span className="text-gray-400">（担当者メール未登録のため空欄で作成されます）</span>}
           </div>
           {ccRaw && <div>CC：{ccRaw}</div>}
+          <div>BCC：{DELIVERY_MAIL_BCC}</div>
         </div>
         <label className="block text-sm font-semibold text-gray-600 mb-1">フォルダ名</label>
         {folders.map((f, idx) => (
