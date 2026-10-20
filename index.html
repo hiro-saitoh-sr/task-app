@@ -914,14 +914,10 @@ function splitNames(raw) {
   if (!raw) return [];
   return raw.split('、').map(s => s.trim()).filter(Boolean);
 }
-// 宛名に「様」をつける。すでに末尾が「様」なら（例：マスタに「田中様」と登録済み）二重にしない
-// 例：「浅野」→「浅野 様」、「田中様」→「田中様」
-function withSama(name) {
-  return /様$/.test(name) ? name : `${name} 様`;
-}
 // CC①②③の名前は宛名の下に1行でまとめる。例：「（CC:鈴木様　佐藤様）」。CCの名前がなければ行自体を出さない
+// 敬称（様・先生など）はマスタに登録した値をそのまま使う（自動付与しない）
 function ccGreetingLine(master) {
-  const ccNames = [master.CC1名, master.CC2名, master.CC3名].flatMap(splitNames).map(n => /様$/.test(n) ? n : `${n}様`);
+  const ccNames = [master.CC1名, master.CC2名, master.CC3名].flatMap(splitNames);
   return ccNames.length > 0 ? `（CC:${ccNames.join('　')}）` : '';
 }
 const DELIVERY_MAIL_BCC = 'info@saitoh-sr.com';
@@ -1471,8 +1467,8 @@ function DeliveryMailModal({caseData, masters, onClose}) {
     formatCcDisplay(master.CC2名, master.CC2メール),
     formatCcDisplay(master.CC3名, master.CC3メール),
   ].filter(Boolean).join('、') : '';
-  // 本文の宛名：宛名（担当者名）を1人1行で「様」をつけ、その下にCC①②③の名前を「（CC:〇〇様　〇〇様）」の1行で続ける
-  const names = master ? [...splitNames(master.担当者名).map(withSama), ccGreetingLine(master)].filter(Boolean) : [];
+  // 本文の宛名：宛名（担当者名）を1人1行で、その下にCC①②③の名前を「（CC:〇〇様　〇〇様）」の1行で続ける（敬称はマスタ登録値のまま）
+  const names = master ? [...splitNames(master.担当者名), ccGreetingLine(master)].filter(Boolean) : [];
   const greetingLines = names.length > 0 ? names : [''];
 
   const updateFolder = (idx, field, value) => setFolders(f => f.map((x,i)=>i===idx?{...x,[field]:value}:x));
