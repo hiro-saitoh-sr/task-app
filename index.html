@@ -3009,6 +3009,7 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
   const [editingYearValue, setEditingYearValue] = useState('');
   const [cancelCase, setCancelCase] = useState(null);
   const [showCancelled, setShowCancelled] = useState(false);
+  const [mailPopupCase, setMailPopupCase] = useState(null);
 
   /* ── フィルター状態 ── */
   const [filterProcedure,    setFilterProcedure]    = useState('');
@@ -3218,6 +3219,7 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
                 <col style={{width:'200px'}} />
                 <col style={{width:'76px'}} />
                 <col style={{width:'88px'}} />
+                <col style={{width:'40px'}} />
                 <col style={{width:'76px'}} />
                 <col style={{width:'76px'}} />
                 {isHiro && <col style={{width:'92px'}} />}
@@ -3233,6 +3235,7 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">メモ</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">担当者</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">ステータス</th>
+                  <th className="px-1 py-3 bg-gray-50"></th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">受付日</th>
                   <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">対象人数</th>
                   {isHiro && <th className="px-3 py-3 text-right font-semibold text-gray-600 bg-gray-50">請求額</th>}
@@ -3277,6 +3280,14 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
                               {STATUSES.map(s=><option key={s}>{s}</option>)}
                             </select>
                         }
+                      </td>
+                      <td className="px-1 py-2.5 text-center">
+                        {!c.cancelled && c.status==='納品済' && (
+                          <button onClick={()=>setMailPopupCase(c)} title="納品メール下書きを作成"
+                            className="text-sm leading-none hover:opacity-70">
+                            📧
+                          </button>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{formatDate(c.receivedDate)}</td>
                       <td className="px-3 py-2.5 text-center" style={{cursor:c.cancelled?'default':'pointer'}} onClick={()=>!c.cancelled&&handleCountClick(c)}>
@@ -3332,6 +3343,7 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
               onConfirm={()=>{setCases(p=>p.map(c=>c.id===cancelCase.id?{...c,cancelled:true}:c));setCancelCase(null);}}
               onClose={()=>setCancelCase(null)} />
       )}
+      {mailPopupCase && <DeliveryMailModal caseData={mailPopupCase} masters={masters} onClose={()=>setMailPopupCase(null)} />}
     </div>
   );
 }
@@ -3455,6 +3467,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
   const [filterMonth, setFilterMonth]       = useState('');
   const [showCancelled, setShowCancelled]   = useState(false);
   const [bulkBillMsg,   setBulkBillMsg]     = useState('');
+  const [mailPopupCase, setMailPopupCase]   = useState(null);
 
   /* 登録済みデータから対象年月の選択肢を動的生成 */
   const monthOptions = useMemo(() => {
@@ -3536,6 +3549,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">改定人数</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">担当者</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">ステータス</th>
+                <th className="px-1 py-3"></th>
                 {isHiro && <th className="px-3 py-3 text-right font-semibold text-gray-600">請求額</th>}
                 <th className="px-3 py-3 text-center font-semibold text-gray-600">対象年月</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600 w-24">操作</th>
@@ -3585,6 +3599,14 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
                           </select>
                       }
                     </td>
+                    <td className="px-1 py-2.5 text-center">
+                      {!c.cancelled && c.status==='納品済' && (
+                        <button onClick={()=>setMailPopupCase(c)} title="納品メール下書きを作成"
+                          className="text-sm leading-none hover:opacity-70">
+                          📧
+                        </button>
+                      )}
+                    </td>
                     {isHiro && (
                       <td className="px-3 py-2.5 text-sm text-right">
                         {billing != null ? <span>{isManualBilling && <span title="手入力" style={{fontSize:'12px',marginRight:'2px',color:'#6b7280'}}>✎</span>}¥{billing.toLocaleString()}</span> : ''}
@@ -3608,6 +3630,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
         )}
       </div>
       {showModal && <MonthlyCheckModal item={editItem} onSave={handleSave} onClose={()=>{setShowModal(false);setEditItem(null);}} masters={masters} currentUser={currentUser} />}
+      {mailPopupCase && <DeliveryMailModal caseData={mailPopupCase} masters={masters} onClose={()=>setMailPopupCase(null)} />}
       {cancelItem && (
         cancelItem.cancelled
           ? <ConfirmModal
