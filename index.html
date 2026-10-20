@@ -1474,6 +1474,40 @@ function DeliveryMailModal({caseData, masters, onClose}) {
   const updateFolder = (idx, field, value) => setFolders(f => f.map((x,i)=>i===idx?{...x,[field]:value}:x));
   const addFolder    = () => setFolders(f => [...f, {name:'', note:''}]);
   const removeFolder = idx => setFolders(f => f.filter((_,i)=>i!==idx));
+  // 一括貼り付け：改行区切りのテキストをフォルダ名の配列にする。空行は除外し、先頭の「・」は取り除く
+  const [bulkText, setBulkText] = useState('');
+  const parseFolderNames = text => (text||'').split(/\r?\n/).map(s => s.trim().replace(/^[・•]\s*/, '')).filter(Boolean);
+  // 分割したフォルダ名を末尾に追加する（フォルダ名・説明書きとも空の入力欄は取り除く）
+  const appendFolderNames = names => setFolders(f => {
+    const kept = f.filter(x => x.name.trim() !== '' || x.note.trim() !== '');
+    const merged = [...kept, ...names.map(name => ({name, note:''}))];
+    return merged.length > 0 ? merged : [{name:'', note:''}];
+  });
+  const handleBulkPaste = e => {
+    const names = parseFolderNames(e.clipboardData.getData('text'));
+    if (names.length === 0) return;
+    e.preventDefault();
+    appendFolderNames(names);
+    setBulkText('');
+  };
+  const handleBulkAdd = () => {
+    const names = parseFolderNames(bulkText);
+    if (names.length === 0) return;
+    appendFolderNames(names);
+    setBulkText('');
+  };
+  // 個別のフォルダ名欄に複数行を貼り付けた場合も、その位置で複数のフォルダに分割する
+  const handleFolderNamePaste = (idx, e) => {
+    const names = parseFolderNames(e.clipboardData.getData('text'));
+    if (names.length < 2) return;
+    e.preventDefault();
+    setFolders(f => [
+      ...f.slice(0, idx),
+      {...f[idx], name: names[0]},
+      ...names.slice(1).map(name => ({name, note:''})),
+      ...f.slice(idx + 1),
+    ]);
+  };
 
   // フォルダ名は冒頭に「【フォルダ名】」を1行、各フォルダは「・」付きで1行空けて並べる。説明書きはフォルダ名の直下に「※〇〇」で表示
   const folderItems = folders
@@ -1509,12 +1543,19 @@ function DeliveryMailModal({caseData, masters, onClose}) {
           {ccRaw && <div>CC：{ccRaw}</div>}
           <div>BCC：{DELIVERY_MAIL_BCC}</div>
         </div>
+        <label className="block text-sm font-semibold text-gray-600 mb-1">フォルダ名を一括貼り付け</label>
+        <textarea value={bulkText} onChange={e=>setBulkText(e.target.value)} onPaste={handleBulkPaste}
+          rows={3} placeholder="複数のフォルダ名を改行区切りで貼り付けると、自動で1件ずつに分かれます" />
+        <button type="button" onClick={handleBulkAdd} disabled={parseFolderNames(bulkText).length === 0}
+          className="text-xs px-2 py-1 mt-1 mb-4 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium disabled:opacity-40">
+          改行で分割して追加
+        </button>
         <label className="block text-sm font-semibold text-gray-600 mb-1">フォルダ名</label>
         {folders.map((f, idx) => (
           <div key={idx} className="mb-3 pb-3" style={{borderBottom: idx < folders.length-1 ? '1px solid #e5e7eb' : 'none'}}>
-            <input value={f.name} onChange={e=>updateFolder(idx,'name',e.target.value)} className="mb-1" />
+            <input value={f.name} onChange={e=>updateFolder(idx,'name',e.target.value)} onPaste={e=>handleFolderNamePaste(idx,e)} className="mb-1" />
             <textarea value={f.note} onChange={e=>updateFolder(idx,'note',e.target.value)}
-              rows={3} placeholder="説明書き（任意）" />
+              rows={3} placeholder="説明書き：（任意）" />
             {folders.length > 1 && (
               <button type="button" onClick={()=>removeFolder(idx)}
                 className="text-xs px-2 py-1 mt-1 bg-orange-50 text-orange-600 rounded hover:bg-orange-100 font-medium">
