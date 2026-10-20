@@ -1475,13 +1475,17 @@ function DeliveryMailModal({caseData, masters, onClose}) {
   const addFolder    = () => setFolders(f => [...f, {name:'', note:''}]);
   const removeFolder = idx => setFolders(f => f.filter((_,i)=>i!==idx));
 
-  const folderBlocks = folders
+  // フォルダ名は冒頭に「【フォルダ名】」を1行、各フォルダは「・」付きで1行空けて並べる。説明書きはフォルダ名の直下に「※〇〇」で表示
+  const folderItems = folders
     .filter(f => f.name.trim() !== '')
-    .map(f => `フォルダ名：${f.name.trim()}${f.note.trim() ? '\n'+f.note.trim() : ''}`)
-    .join('\n\n');
+    .map(f => {
+      const note = f.note.trim();
+      return `・${f.name.trim()}${note ? '\n' + (/^※/.test(note) ? note : '※' + note) : ''}`;
+    });
+  const folderBlocks = folderItems.length > 0 ? `【フォルダ名】\n${folderItems.join('\n\n')}` : '';
 
   const subject = '【お手続き完了のお知らせ】社会保険労務士齊藤事務所';
-  const body = `${companyName}\n${greetingLines.join('\n')}\n\nお世話になっております。\n社会保険労務士齊藤事務所でございます。\n\n次の手続きが完了しDriveに格納いたしました。\n\n${folderBlocks}\n\n以上となります。\nどうぞよろしくお願いいたします。\n\n${DELIVERY_MAIL_SIGNATURE}`;
+  const body = `${companyName}\n${greetingLines.join('\n')}\n\nお世話になっております。\n社会保険労務士齊藤事務所でございます。\n\n次の手続きが完了しGoogle Driveに格納いたしました。\n\n${folderBlocks}\n\n以上となります。\nどうぞよろしくお願いいたします。\n\n${DELIVERY_MAIL_SIGNATURE}`;
 
   function handleCreateDraft() {
     const ccParam = cc ? `&cc=${encodeURIComponent(cc)}` : '';
@@ -1491,7 +1495,7 @@ function DeliveryMailModal({caseData, masters, onClose}) {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-box" style={{width:'480px'}}>
+      <div className="modal-box" style={{width:'min(800px, 95vw)', maxHeight:'95vh'}}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-800">📧 納品メール下書き作成</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
@@ -1510,7 +1514,7 @@ function DeliveryMailModal({caseData, masters, onClose}) {
           <div key={idx} className="mb-3 pb-3" style={{borderBottom: idx < folders.length-1 ? '1px solid #e5e7eb' : 'none'}}>
             <input value={f.name} onChange={e=>updateFolder(idx,'name',e.target.value)} className="mb-1" />
             <textarea value={f.note} onChange={e=>updateFolder(idx,'note',e.target.value)}
-              rows={2} placeholder="説明書き（任意）" />
+              rows={3} placeholder="説明書き（任意）" />
             {folders.length > 1 && (
               <button type="button" onClick={()=>removeFolder(idx)}
                 className="text-xs px-2 py-1 mt-1 bg-orange-50 text-orange-600 rounded hover:bg-orange-100 font-medium">
