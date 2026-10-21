@@ -1134,7 +1134,7 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
   const isHiro = currentUser?.email === 'hiro@saitoh-sr.com';
   const isNew = !caseData;
   const todayStr = (()=>{const d=new Date();const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}/${m}/${day}`;})();
-  const blank = {no:'',customerName:'',procedure:'',memo:'',assignee:'',status:'依頼受付',receivedDate:todayStr,billingAmount:'',targetMonth:'',dateFields:{}};
+  const blank = {no:'',customerName:'',procedure:'',employeeName:'',memo:'',assignee:'',status:'依頼受付',receivedDate:todayStr,billingAmount:'',targetMonth:'',dateFields:{}};
   const [form, setForm] = useState(caseData ? {...caseData} : blank);
   const [errors, setErrors] = useState({receivedDate:'', targetMonth:''});
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -1331,6 +1331,11 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
                 {masters.procedures.length>0 && <button type="button" className="btn btn-secondary text-xs px-2 py-1 whitespace-nowrap" onClick={()=>setProcMode('select')}>一覧から選択</button>}
               </div>
             )}
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-600 mb-1">従業員名</label>
+            <input value={form.employeeName||''} onChange={e=>set('employeeName',e.target.value)} placeholder="任意" />
           </div>
 
           {requiredDateFields.length > 0 && (
@@ -1644,7 +1649,7 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
     if(filter.procedure)    arr=arr.filter(c=>c.procedure===filter.procedure);
     if(search.trim()){
       const q=search.trim().toLowerCase();
-      arr=arr.filter(c=>(c.customerName||'').toLowerCase().includes(q)||(c.procedure||'').toLowerCase().includes(q)||(c.memo||'').toLowerCase().includes(q));
+      arr=arr.filter(c=>(c.customerName||'').toLowerCase().includes(q)||(c.procedure||'').toLowerCase().includes(q)||(c.employeeName||'').toLowerCase().includes(q)||(c.memo||'').toLowerCase().includes(q));
     }
     arr=[...arr].sort((a,b)=>{
       const da=parseDate(a.receivedDate), db=parseDate(b.receivedDate);
@@ -1757,7 +1762,7 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-3 flex items-center gap-3">
         <span className="text-gray-400">🔍</span>
         <input type="text" value={search} onChange={e=>setSearch(e.target.value)}
-          placeholder="顧客名・手続き内容・メモで検索..."
+          placeholder="顧客名・手続き内容・従業員名・メモで検索..."
           style={{border:'none',boxShadow:'none',padding:'0'}}
           className="flex-1 border-none outline-none text-sm bg-transparent" />
         {search && <button onClick={()=>setSearch('')} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>}
@@ -1859,23 +1864,25 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
         ) : (
           <table className="w-full text-sm border-collapse" style={{tableLayout:'fixed'}}>
             <colgroup>
-              <col style={{width:'52px'}} />
+              <col style={{width:'44px'}} />
+              <col style={{width:'190px'}} />
               <col style={{width:'200px'}} />
-              <col style={{width:'220px'}} />
-              <col style={{width:'316px'}} />
+              <col style={{width:'130px'}} />
+              <col style={{width:'260px'}} />
               <col style={{width:'88px'}} />
               <col style={{width:'104px'}} />
               <col style={{width:'36px'}} />
-              <col style={{width:'92px'}} />
-              {isHiro && <col style={{width:'116px'}} />}
-              <col style={{width:'116px'}} />
+              <col style={{width:'100px'}} />
+              {isHiro && <col style={{width:'92px'}} />}
+              <col style={{width:'124px'}} />
               {!isViewOnly && <col style={{width:'92px'}} />}
             </colgroup>
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">No</th>
+                <th className="px-2 py-3 text-center font-semibold text-gray-600 bg-gray-50">No</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">顧客名</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">手続き内容</th>
+                <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">従業員名</th>
                 <th className="px-3 py-3 text-center font-semibold text-gray-600 bg-gray-50">メモ</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">担当者</th>
                 <th className="px-3 py-3 text-left font-semibold text-gray-600 bg-gray-50">ステータス</th>
@@ -1889,12 +1896,13 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
             <tbody className="divide-y divide-gray-100">
               {filtered.map(c=>(
                 <tr key={c.id} className={`group ${c.cancelled?'opacity-50 bg-gray-50':rowAlert(c)}`}>
-                  <td className="px-3 py-2.5 text-gray-500 text-center text-xs">{c.no}</td>
+                  <td className="px-2 py-2.5 text-gray-500 text-center text-xs">{c.no}</td>
                   <td className="px-3 py-2.5 font-medium text-xs" style={{color:c.cancelled?'#9ca3af':'#1f2937'}}>
                     {c.cancelled && <span className="inline-block mr-1 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">取消</span>}
                     {c.customerName}
                   </td>
                   <td className="px-3 py-2.5 text-gray-700 text-xs" style={{textDecoration:c.cancelled?'line-through':'none'}}>{c.procedure}</td>
+                  <td className="px-3 py-2.5 text-gray-700 text-xs" style={{wordBreak:'break-word'}}>{c.employeeName||''}</td>
                   <td className="px-3 py-2.5 text-gray-500 text-xs" style={{wordBreak:'break-word',verticalAlign:'middle'}}>{renderMemo(c.memo)}</td>
                   <td className="px-3 py-2.5">
                     {(isViewOnly||c.cancelled)
