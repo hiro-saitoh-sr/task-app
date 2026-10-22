@@ -4842,12 +4842,12 @@ function MasterScreen({masters, setMasters}) {
                 {tab==='顧問先' && <th className="px-4 py-3 text-left font-semibold text-gray-600 w-14">No</th>}
                 <th className="px-4 py-3 text-left font-semibold text-gray-600">{tab==='提携先'?'提携先名':'名称'}</th>
                 {tab==='顧問先' && <>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">システムオプション</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">宛名</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">CC</th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">システムオプション</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-600 text-xs leading-tight" style={{width:'64px'}}>36協定<br/>起算日</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-600 text-xs leading-tight" style={{width:'64px'}}>その他<br/>労使協定</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-600 text-xs leading-tight" style={{width:'56px'}}>特別<br/>加入</th>
+                  <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">36協定起算日</th>
+                  <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">その他労使協定</th>
+                  <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">特別加入</th>
                 </>}
                 {tab==='提携先' && <>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当者名</th>
@@ -4874,10 +4874,10 @@ function MasterScreen({masters, setMasters}) {
                     }
                   </td>
                   {tab==='顧問先' && <>
+                    <td className="px-3 py-3 text-sm text-gray-600" style={{minWidth:'140px'}}>{systemOptionsShort(item)}</td>
                     <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}</td>
                     <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{joinCcNames(item)}</td>
-                    <td className="px-3 py-3 text-sm text-gray-600" style={{minWidth:'140px'}}>{systemOptionsShort(item)}</td>
-                    <td className="px-2 py-3 text-xs text-gray-600 text-center whitespace-nowrap">{item['36協定起算日']||''}</td>
+                    <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">{item['36協定起算日']||''}</td>
                     <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
                       {item['その他労使協定の届出']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">あり</span>}
                     </td>
