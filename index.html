@@ -866,7 +866,7 @@ const SYSTEM_OPTIONS = [
   {key:'payrollA',         short:'給与(A)',    label:'給与（A契約あり）',               excel:'給与(A契約あり)',                price:200},
   {key:'paidLeave',        short:'有給',       label:'有給休暇管理',                    excel:'有給休暇管理',                   price:100},
 ];
-const systemOptionsShort = c => SYSTEM_OPTIONS.filter(o => (c.システムオプション||{})[o.key] != null).map(o => o.short).join('・');
+const systemOptionsOn = c => SYSTEM_OPTIONS.filter(o => (c.システムオプション||{})[o.key] != null);
 
 function buildSystemFeeWorkbook(customers) {
   // 契約解除済み・No未設定（「その他（直接入力）」等）は出力しない。顧問先Noの昇順
@@ -4874,7 +4874,17 @@ function MasterScreen({masters, setMasters}) {
                     }
                   </td>
                   {tab==='顧問先' && <>
-                    <td className="px-3 py-3 text-sm text-gray-600" style={{minWidth:'140px'}}>{systemOptionsShort(item)}</td>
+                    <td className="px-3 py-3 text-sm text-gray-600" style={{minWidth:'140px'}}>
+                      {/* MN(事務)のみ青バッジで強調、他は通常テキスト（「・」区切り） */}
+                      {systemOptionsOn(item).map((o,i)=>(
+                        <span key={o.key}>
+                          {i>0 && '・'}
+                          {o.key==='myNumberOffice'
+                            ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">{o.short}</span>
+                            : o.short}
+                        </span>
+                      ))}
+                    </td>
                     <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}</td>
                     <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{joinCcNames(item)}</td>
                     <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">{item['36協定起算日']||''}</td>
