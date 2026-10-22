@@ -855,17 +855,18 @@ function buildBackupWorkbook({cases, checks, payrolls, masters}) {
 }
 
 /* ── 月次システム利用料 Excel（ポータル請求業務ウィザードの単価Excel「売値単価」と同じ形式） ── */
-// key は顧問先マスタの システムオプション に保存するキー。excel はウィザードが照合する見出し（半角括弧）
+// key は顧問先マスタの システムオプション に保存するキー。short はマスタ一覧の省略表示。excel はウィザードが照合する見出し（半角括弧）
 const SYSTEM_OPTIONS = [
-  {key:'myNumberCustomer', label:'マイナンバープラス（お客様入力）', excel:'マイナンバープラス(お客様入力)', price:100},
-  {key:'myNumberOffice',   label:'マイナンバープラス（事務所入力）', excel:'マイナンバープラス(事務所入力)', price:200},
-  {key:'webPayslip',       label:'web給与明細',                     excel:'web給与明細',                    price:50},
-  {key:'attendance',       label:'勤怠',                            excel:'勤怠',                           price:300},
-  {key:'attendanceB',      label:'勤怠（B契約あり）',               excel:'勤怠(B契約あり)',                price:250},
-  {key:'payroll',          label:'給与',                            excel:'給与',                           price:400},
-  {key:'payrollA',         label:'給与（A契約あり）',               excel:'給与(A契約あり)',                price:200},
-  {key:'paidLeave',        label:'有給休暇管理',                    excel:'有給休暇管理',                   price:100},
+  {key:'myNumberCustomer', short:'MN(客)',    label:'マイナンバープラス（お客様入力）', excel:'マイナンバープラス(お客様入力)', price:100},
+  {key:'myNumberOffice',   short:'MN(事務)',   label:'マイナンバープラス（事務所入力）', excel:'マイナンバープラス(事務所入力)', price:200},
+  {key:'webPayslip',       short:'web給与',    label:'web給与明細',                     excel:'web給与明細',                    price:50},
+  {key:'attendance',       short:'勤怠',       label:'勤怠',                            excel:'勤怠',                           price:300},
+  {key:'attendanceB',      short:'勤怠(B)',    label:'勤怠（B契約あり）',               excel:'勤怠(B契約あり)',                price:250},
+  {key:'payroll',          short:'給与',       label:'給与',                            excel:'給与',                           price:400},
+  {key:'payrollA',         short:'給与(A)',    label:'給与（A契約あり）',               excel:'給与(A契約あり)',                price:200},
+  {key:'paidLeave',        short:'有給',       label:'有給休暇管理',                    excel:'有給休暇管理',                   price:100},
 ];
+const systemOptionsShort = c => SYSTEM_OPTIONS.filter(o => (c.システムオプション||{})[o.key] != null).map(o => o.short).join('・');
 
 function buildSystemFeeWorkbook(customers) {
   // 契約解除済み・No未設定（「その他（直接入力）」等）は出力しない。顧問先Noの昇順
@@ -882,7 +883,7 @@ function buildSystemFeeWorkbook(customers) {
       return [
         i + 1,
         Number.isFinite(no) ? no : c.no,
-        (c.システム利用料社名 || '').trim() || c.name || '',
+        c.name || '',
         ...SYSTEM_OPTIONS.map(o => opts[o.key] ?? ''),
         '',
       ];
@@ -4345,7 +4346,6 @@ function CustomerDetailModal({item, onClose, onEdit}) {
     {k:'その他労使協定の届出', v:item['その他労使協定の届出']},
     {k:'東京SR特別加入',       v:item['東京SR特別加入']},
     {k:'システムオプション',   v:SYSTEM_OPTIONS.filter(o=>(item.システムオプション||{})[o.key]!=null).map(o=>`${o.label} ${item.システムオプション[o.key]}円`).join('、')},
-    {k:'システム利用料Excel用社名', v:item.システム利用料社名},
   ];
   const renderField = ({k,v,copy}) => (
     <div key={k} className="flex items-center gap-3 py-2.5 text-sm">
@@ -4425,7 +4425,7 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
           e.preventDefault();
           if(!form.name.trim()){alert('名称は必須です');return;}
           if(tab==='顧問先'){
-            // オプション・Excel用社名は未設定ならキー自体を持たせない（既存の顧問先データにフィールドが増えない）
+            // オプションは未設定ならキー自体を持たせない（既存の顧問先データにフィールドが増えない）
             const saved = {...form};
             const opts = {};
             for (const o of SYSTEM_OPTIONS) {
@@ -4436,8 +4436,6 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
               opts[o.key] = n;
             }
             if (Object.keys(opts).length) saved.システムオプション = opts; else delete saved.システムオプション;
-            const feeName = String(saved.システム利用料社名||'').trim();
-            if (feeName) saved.システム利用料社名 = feeName; else delete saved.システム利用料社名;
             onSave(saved);
             return;
           }
@@ -4616,10 +4614,6 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
                   );
                 })}
               </div>
-            </div>
-            <div className="mb-3">
-              <label className="block text-sm font-semibold text-gray-600 mb-1">システム利用料Excel用社名</label>
-              <input value={form.システム利用料社名||''} onChange={e=>set('システム利用料社名',e.target.value)} placeholder="空欄なら名称をそのまま出力（オフィスステーション上の社名が異なる場合のみ入力）" />
             </div>
           </>)}
           <div className="flex gap-3 justify-end">
@@ -4850,10 +4844,10 @@ function MasterScreen({masters, setMasters}) {
                 {tab==='顧問先' && <>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">宛名</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">CC</th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">事務所担当者</th>
-                  <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">36協定起算日</th>
-                  <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">その他労使協定</th>
-                  <th className="px-3 py-3 text-center font-semibold text-gray-600 whitespace-nowrap">特別加入</th>
+                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">システムオプション</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-600 text-xs leading-tight" style={{width:'64px'}}>36協定<br/>起算日</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-600 text-xs leading-tight" style={{width:'64px'}}>その他<br/>労使協定</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-600 text-xs leading-tight" style={{width:'56px'}}>特別<br/>加入</th>
                 </>}
                 {tab==='提携先' && <>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当者名</th>
@@ -4882,12 +4876,12 @@ function MasterScreen({masters, setMasters}) {
                   {tab==='顧問先' && <>
                     <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}</td>
                     <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{joinCcNames(item)}</td>
-                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.事務所担当者||''}</td>
-                    <td className="px-3 py-3 text-sm text-gray-600 text-center whitespace-nowrap">{item['36協定起算日']||''}</td>
-                    <td className="px-3 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
+                    <td className="px-3 py-3 text-sm text-gray-600" style={{minWidth:'140px'}}>{systemOptionsShort(item)}</td>
+                    <td className="px-2 py-3 text-xs text-gray-600 text-center whitespace-nowrap">{item['36協定起算日']||''}</td>
+                    <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
                       {item['その他労使協定の届出']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">あり</span>}
                     </td>
-                    <td className="px-3 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
+                    <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
                       {item['東京SR特別加入']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-700">あり</span>}
                     </td>
                   </>}
