@@ -853,6 +853,47 @@ function buildBackupWorkbook({cases, checks, payrolls, masters}) {
     [{wch:8},{wch:26},{wch:14},{wch:28},{wch:40}, ...partnerExport.headers.slice(5).map(() => ({wch:16}))], '提携先マスタ');
   return wb;
 }
+
+/* ── 月次システム利用料 Excel（ポータル請求業務ウィザードの単価Excel「売値単価」と同じ形式） ── */
+// key は顧問先マスタの システムオプション に保存するキー。excel はウィザードが照合する見出し（半角括弧）
+const SYSTEM_OPTIONS = [
+  {key:'myNumberCustomer', label:'マイナンバープラス（お客様入力）', excel:'マイナンバープラス(お客様入力)', price:100},
+  {key:'myNumberOffice',   label:'マイナンバープラス（事務所入力）', excel:'マイナンバープラス(事務所入力)', price:200},
+  {key:'webPayslip',       label:'web給与明細',                     excel:'web給与明細',                    price:50},
+  {key:'attendance',       label:'勤怠',                            excel:'勤怠',                           price:300},
+  {key:'attendanceB',      label:'勤怠（B契約あり）',               excel:'勤怠(B契約あり)',                price:250},
+  {key:'payroll',          label:'給与',                            excel:'給与',                           price:400},
+  {key:'payrollA',         label:'給与（A契約あり）',               excel:'給与(A契約あり)',                price:200},
+  {key:'paidLeave',        label:'有給休暇管理',                    excel:'有給休暇管理',                   price:100},
+];
+
+function buildSystemFeeWorkbook(customers) {
+  // 契約解除済み・No未設定（「その他（直接入力）」等）は出力しない。顧問先Noの昇順
+  const list = masterList(customers)
+    .filter(c => !c.terminated && String(c.no ?? '').trim() !== '')
+    .sort((a, b) => Number(a.no) - Number(b.no));
+  // focusU 列はウィザードの必須列のため見出しのみ出力（値は空白）
+  const aoa = [
+    ['', '', '社名', ...SYSTEM_OPTIONS.map(o => o.excel), 'focusU'],
+    ['', '', '', ...SYSTEM_OPTIONS.map(o => o.price), '報酬額'],
+    ...list.map((c, i) => {
+      const opts = c.システムオプション || {};
+      const no = Number(c.no);
+      return [
+        i + 1,
+        Number.isFinite(no) ? no : c.no,
+        (c.システム利用料社名 || '').trim() || c.name || '',
+        ...SYSTEM_OPTIONS.map(o => opts[o.key] ?? ''),
+        '',
+      ];
+    }),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:5},{wch:6},{wch:30}, ...SYSTEM_OPTIONS.map(() => ({wch:16})), {wch:10}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '売値単価');
+  return wb;
+}
 function daysSince(str) {
   const d = parseDate(str); if (!d) return null;
   const t = new Date(); t.setHours(0,0,0,0);
@@ -4303,6 +4344,8 @@ function CustomerDetailModal({item, onClose, onEdit}) {
     {k:'36協定起算日',         v:item['36協定起算日']},
     {k:'その他労使協定の届出', v:item['その他労使協定の届出']},
     {k:'東京SR特別加入',       v:item['東京SR特別加入']},
+    {k:'システムオプション',   v:SYSTEM_OPTIONS.filter(o=>(item.システムオプション||{})[o.key]!=null).map(o=>`${o.label} ${item.システムオプション[o.key]}円`).join('、')},
+    {k:'システム利用料Excel用社名', v:item.システム利用料社名},
   ];
   const renderField = ({k,v,copy}) => (
     <div key={k} className="flex items-center gap-3 py-2.5 text-sm">
@@ -4361,6 +4404,13 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
     const cur = form.契約サービス || [];
     set('契約サービス', cur.includes(sv) ? cur.filter(x=>x!==sv) : [...cur, sv]);
   };
+  // システムオプション：ONのものだけ {key: 単価} で保持。ON時は標準単価を初期値にする
+  const toggleOpt = o => {
+    const cur = {...(form.システムオプション||{})};
+    if (cur[o.key] != null) delete cur[o.key]; else cur[o.key] = o.price;
+    set('システムオプション', cur);
+  };
+  const setOptPrice = (key, v) => set('システムオプション', {...(form.システムオプション||{}), [key]: v});
   const toggleDateField = f => {
     const cur = form.必須日付フィールド || [];
     set('必須日付フィールド', cur.includes(f) ? cur.filter(x=>x!==f) : [...cur, f]);
@@ -4374,6 +4424,23 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
         <form onSubmit={e=>{
           e.preventDefault();
           if(!form.name.trim()){alert('名称は必須です');return;}
+          if(tab==='顧問先'){
+            // オプション・Excel用社名は未設定ならキー自体を持たせない（既存の顧問先データにフィールドが増えない）
+            const saved = {...form};
+            const opts = {};
+            for (const o of SYSTEM_OPTIONS) {
+              const v = (saved.システムオプション||{})[o.key];
+              if (v == null) continue;
+              const n = parseTargetCount(String(v).trim());
+              if (n == null) { alert(`${o.label}の単価には0以上の半角整数を入力してください（例：${o.price}）。`); return; }
+              opts[o.key] = n;
+            }
+            if (Object.keys(opts).length) saved.システムオプション = opts; else delete saved.システムオプション;
+            const feeName = String(saved.システム利用料社名||'').trim();
+            if (feeName) saved.システム利用料社名 = feeName; else delete saved.システム利用料社名;
+            onSave(saved);
+            return;
+          }
           if(tab!=='手続き'){onSave(form);return;}
           // 標準請求金額：空欄ならキー自体を持たせない（既存の手続きマスタにはフィールドが増えない）
           const fee = String(form.標準請求金額 ?? '').trim();
@@ -4527,6 +4594,32 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
                   <option value="あり">あり</option>
                 </select>
               </div>
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">システムオプション（単価：円/名）</label>
+              <div className="grid grid-cols-2 gap-x-5 gap-y-2">
+                {SYSTEM_OPTIONS.map(o=>{
+                  const v = (form.システムオプション||{})[o.key];
+                  return (
+                    <div key={o.key} className="flex items-center gap-2" style={{minHeight:'32px'}}>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-sm" style={{flex:1}}>
+                        <input type="checkbox" checked={v!=null} onChange={()=>toggleOpt(o)}
+                          style={{width:'15px',height:'15px',cursor:'pointer'}} />
+                        {o.label}
+                      </label>
+                      {v!=null && (<>
+                        <input type="text" inputMode="numeric" value={v} onChange={e=>setOptPrice(o.key, e.target.value)}
+                          style={{width:'80px'}} />
+                        <span className="text-sm text-gray-600">円</span>
+                      </>)}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">システム利用料Excel用社名</label>
+              <input value={form.システム利用料社名||''} onChange={e=>set('システム利用料社名',e.target.value)} placeholder="空欄なら名称をそのまま出力（オフィスステーション上の社名が異なる場合のみ入力）" />
             </div>
           </>)}
           <div className="flex gap-3 justify-end">
@@ -4737,7 +4830,13 @@ function MasterScreen({masters, setMasters}) {
             </select>
           </div>
         )}
-        <button className="btn btn-primary ml-auto" onClick={()=>{setEditItem(null);setShowModal(true);}}>＋ 追加</button>
+        {tab==='顧問先' && (
+          <button className="btn btn-secondary ml-auto" onClick={()=>{
+            if (typeof XLSX === 'undefined') { alert('Excel出力ライブラリの読み込みに失敗しました。ページを再読み込みしてください。'); return; }
+            XLSX.writeFile(buildSystemFeeWorkbook(masters.customers), `月次システム利用料_${taskExcelFilenameDate()}.xlsx`);
+          }}>システム利用料出力</button>
+        )}
+        <button className={`btn btn-primary ${tab==='顧問先'?'':'ml-auto'}`} onClick={()=>{setEditItem(null);setShowModal(true);}}>＋ 追加</button>
       </div>
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 220px)'}}>
         {list.length===0 ? (
