@@ -2115,6 +2115,7 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
     賞与固定金額:  monthOnly('賞与固定金額'),
     追加件数:      monthOnly('追加件数'),
     追加金額:      monthOnly('追加金額'),
+    追加メモ:      monthOnly('追加メモ'),
   });
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
 
@@ -2156,6 +2157,7 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
           if(monthSetting?.システム利用料!=null) setting.システム利用料 = monthSetting.システム利用料;
           if(form.追加件数!=='')    setting.追加件数    = Number(form.追加件数);
           if(form.追加金額!=='')    setting.追加金額    = Number(form.追加金額);
+          if(form.追加メモ.trim()!=='') setting.追加メモ = form.追加メモ.trim();
           // 月別設定構造で保存（旧構造のキーは除去して新構造に統一）
           const { 月別追加案件, 単価_20以下, 単価_21_50, 単価_51_100, 単価_101_300, 単価_301以上,
                   労務顧問: _r, 処遇改善加算: _s, 給与固定金額: _g, 賞与固定金額: _b, ...rest } = rates||{};
@@ -2220,7 +2222,11 @@ function PayrollRateModal({customerName, month, rates, onSave, onClose}) {
                 <input type="number" min="0" value={form.追加金額} onChange={e=>set('追加金額',e.target.value)} placeholder="0" />
               </div>
             </div>
-            <p className="text-xs text-gray-400 mt-1">※ 請求集計の「追加案件請求」列に表示されます</p>
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-gray-500 mb-1">内容メモ（任意）</label>
+              <textarea rows="2" value={form.追加メモ} onChange={e=>set('追加メモ',e.target.value)} placeholder="どの案件に対する請求か（例：〇〇の手続き 2件）" style={{width:'100%',resize:'vertical'}} />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">※ 請求集計の「追加案件請求」列に表示されます（金額をクリックするとメモを確認できます）</p>
           </div>
           {/* ⑤ 賞与計算 */}
           <div className="mb-6">
@@ -2271,6 +2277,7 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
   const [rateModal, setRateModal] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [bulkInheritMsg, setBulkInheritMsg] = useState('');
+  const [addMemoPopup, setAddMemoPopup] = useState(null);
 
   const snapshot    = sel ? (billingSnapshots||{})[sel] : null;
   const isConfirmed = !!snapshot?.confirmedAt;
@@ -2622,7 +2629,12 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.処遇改善加算!=null?`¥${r.処遇改善加算.toLocaleString()}`:'—'}</td>
                   <td className="px-3 py-3 text-right text-gray-700">{(r.count||0)>0?`${r.count}件`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{(r.total||0)>0?`¥${r.total.toLocaleString()}`:'—'}</td>
-                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{(r.追加金額||0)>0?`¥${r.追加金額.toLocaleString()}`:'—'}</td>
+                  <td className="px-4 py-3 text-right text-gray-800 font-semibold">{(r.追加金額||0)>0
+                    ? <button onClick={()=>setAddMemoPopup({name:r.name, amount:r.追加金額, memo:(payrollRates||{})[r.name]?.月別設定?.[sel]?.追加メモ||''})}
+                        title="クリックで内容メモを表示"
+                        style={{background:'none',border:'none',padding:0,cursor:'pointer',fontWeight:'inherit',color:'inherit',textDecoration:'underline',textDecorationColor:'#d1d5db',fontFamily:'inherit',fontSize:'inherit'}}
+                      >¥{r.追加金額.toLocaleString()}</button>
+                    : '—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.月変請求!=null?`¥${r.月変請求.toLocaleString()}`:'—'}</td>
                   <td className="px-4 py-3 text-right text-gray-800 font-semibold">{r.年更算定請求!=null?`¥${r.年更算定請求.toLocaleString()}`:'—'}</td>
                   <td className="px-3 py-3 text-right text-gray-700">{r.賞与人数>0?`${r.賞与人数}人`:'—'}</td>
@@ -2658,6 +2670,20 @@ function BillingSummaryScreen({cases, masters, payrolls, payrollRates, setPayrol
           onSave={data=>handleSaveRate(rateModal.name, data)}
           onClose={()=>setRateModal(null)}
         />
+      )}
+      {addMemoPopup && (
+        <div className="modal-overlay" onClick={()=>setAddMemoPopup(null)}>
+          <div className="modal-box" style={{width:'440px'}} onClick={e=>e.stopPropagation()}>
+            <h2 className="text-lg font-bold mb-1">追加案件 内容メモ</h2>
+            <p className="text-sm text-gray-500 mb-4">{addMemoPopup.name}　{sel}　¥{addMemoPopup.amount.toLocaleString()}</p>
+            <div style={{background:'#f9fafb',border:'1px solid #e5e7eb',borderRadius:'6px',padding:'12px',whiteSpace:'pre-wrap',wordBreak:'break-all',minHeight:'48px',color:addMemoPopup.memo?'#1f2937':'#9ca3af'}}>
+              {addMemoPopup.memo || 'メモなし'}
+            </div>
+            <div className="flex justify-end mt-4">
+              <button type="button" className="btn btn-secondary" onClick={()=>setAddMemoPopup(null)}>閉じる</button>
+            </div>
+          </div>
+        </div>
       )}
       {confirmDialog && (
         <ConfirmModal
