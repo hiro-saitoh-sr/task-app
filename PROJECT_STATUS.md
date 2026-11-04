@@ -22,6 +22,7 @@
 - ログイン許可アカウントにパートさん `soeda@saitoh-sr.com` を追加（2026-11-04、利用者承認済み）。
   - `index.html` の `ALLOWED_EMAILS` に1行追加のみ。共有DBのルール（labor-notice-app `database.rules.json`）にも同日追加済み（ルートの読み書き許可）。
   - portal・expense-app・shogu-app・estimate-contract-app・labor-notice-app にも同日追加。
+  - 2026-11-04 利用者がポータル管理設定で全権限（7項目）をオンにし、全アプリ（portal・task-app・shogu-app・estimate-contract-app・labor-notice-app・expense-app）へのログインを確認。作業完了。
 - 給与単価設定の追加案件請求にメモ欄を追加・閲覧機能を追加（2026-10-26）。
   - 給与単価設定モーダル（`PayrollRateModal`）の「追加案件請求額」の下に「内容メモ（任意）」欄を追加。追加件数・追加金額と同じく月ごとにリセット（前月から引き継がない、一括引き継ぎの対象外）。
   - 保存キー：`payrollRates/{顧問先名}/月別設定/{年月}/追加メモ`（前後の空白を除いた文字列。空欄ならキーを持たせない）。既存の追加案件データ（`追加件数`・`追加金額`・旧構造`月別追加案件`）は変更なし。
