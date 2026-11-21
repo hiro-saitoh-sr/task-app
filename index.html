@@ -786,6 +786,12 @@ const ASSIGNEE_MASTER_EXCEL_HEADERS  = ['id', '名称'];
 const PARTNER_MASTER_BASE_HEADERS    = ['id', '名称', '担当者名', 'メールアドレス', '担当顧問先'];
 
 const masterList = v => Array.isArray(v) ? v.filter(Boolean) : (v && typeof v === 'object' ? Object.values(v).filter(Boolean) : []);
+// 提携先マスタの「担当顧問先」にその顧問先がチェックされている提携先（税理士）を返す
+const findTaxPartners = (partners, custName) => custName ? masterList(partners).filter(p => masterList(p.担当顧問先).includes(custName)) : [];
+// 該当税理士が1件なら null、0件・複数件なら注意喚起の文言を返す
+const taxPartnerWarning = list => list.length===0
+  ? '担当税理士が見つかりません。提携先マスタで担当顧問先を設定してください'
+  : list.length>1 ? '複数の税理士が該当しています。提携先マスタを確認してください' : null;
 const masterCellValue = v => Array.isArray(v) ? v.join('・') : (v == null ? '' : (typeof v === 'object' ? JSON.stringify(v) : v));
 
 function buildProcedureMasterExportRows(procedures) {
@@ -3836,10 +3842,10 @@ function PayrollMonthModal({payroll, month, year, cases, checks, masters, onSave
   const [expandedGroups,setExpandedGroups]=useState({});
   // 顧問先マスタで「給与明細一覧を税理士にも送付」がONの顧問先のみ、税理士納品チェックを表示する
   const custMaster = masterList(masters.customers).find(c => c.name===payroll.customerName);
-  const taxPartner = custMaster && custMaster.税理士送付
-    ? masterList(masters.partners).find(p => String(p.id)===String(custMaster.税理士送付先ID))
-    : null;
   const showTaxDelivery = !!(custMaster && custMaster.税理士送付);
+  // 送付先の税理士は提携先マスタの「担当顧問先」から自動検索（1件のみのとき名称を表示、0件・複数件は注意喚起）
+  const taxPartners = showTaxDelivery ? findTaxPartners(masters.partners, payroll.customerName) : [];
+  const taxWarn = showTaxDelivery ? taxPartnerWarning(taxPartners) : null;
   // 未チェックならキーを持たせない（既存の月次データにフィールドが増えない）
   const handleSubmit = e => {
     e.preventDefault();
@@ -3947,8 +3953,9 @@ function PayrollMonthModal({payroll, month, year, cases, checks, masters, onSave
               <label className="flex items-center gap-1.5 cursor-pointer text-sm font-semibold text-gray-600">
                 <input type="checkbox" checked={!!form.税理士納品済} onChange={e=>set('税理士納品済',e.target.checked)}
                   style={{width:'15px',height:'15px',cursor:'pointer'}} />
-                税理士へも納品済（{taxPartner ? taxPartner.name : '税理士未設定'}）
+                税理士へも納品済{taxWarn ? '' : `（${taxPartners[0].name}）`}
               </label>
+              {taxWarn && <p className="col-start-2 text-sm font-semibold" style={{color:'#c2410c', marginTop:'-8px'}}>⚠️ {taxWarn}</p>}
             </div>
           )}
           <div className="border-t pt-4 mb-6">
@@ -4492,14 +4499,10 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, 
               opts[o.key] = n;
             }
             if (Object.keys(opts).length) saved.システムオプション = opts; else delete saved.システムオプション;
-            // 税理士送付：ONかつ税理士選択済みの場合のみキーを持たせる（OFFならキー自体を削除し、既存データにフィールドが増えない）
-            if (saved.税理士送付) {
-              if (saved.税理士送付先ID === '' || saved.税理士送付先ID == null) { alert('給与明細一覧の送付先の税理士（提携先）を選択してください。'); return; }
-              saved.税理士送付 = true;
-            } else {
-              delete saved.税理士送付;
-              delete saved.税理士送付先ID;
-            }
+            // 税理士送付：ONの場合のみキーを持たせる（OFFならキー自体を削除し、既存データにフィールドが増えない）
+            // 送付先の税理士は提携先マスタの担当顧問先から都度参照するため保存しない（旧方式の税理士送付先IDは保存時に取り除く）
+            if (saved.税理士送付) saved.税理士送付 = true; else delete saved.税理士送付;
+            delete saved.税理士送付先ID;
             onSave(saved);
             return;
           }
@@ -4619,6 +4622,21 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, 
               </div>
             </div>
             <div className="mb-3">
+              <label className="flex items-center gap-1.5 cursor-pointer text-sm font-semibold text-gray-600">
+                <input type="checkbox" checked={!!form.税理士送付} onChange={e=>set('税理士送付', e.target.checked)}
+                  style={{width:'15px',height:'15px',cursor:'pointer'}} />
+                給与明細一覧を税理士にも送付
+              </label>
+              {form.税理士送付 && (()=>{
+                // 送付先は提携先マスタの「担当顧問先」から都度自動検索する（顧問先マスタには保存しない）
+                const found = findTaxPartners(partners, form.name.trim());
+                const warn = taxPartnerWarning(found);
+                return warn
+                  ? <p className="mt-1 text-sm font-semibold" style={{color:'#c2410c'}}>⚠️ {warn}</p>
+                  : <p className="mt-1 text-sm text-gray-600">送付先：{found[0].name}（提携先マスタの担当顧問先から自動連携）</p>;
+              })()}
+            </div>
+            <div className="mb-3">
               <label className="block text-sm font-semibold text-gray-600 mb-1">事務所担当者</label>
               {(assignees||[]).length>0 ? (
                 <select value={form.事務所担当者||''} onChange={e=>set('事務所担当者',e.target.value)}>
@@ -4678,21 +4696,6 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, 
                   );
                 })}
               </div>
-            </div>
-            <div className="mb-3">
-              <label className="flex items-center gap-1.5 cursor-pointer text-sm font-semibold text-gray-600">
-                <input type="checkbox" checked={!!form.税理士送付}
-                  onChange={e=>setForm(f=>({...f, 税理士送付: e.target.checked, 税理士送付先ID: e.target.checked ? (f.税理士送付先ID ?? '') : ''}))}
-                  style={{width:'15px',height:'15px',cursor:'pointer'}} />
-                給与明細一覧を税理士にも送付
-              </label>
-              {form.税理士送付 && (
-                <select className="mt-2" value={form.税理士送付先ID ?? ''}
-                  onChange={e=>set('税理士送付先ID', e.target.value==='' ? '' : Number(e.target.value))}>
-                  <option value="">— 税理士（提携先）を選択 —</option>
-                  {(partners||[]).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              )}
             </div>
           </>)}
           <div className="flex gap-3 justify-end">
