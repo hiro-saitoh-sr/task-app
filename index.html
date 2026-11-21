@@ -1566,8 +1566,12 @@ function DeliveryMailModal({caseData, masters, onClose}) {
     });
   const folderBlocks = folderItems.length > 0 ? `【フォルダ名】\n${folderItems.join('\n\n')}` : '';
 
+  // 挨拶文：案件の「担当者」欄の名前をそのまま入れる（未設定の場合は従来どおり事務所名のみ）
+  const assigneeName = (caseData.assignee || '').trim();
+  const selfIntroLine = `社会保険労務士齊藤事務所${assigneeName ? 'の' + assigneeName : ''}でございます。`;
+
   const subject = '【お手続き完了のお知らせ】社会保険労務士齊藤事務所';
-  const body = `${companyName}\n${greetingLines.join('\n')}\n\nお世話になっております。\n社会保険労務士齊藤事務所でございます。\n\n次の手続きが完了しGoogle Driveに格納いたしました。\n\n${folderBlocks}\n\n以上となります。\nどうぞよろしくお願いいたします。\n\n${DELIVERY_MAIL_SIGNATURE}`;
+  const body = `${companyName}\n${greetingLines.join('\n')}\n\nお世話になっております。\n${selfIntroLine}\n\n次の手続きが完了しGoogle Driveに格納いたしました。\n\n${folderBlocks}\n\n以上となります。\nどうぞよろしくお願いいたします。\n\n${DELIVERY_MAIL_SIGNATURE}`;
 
   function handleCreateDraft() {
     const ccParam = cc ? `&cc=${encodeURIComponent(cc)}` : '';
@@ -1590,6 +1594,8 @@ function DeliveryMailModal({caseData, masters, onClose}) {
           </div>
           {ccRaw && <div>CC：{ccRaw}</div>}
           <div>BCC：{DELIVERY_MAIL_BCC}</div>
+          <div className="pt-3">お世話になっております。</div>
+          <div>{selfIntroLine}</div>
         </div>
         <label className="block text-sm font-semibold text-gray-600 mb-1">フォルダ名を一括貼り付け</label>
         <textarea value={bulkText} onChange={e=>setBulkText(e.target.value)} onPaste={handleBulkPaste}
