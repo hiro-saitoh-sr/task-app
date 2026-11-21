@@ -4075,46 +4075,6 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks}) 
   const assigneeOptions = [...new Set(payrolls.map(p=>p.assignee).filter(Boolean))].map(a=>({label:a,value:a}));
 
   /* ── sticky列共通スタイル ── */
-  // ── 一度限りの移行（2026-11-22）：税理士送付ONの顧問先で、給与明細納品日が入力済みなのに「税理士へも納品済」が未チェックの月（2026年11月以前）を一括でONにする。
-  //    対象が0件になるとボタンは自動で消える。移行完了後にこのブロックごと削除する予定。
-  const TAX_MIGRATION_CUTOFF = 202611;
-  const taxMigrationTargets = useMemo(() => {
-    const list = [];
-    (payrolls||[]).forEach(p => {
-      if (!taxSendCustomerNames.has(p.customerName)) return;
-      Object.entries(p.yearData||{}).forEach(([y, ym]) => {
-        Object.entries(ym||{}).forEach(([m, md]) => {
-          if (!md || !md.納品日 || md.税理士納品済) return;
-          if (Number(y)*100 + Number(m) > TAX_MIGRATION_CUTOFF) return;
-          list.push({id:p.id, customerName:p.customerName, year:y, month:m});
-        });
-      });
-    });
-    return list;
-  }, [payrolls, taxSendCustomerNames]);
-  const runTaxMigration = () => {
-    const targets = taxMigrationTargets;
-    if (targets.length === 0) return;
-    const byCust = {};
-    targets.forEach(t => { byCust[t.customerName] = (byCust[t.customerName]||0) + 1; });
-    const summary = Object.entries(byCust).map(([n,c]) => `・${n}：${c}件`).join('\n');
-    if (!window.confirm(`【一度限りの移行処理】\n税理士送付ONの顧問先で、給与明細納品日が入力済みの月（2026年11月以前）を「税理士へも納品済」にします。\n\n対象：${Object.keys(byCust).length}顧問先・計${targets.length}件\n${summary}\n\n実行しますか？`)) return;
-    // 復旧用に対象一覧をこの端末に保存（元に戻す場合はこの一覧の月の「税理士納品済」を外す）
-    try { localStorage.setItem('taxMigration_20261122_targets', JSON.stringify(targets)); } catch(e) {}
-    const key = t => `${t.id}|${t.year}|${t.month}`;
-    const targetSet = new Set(targets.map(key));
-    setPayrolls(prev => prev.map(p => {
-      if (!targets.some(t => t.id===p.id)) return p;
-      const yd = JSON.parse(JSON.stringify(p.yearData||{}));
-      Object.entries(yd).forEach(([y, ym]) => {
-        Object.entries(ym||{}).forEach(([m, md]) => {
-          if (md && targetSet.has(key({id:p.id, year:y, month:m}))) md.税理士納品済 = true;
-        });
-      });
-      return {...p, yearData: yd};
-    }));
-    window.alert(`移行が完了しました：${Object.keys(byCust).length}顧問先・計${targets.length}件を「税理士へも納品済」にしました。\n（数秒後に自動でFirebaseへ保存されます）`);
-  };
 
   const stickyTh = {position:'sticky',left:0,top:0,zIndex:20,background:'#f9fafb',boxShadow:'2px 0 5px rgba(0,0,0,0.07)'};
   const stickyTd = {position:'sticky',left:0,zIndex:5,background:'white',boxShadow:'2px 0 5px rgba(0,0,0,0.07)'};
@@ -4139,16 +4099,6 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks}) 
           <button className="btn btn-primary" onClick={()=>{setEditCust(null);setShowCustModal(true);}}>＋ 顧問先追加</button>
         </div>
       </div>
-      {taxMigrationTargets.length > 0 && (
-        <div className="flex items-center gap-3 mb-3 flex-wrap" style={{background:'#fff7ed',border:'1px solid #fdba74',borderRadius:'8px',padding:'8px 14px'}}>
-          <span className="text-sm font-semibold" style={{color:'#9a3412'}}>
-            税理士送付ONの顧問先で、納品日入力済み・税理士未チェックの過去月が {taxMigrationTargets.length} 件あります（一度限りの移行処理）
-          </span>
-          <button className="text-sm px-3 py-1.5 rounded font-semibold bg-orange-500 text-white hover:bg-orange-600" onClick={runTaxMigration}>
-            過去分を一括で「税理士へも納品済」にする
-          </button>
-        </div>
-      )}
 
       {/* ── 全体イベント ── */}
       <div className="flex items-center gap-2 mb-3 flex-wrap" style={{background:'#eff6ff',border:'1px solid #93c5fd',borderRadius:'8px',padding:'8px 14px'}}>
