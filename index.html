@@ -3834,6 +3834,19 @@ function PayrollMonthModal({payroll, month, year, cases, checks, masters, onSave
   const [form,setForm]=useState({...PB(),...md});
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   const [expandedGroups,setExpandedGroups]=useState({});
+  // 顧問先マスタで「給与明細一覧を税理士にも送付」がONの顧問先のみ、税理士納品チェックを表示する
+  const custMaster = masterList(masters.customers).find(c => c.name===payroll.customerName);
+  const taxPartner = custMaster && custMaster.税理士送付
+    ? masterList(masters.partners).find(p => String(p.id)===String(custMaster.税理士送付先ID))
+    : null;
+  const showTaxDelivery = !!(custMaster && custMaster.税理士送付);
+  // 未チェックならキーを持たせない（既存の月次データにフィールドが増えない）
+  const handleSubmit = e => {
+    e.preventDefault();
+    const saved = {...form};
+    if (saved.税理士納品済) saved.税理士納品済 = true; else delete saved.税理士納品済;
+    onSave(saved);
+  };
 
   // 案件・月変チェックは「日付が当月」または「日付が前月（＝当月が翌月にあたる）」の場合に表示する
   const prevMonth = month===1 ? 12 : month-1;
@@ -3919,7 +3932,7 @@ function PayrollMonthModal({payroll, month, year, cases, checks, masters, onSave
             </div>
           </div>
         )}
-        <form onSubmit={e=>{e.preventDefault();onSave(form);}}>
+        <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div><label className="block text-sm font-semibold text-gray-600 mb-1">給与データ受取日</label><input value={form.受取日} onChange={e=>set('受取日',e.target.value)} placeholder="例：15" /></div>
             <div><label className="block text-sm font-semibold text-gray-600 mb-1">給与データ送信日</label><input value={form.送信日} onChange={e=>set('送信日',e.target.value)} placeholder="例：17" /></div>
@@ -3928,6 +3941,16 @@ function PayrollMonthModal({payroll, month, year, cases, checks, masters, onSave
             <div><label className="block text-sm font-semibold text-gray-600 mb-1">給与計算人数</label><input value={form.人数} onChange={e=>set('人数',e.target.value)} placeholder="例：15" /></div>
             <div><label className="block text-sm font-semibold text-gray-600 mb-1">給与明細納品日</label><input value={form.納品日} onChange={e=>set('納品日',e.target.value)} placeholder="例：20" /></div>
           </div>
+          {showTaxDelivery && (
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div></div>
+              <label className="flex items-center gap-1.5 cursor-pointer text-sm font-semibold text-gray-600">
+                <input type="checkbox" checked={!!form.税理士納品済} onChange={e=>set('税理士納品済',e.target.checked)}
+                  style={{width:'15px',height:'15px',cursor:'pointer'}} />
+                税理士へも納品済（{taxPartner ? taxPartner.name : '税理士未設定'}）
+              </label>
+            </div>
+          )}
           <div className="border-t pt-4 mb-6">
             <p className="text-xs text-gray-500 font-semibold mb-3 uppercase tracking-wide">賞与（臨時・該当月のみ）</p>
             <div className="grid grid-cols-2 gap-4">
@@ -4429,7 +4452,7 @@ function CustomerDetailModal({item, onClose, onEdit}) {
   );
 }
 
-function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees}) {
+function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, partners}) {
   const defForm = {no:'', name:'', グループ:'', 必須日付フィールド:[], 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', CC1名:'', CC1メール:'', CC2名:'', CC2メール:'', CC3名:'', CC3メール:'', 事務所担当者:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
   const [form, setForm] = useState(item ? {...defForm, ...item} : defForm);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -4469,6 +4492,14 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
               opts[o.key] = n;
             }
             if (Object.keys(opts).length) saved.システムオプション = opts; else delete saved.システムオプション;
+            // 税理士送付：ONかつ税理士選択済みの場合のみキーを持たせる（OFFならキー自体を削除し、既存データにフィールドが増えない）
+            if (saved.税理士送付) {
+              if (saved.税理士送付先ID === '' || saved.税理士送付先ID == null) { alert('給与明細一覧の送付先の税理士（提携先）を選択してください。'); return; }
+              saved.税理士送付 = true;
+            } else {
+              delete saved.税理士送付;
+              delete saved.税理士送付先ID;
+            }
             onSave(saved);
             return;
           }
@@ -4647,6 +4678,21 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees})
                   );
                 })}
               </div>
+            </div>
+            <div className="mb-3">
+              <label className="flex items-center gap-1.5 cursor-pointer text-sm font-semibold text-gray-600">
+                <input type="checkbox" checked={!!form.税理士送付}
+                  onChange={e=>setForm(f=>({...f, 税理士送付: e.target.checked, 税理士送付先ID: e.target.checked ? (f.税理士送付先ID ?? '') : ''}))}
+                  style={{width:'15px',height:'15px',cursor:'pointer'}} />
+                給与明細一覧を税理士にも送付
+              </label>
+              {form.税理士送付 && (
+                <select className="mt-2" value={form.税理士送付先ID ?? ''}
+                  onChange={e=>set('税理士送付先ID', e.target.value==='' ? '' : Number(e.target.value))}>
+                  <option value="">— 税理士（提携先）を選択 —</option>
+                  {(partners||[]).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              )}
             </div>
           </>)}
           <div className="flex gap-3 justify-end">
@@ -4990,6 +5036,7 @@ function MasterScreen({masters, setMasters}) {
           showNo={tab==='顧問先'}
           tab={tab}
           assignees={masters.assignees||[]}
+          partners={masterList(masters.partners)}
         />
       )}
       {delItem && (
