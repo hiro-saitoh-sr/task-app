@@ -782,7 +782,7 @@ function buildCustomerMasterExportRows(customers) {
 }
 
 const PROCEDURE_MASTER_EXCEL_HEADERS = ['id', '手続き名', 'グループ', '日付フィールド設定', '対象人数入力', '標準請求金額'];
-const ASSIGNEE_MASTER_EXCEL_HEADERS  = ['id', '名称'];
+const ASSIGNEE_MASTER_EXCEL_HEADERS  = ['id', '名称', 'メールアドレス'];
 const PARTNER_MASTER_BASE_HEADERS    = ['id', '名称', '担当者名', 'メールアドレス', '担当顧問先'];
 
 const masterList = v => Array.isArray(v) ? v.filter(Boolean) : (v && typeof v === 'object' ? Object.values(v).filter(Boolean) : []);
@@ -815,6 +815,7 @@ function buildAssigneeMasterExportRows(assignees) {
   return masterList(assignees).map(a => ({
     'id':   a.id ?? '',
     '名称': a.name || '',
+    'メールアドレス': a.email || '',
   }));
 }
 
@@ -860,7 +861,7 @@ function buildBackupWorkbook({cases, checks, payrolls, masters}) {
   addSheet(wb, PROCEDURE_MASTER_EXCEL_HEADERS, buildProcedureMasterExportRows(masters && masters.procedures),
     [{wch:8},{wch:26},{wch:14},{wch:40}], '手続きマスタ');
   addSheet(wb, ASSIGNEE_MASTER_EXCEL_HEADERS, buildAssigneeMasterExportRows(masters && masters.assignees),
-    [{wch:8},{wch:16}], '担当者マスタ');
+    [{wch:8},{wch:16},{wch:28}], '担当者マスタ');
   const partnerExport = buildPartnerMasterExport(masters && masters.partners);
   addSheet(wb, partnerExport.headers, partnerExport.rows,
     [{wch:8},{wch:26},{wch:14},{wch:28},{wch:40}, ...partnerExport.headers.slice(5).map(() => ({wch:16}))], '提携先マスタ');
@@ -1516,7 +1517,17 @@ Web：https://saitoh-sr.com/
 
 ＿/＿/＿/＿/＿/＿/＿/＿/＿/＿/＿/＿/＿/＿/＿/＿/＿/＿/＿/`;
 
-function DeliveryMailModal({caseData, masters, onClose}) {
+// 納品メールの差出人名（ログイン中のアカウント → 担当者マスタのemail で照合。見つからなければ案件の担当者名）
+function deliveryMailSenderName(masters, caseData, currentUser) {
+  const loginEmail = String((fbAuth.currentUser && fbAuth.currentUser.email) || (currentUser && currentUser.email) || '').trim().toLowerCase();
+  const matched = loginEmail
+    ? masterList(masters && masters.assignees).find(a => String(a.email || '').trim().toLowerCase() === loginEmail)
+    : null;
+  const name = matched && String(matched.name || '').trim();
+  return name || String(caseData.assignee || '').trim();
+}
+
+function DeliveryMailModal({caseData, masters, onClose, currentUser}) {
   const [folders, setFolders] = useState([{name:'', note:''}]);
   const master = (masters.customers||[]).find(m => m.name === caseData.customerName) || null;
   const companyName = (master && master.name) || caseData.customerName || '';
@@ -1578,8 +1589,9 @@ function DeliveryMailModal({caseData, masters, onClose}) {
     });
   const folderBlocks = folderItems.length > 0 ? `【フォルダ名】\n${folderItems.join('\n\n')}` : '';
 
-  // 挨拶文：案件の「担当者」欄の名前をそのまま入れる（未設定の場合は従来どおり事務所名のみ）
-  const assigneeName = (caseData.assignee || '').trim();
+  // 挨拶文の名前：ログイン中のアカウントのメールアドレスで担当者マスタ（email）を検索し、一致した担当者名を入れる。
+  // 一致しない場合は案件の「担当者」欄の名前を使う（未設定なら従来どおり事務所名のみ）。案件の担当者欄は変更しない
+  const assigneeName = deliveryMailSenderName(masters, caseData, currentUser);
   const selfIntroLine = `社会保険労務士齊藤事務所${assigneeName ? 'の' + assigneeName : ''}でございます。`;
 
   const subject = '【お手続き完了のお知らせ】社会保険労務士齊藤事務所';
@@ -2045,7 +2057,7 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
               onConfirm={()=>{setCases(p=>p.map(c=>c.id===cancelCase.id?{...c,cancelled:true}:c));setCancelCase(null);}}
               onClose={()=>setCancelCase(null)} />
       )}
-      {mailPopupCase && <DeliveryMailModal caseData={mailPopupCase} masters={masters} onClose={()=>setMailPopupCase(null)} />}
+      {mailPopupCase && <DeliveryMailModal caseData={mailPopupCase} masters={masters} currentUser={currentUser} onClose={()=>setMailPopupCase(null)} />}
       {showAlert36 && (
         <div className="modal-overlay">
           <div className="modal-box" style={{width:'480px', maxHeight:'80vh', overflowY:'auto'}}>
@@ -3479,7 +3491,7 @@ function AnnualUpdateScreen({cases, setCases, masters, currentUser}) {
               onConfirm={()=>{setCases(p=>p.map(c=>c.id===cancelCase.id?{...c,cancelled:true}:c));setCancelCase(null);}}
               onClose={()=>setCancelCase(null)} />
       )}
-      {mailPopupCase && <DeliveryMailModal caseData={mailPopupCase} masters={masters} onClose={()=>setMailPopupCase(null)} />}
+      {mailPopupCase && <DeliveryMailModal caseData={mailPopupCase} masters={masters} currentUser={currentUser} onClose={()=>setMailPopupCase(null)} />}
     </div>
   );
 }
@@ -3766,7 +3778,7 @@ function MonthlyCheckScreen({checks, setChecks, masters, cases, currentUser}) {
         )}
       </div>
       {showModal && <MonthlyCheckModal item={editItem} onSave={handleSave} onClose={()=>{setShowModal(false);setEditItem(null);}} masters={masters} currentUser={currentUser} />}
-      {mailPopupCase && <DeliveryMailModal caseData={mailPopupCase} masters={masters} onClose={()=>setMailPopupCase(null)} />}
+      {mailPopupCase && <DeliveryMailModal caseData={mailPopupCase} masters={masters} currentUser={currentUser} onClose={()=>setMailPopupCase(null)} />}
       {cancelItem && (
         cancelItem.cancelled
           ? <ConfirmModal
@@ -4528,6 +4540,15 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, 
             onSave(saved);
             return;
           }
+          if(tab==='担当者'){
+            // メールアドレス：空欄ならキー自体を持たせない（未入力の担当者データにフィールドが増えない）
+            const saved = {...form};
+            const email = String(saved.email||'').trim();
+            if(email!=='' && !/^[^\s@]+@[^\s@]+$/.test(email)){alert('メールアドレスの形式を確認してください（例：taro@saitoh-sr.com）。');return;}
+            if(email==='') delete saved.email; else saved.email = email;
+            onSave(saved);
+            return;
+          }
           if(tab!=='手続き'){onSave(form);return;}
           // 標準請求金額：空欄ならキー自体を持たせない（既存の手続きマスタにはフィールドが増えない）
           const fee = String(form.標準請求金額 ?? '').trim();
@@ -4546,6 +4567,13 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, 
             <label className="block text-sm font-semibold text-gray-600 mb-1">名称 <span className="text-red-500">*</span></label>
             <input value={form.name} onChange={e=>set('name',e.target.value)} placeholder="名称を入力" />
           </div>
+          {tab==='担当者' && (
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-gray-600 mb-1">メールアドレス（ログインアカウント）</label>
+              <input type="email" value={form.email||''} onChange={e=>set('email',e.target.value)} placeholder="例：taro@saitoh-sr.com" />
+              <p className="text-xs text-gray-500 mt-1">納品メール下書きの「社会保険労務士齊藤事務所の〇〇でございます。」に、このアカウントでログインした人の名前が入ります。</p>
+            </div>
+          )}
           {tab==='手続き' && (
             <div className="mb-3">
               <label className="block text-sm font-semibold text-gray-600 mb-1">グループ</label>
@@ -4955,6 +4983,7 @@ function MasterScreen({masters, setMasters}) {
                   <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">その他労使協定</th>
                   <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">特別加入</th>
                 </>}
+                {tab==='担当者' && <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">メールアドレス</th>}
                 {tab==='提携先' && <>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当者名</th>
                   <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">メールアドレス</th>
@@ -5005,6 +5034,7 @@ function MasterScreen({masters, setMasters}) {
                       {item['東京SR特別加入']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-700">あり</span>}
                     </td>
                   </>}
+                  {tab==='担当者' && <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.email || <span className="text-gray-300">未登録</span>}</td>}
                   {tab==='提携先' && <>
                     <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}</td>
                     <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">
