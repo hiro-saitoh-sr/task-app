@@ -5134,7 +5134,7 @@ function PartnerItemModal({title, item, onSave, onClose, customers}) {
 
 function MasterScreen({masters, setMasters}) {
   const [tab, setTab]               = useState('顧問先');
-  // 「給与カルテ」タブ内のサブタブ（勤怠資料受領方法／給与計算ソフト／納品方法）。保存先は各マスタのキーのまま
+  // 「給与カルテ」タブでは3マスタを1画面に縦並びで表示する。karteSub は操作中（追加・編集・削除）のマスタ。保存先は各マスタのキーのまま
   const [karteSub, setKarteSub]     = useState(Object.keys(KARTE_MASTER_TABS)[0]);
   const effTab = tab==='給与カルテ' ? karteSub : tab;
   const [showModal, setShowModal]   = useState(false);
@@ -5234,17 +5234,6 @@ function MasterScreen({masters, setMasters}) {
             契約解除済みを表示
           </label>
         </>)}
-        {tab==='給与カルテ' && (
-          <div className="flex items-center ml-2 rounded-lg border border-gray-200 overflow-hidden">
-            {Object.keys(KARTE_MASTER_TABS).map(k=>(
-              <button key={k} onClick={()=>{setKarteSub(k);setShowModal(false);setEditItem(null);}}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors ${karteSub===k?'bg-blue-50 text-blue-700':'bg-white text-gray-600 hover:bg-gray-50'}`}
-                style={{borderLeft: k===Object.keys(KARTE_MASTER_TABS)[0] ? 'none' : '1px solid #e5e7eb'}}>
-                {k}
-              </button>
-            ))}
-          </div>
-        )}
         {tab==='手続き' && (
           <div className="flex items-center gap-1.5 ml-2">
             <label style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>グループ</label>
@@ -5261,109 +5250,140 @@ function MasterScreen({masters, setMasters}) {
             XLSX.writeFile(buildSystemFeeWorkbook(masters.customers), `月次システム利用料_${taskExcelFilenameDate()}.xlsx`);
           }}>システム利用料出力</button>
         )}
-        <button className={`btn btn-primary ${tab==='顧問先'?'':'ml-auto'}`} onClick={()=>{setEditItem(null);setShowModal(true);}}>＋ 追加</button>
+        {tab!=='給与カルテ' && <button className={`btn btn-primary ${tab==='顧問先'?'':'ml-auto'}`} onClick={()=>{setEditItem(null);setShowModal(true);}}>＋ 追加</button>}
       </div>
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 220px)'}}>
-        {list.length===0 ? (
-          <div className="text-center py-12 text-gray-400"><p>データがありません。「追加」ボタンで追加してください。</p></div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                {tab==='顧問先' && <th className="px-3 py-3 text-left font-semibold text-gray-600 w-12">No</th>}
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">{tab==='提携先'?'提携先名':'名称'}</th>
-                {tab==='顧問先' && <>
-                  <th className="px-2 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">契約サービス</th>
-                  <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">税理士送付</th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">システムオプション</th>
-                  <th className="px-2 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">宛名</th>
-                  <th className="px-2 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">CC</th>
-                  <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">36協定起算日</th>
-                  <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">その他労使協定</th>
-                  <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">特別加入</th>
-                </>}
-                {tab==='担当者' && <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">メールアドレス</th>}
-                {tab==='提携先' && <>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当者名</th>
-                  <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">メールアドレス</th>
-                </>}
-                <th className="px-4 py-3 text-center font-semibold text-gray-600 w-28">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {list.map(item=>{
-                const is36Alert = tab==='顧問先' && (()=>{const d=daysUntil36Kisan(item['36協定起算日']);return d!==null&&d>=0&&d<=40;})();
-                return (
-                <tr key={item.id}
-                  className={`group ${item.terminated?'bg-gray-50 opacity-60':is36Alert?'':'hover:bg-gray-50'}`}
-                  style={is36Alert&&!item.terminated?{backgroundColor:'#fff7ed'}:{}}>
-                  {tab==='顧問先' && <td className="px-3 py-3 text-gray-500 text-sm">{item.no}</td>}
-                  <td className="px-4 py-3 font-medium" style={{color:item.terminated?'#9ca3af':'#1f2937'}}>
-                    {item.terminated && <span className="inline-block mr-1.5 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">解除</span>}
-                    {tab==='顧問先'
-                      ? <button onClick={()=>setViewItem(item)} style={{background:'none',border:'none',padding:0,cursor:'pointer',color:item.terminated?'#9ca3af':'#1f2937',fontWeight:'500',textAlign:'left'}} className="hover:underline">{item.name}</button>
-                      : tab==='提携先'
-                        ? <button onClick={()=>setViewPartnerItem(item)} style={{background:'none',border:'none',padding:0,cursor:'pointer',color:'#1f2937',fontWeight:'500',textAlign:'left'}} className="hover:underline">{item.name}</button>
-                        : item.name
-                    }
-                  </td>
-                  {tab==='顧問先' && <>
-                    <td className="px-2 py-3 text-sm text-gray-600 whitespace-nowrap">{contractServicesShort(item)}</td>
-                    <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
-                      {item.税理士送付 && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">あり</span>}
-                    </td>
-                    <td className="px-3 py-3 text-sm text-gray-600" style={{minWidth:'120px'}}>
-                      {/* MN(事務)のみ青バッジで強調、他は通常テキスト（「・」区切り） */}
-                      {systemOptionsOn(item).map((o,i)=>(
-                        <span key={o.key}>
-                          {i>0 && '・'}
-                          {o.key==='myNumberOffice'
-                            ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">{o.short}</span>
-                            : o.short}
-                        </span>
-                      ))}
-                    </td>
-                    <td className="px-2 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}</td>
-                    <td className="px-2 py-3 text-sm text-gray-600 whitespace-nowrap">{joinCcNames(item)}</td>
-                    <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">{item['36協定起算日']||''}</td>
-                    <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
-                      {item['その他労使協定の届出']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">あり</span>}
-                    </td>
-                    <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
-                      {item['東京SR特別加入']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-700">あり</span>}
-                    </td>
-                  </>}
-                  {tab==='担当者' && <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.email || <span className="text-gray-300">未登録</span>}</td>}
-                  {tab==='提携先' && <>
-                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}</td>
-                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">
-                      {item.メールアドレス && (
-                        <div className="flex items-center gap-2">
-                          <span>{item.メールアドレス}</span>
-                          <CopyButton text={item.メールアドレス} />
+      {tab==='給与カルテ' ? (
+        <div className="overflow-auto" style={{maxHeight:'calc(100vh - 220px)'}}>
+          {Object.keys(KARTE_MASTER_TABS).map(k=>{
+            const items = karteMasterList(masters, k);
+            return (
+              <div key={k} className="bg-white rounded-xl border border-gray-200 shadow-sm mb-4 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+                  <h3 className="text-sm font-bold text-gray-700">{k}<span className="ml-2 text-xs font-normal text-gray-400">{items.length}件</span></h3>
+                  <button onClick={()=>{setKarteSub(k);setEditItem(null);setShowModal(true);}} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold">＋ 追加</button>
+                </div>
+                {items.length===0 ? (
+                  <div className="text-center py-5 text-sm text-gray-400">データがありません。「追加」ボタンで追加してください。</div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {items.map(item=>(
+                      <div key={item.id} className="flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-50">
+                        <span className="font-medium text-gray-800">{item.name}</span>
+                        <div className="flex gap-2">
+                          <button onClick={()=>{setKarteSub(k);setEditItem(item);setShowModal(true);}} className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>
+                          <button onClick={()=>{setKarteSub(k);setDelItem(item);}} className="text-xs px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 font-medium">削除</button>
                         </div>
-                      )}
-                    </td>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-auto" style={{maxHeight:'calc(100vh - 220px)'}}>
+          {list.length===0 ? (
+            <div className="text-center py-12 text-gray-400"><p>データがありません。「追加」ボタンで追加してください。</p></div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  {tab==='顧問先' && <th className="px-3 py-3 text-left font-semibold text-gray-600 w-12">No</th>}
+                  <th className="px-4 py-3 text-left font-semibold text-gray-600">{tab==='提携先'?'提携先名':'名称'}</th>
+                  {tab==='顧問先' && <>
+                    <th className="px-2 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">契約サービス</th>
+                    <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">税理士送付</th>
+                    <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">システムオプション</th>
+                    <th className="px-2 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">宛名</th>
+                    <th className="px-2 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">CC</th>
+                    <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">36協定起算日</th>
+                    <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">その他労使協定</th>
+                    <th className="px-2 py-3 text-center font-semibold text-gray-600 text-xs whitespace-nowrap">特別加入</th>
                   </>}
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      {!item.terminated && <button onClick={()=>{setEditItem(item);setShowModal(true);}} className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>}
-                      {tab==='顧問先'
-                        ? <button onClick={()=>setDelItem(item)}
-                            className={`text-xs px-3 py-1 rounded font-medium ${item.terminated?'bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600':'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
-                            {item.terminated?'解除取消':'契約解除'}
-                          </button>
-                        : <button onClick={()=>setDelItem(item)} className="text-xs px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 font-medium">削除</button>
-                      }
-                    </div>
-                  </td>
+                  {tab==='担当者' && <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">メールアドレス</th>}
+                  {tab==='提携先' && <>
+                    <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">担当者名</th>
+                    <th className="px-3 py-3 text-left font-semibold text-gray-600 whitespace-nowrap">メールアドレス</th>
+                  </>}
+                  <th className="px-4 py-3 text-center font-semibold text-gray-600 w-28">操作</th>
                 </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {list.map(item=>{
+                  const is36Alert = tab==='顧問先' && (()=>{const d=daysUntil36Kisan(item['36協定起算日']);return d!==null&&d>=0&&d<=40;})();
+                  return (
+                  <tr key={item.id}
+                    className={`group ${item.terminated?'bg-gray-50 opacity-60':is36Alert?'':'hover:bg-gray-50'}`}
+                    style={is36Alert&&!item.terminated?{backgroundColor:'#fff7ed'}:{}}>
+                    {tab==='顧問先' && <td className="px-3 py-3 text-gray-500 text-sm">{item.no}</td>}
+                    <td className="px-4 py-3 font-medium" style={{color:item.terminated?'#9ca3af':'#1f2937'}}>
+                      {item.terminated && <span className="inline-block mr-1.5 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">解除</span>}
+                      {tab==='顧問先'
+                        ? <button onClick={()=>setViewItem(item)} style={{background:'none',border:'none',padding:0,cursor:'pointer',color:item.terminated?'#9ca3af':'#1f2937',fontWeight:'500',textAlign:'left'}} className="hover:underline">{item.name}</button>
+                        : tab==='提携先'
+                          ? <button onClick={()=>setViewPartnerItem(item)} style={{background:'none',border:'none',padding:0,cursor:'pointer',color:'#1f2937',fontWeight:'500',textAlign:'left'}} className="hover:underline">{item.name}</button>
+                          : item.name
+                      }
+                    </td>
+                    {tab==='顧問先' && <>
+                      <td className="px-2 py-3 text-sm text-gray-600 whitespace-nowrap">{contractServicesShort(item)}</td>
+                      <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
+                        {item.税理士送付 && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700">あり</span>}
+                      </td>
+                      <td className="px-3 py-3 text-sm text-gray-600" style={{minWidth:'120px'}}>
+                        {/* MN(事務)のみ青バッジで強調、他は通常テキスト（「・」区切り） */}
+                        {systemOptionsOn(item).map((o,i)=>(
+                          <span key={o.key}>
+                            {i>0 && '・'}
+                            {o.key==='myNumberOffice'
+                              ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">{o.short}</span>
+                              : o.short}
+                          </span>
+                        ))}
+                      </td>
+                      <td className="px-2 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}</td>
+                      <td className="px-2 py-3 text-sm text-gray-600 whitespace-nowrap">{joinCcNames(item)}</td>
+                      <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">{item['36協定起算日']||''}</td>
+                      <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
+                        {item['その他労使協定の届出']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">あり</span>}
+                      </td>
+                      <td className="px-2 py-3 text-sm text-gray-600 text-center whitespace-nowrap">
+                        {item['東京SR特別加入']==='あり' && <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-700">あり</span>}
+                      </td>
+                    </>}
+                    {tab==='担当者' && <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.email || <span className="text-gray-300">未登録</span>}</td>}
+                    {tab==='提携先' && <>
+                      <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">{item.担当者名||''}</td>
+                      <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">
+                        {item.メールアドレス && (
+                          <div className="flex items-center gap-2">
+                            <span>{item.メールアドレス}</span>
+                            <CopyButton text={item.メールアドレス} />
+                          </div>
+                        )}
+                      </td>
+                    </>}
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        {!item.terminated && <button onClick={()=>{setEditItem(item);setShowModal(true);}} className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>}
+                        {tab==='顧問先'
+                          ? <button onClick={()=>setDelItem(item)}
+                              className={`text-xs px-3 py-1 rounded font-medium ${item.terminated?'bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600':'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
+                              {item.terminated?'解除取消':'契約解除'}
+                            </button>
+                          : <button onClick={()=>setDelItem(item)} className="text-xs px-3 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100 font-medium">削除</button>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
       {viewItem && (
         <CustomerDetailModal
           item={viewItem}
@@ -5414,7 +5434,7 @@ function MasterScreen({masters, setMasters}) {
             />
           : <ConfirmModal
               title={`「${delItem.name}」を削除しますか？`}
-              body="※既存の案件データには影響しません。"
+              body={karteTab ? '※入力済みのカルテの値は変わりません。' : '※既存の案件データには影響しません。'}
               onConfirm={handleDelete}
               onClose={()=>setDelItem(null)}
             />
