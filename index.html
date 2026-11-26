@@ -3808,10 +3808,33 @@ const PB = ()=>({受取日:'',送信日:'',人数:'',納品日:'',賞与人数:'
    payrolls/{id}/カルテ に顧問先固有の恒常ルールを保存する。
    締日・支給日・年調・賞与・納品方法・その他メモ・担当者は payrolls の既存項目をそのまま使う（二重保存しない）。
    選択肢は運用に合わせてここを変更する。 */
-const KARTE_RECEIVE_METHODS = ['メール', 'Google Drive', 'その他'];
-const KARTE_SOFTWARES       = ['弥生給与', 'オフィスステーション給与', 'その他'];
+// 受領方法・給与計算ソフト・納品方法の選択肢はマスタ管理（masters の各キー、{id,name}の配列）で管理する。
+// マスタ未登録（キー自体が無い）の間は defaults を選択肢として使う。「その他」を選ぶと自由入力欄が出る。
+const KARTE_MASTER_TABS = {
+  '勤怠資料受領方法': {key:'karteReceiveMethods',  defaults:['メール', 'Google Drive', 'その他']},
+  '給与計算ソフト':   {key:'karteSoftwares',       defaults:['弥生給与', 'オフィスステーション給与', 'その他']},
+  '納品方法':         {key:'karteDeliveryMethods', defaults:[]},
+};
+function karteMasterList(masters, tab) {
+  const conf = KARTE_MASTER_TABS[tab];
+  const v = masters && masters[conf.key];
+  if (v == null) return conf.defaults.map((name, i) => ({id: i + 1, name}));
+  return masterList(v);
+}
+function karteMasterOptions(masters, tab) {
+  return karteMasterList(masters, tab).map(o => String(o.name || '').trim()).filter(Boolean);
+}
+const KARTE_DAY_OPTIONS     = [...Array.from({length:30}, (_, i) => `${i + 1}日`), '末日'];
+const KARTE_MONTH_KUBUN     = ['当月', '翌月'];
+const KARTE_HOLIDAY_OPTIONS = ['前倒し', '後ろ倒し', '変更なし'];
+const KARTE_NENCHO_MONTHS   = ['12月', '1月', '2月'];
 const KARTE_BASE_KEYS  = ['customerName','assignee','締日','支給日','年末調整還付月','賞与支給月','納品方法','その他メモ'];
-const KARTE_FIELD_KEYS = ['勤怠受領方法','勤怠受領方法その他','勤怠受領時期','勤怠保存場所','給与ソフト','給与ソフトその他','計算ルール','計算確認事項','納品期限','納品先'];
+// 勤怠保存場所は2026-11-26に画面から削除（既存値があってもキーは保存時に保持され、表示しない）
+const KARTE_FIELD_KEYS = ['給与締め日','支給日区分','支給日指定','金融機関休日','年調還付月','社会保険料徴収',
+  '勤怠受領方法','勤怠受領方法その他','勤怠受領時期','給与ソフト','給与ソフトその他','計算ルール','計算確認事項',
+  '納品方法選択','納品方法その他','納品期限','納品先'];
+// 「その他」自由入力欄 → 対応する選択項目（選択が「その他」以外なら自由入力は保存しない）
+const KARTE_OTHER_KEYS = {'勤怠受領方法その他':'勤怠受領方法', '給与ソフトその他':'給与ソフト', '納品方法その他':'納品方法選択'};
 
 function karteChoiceLabel(value, other) {
   if (!value) return '';
@@ -3852,8 +3875,7 @@ function applyKarteForm(x, form, meta) {
   KARTE_FIELD_KEYS.forEach(k => {
     const v = String(form[k] || '');
     if (!v.trim()) return;
-    if (k === '勤怠受領方法その他' && form.勤怠受領方法 !== 'その他') return;
-    if (k === '給与ソフトその他' && form.給与ソフト !== 'その他') return;
+    if (KARTE_OTHER_KEYS[k] && form[KARTE_OTHER_KEYS[k]] !== 'その他') return;
     karte[k] = v;
   });
   karte.更新日時 = meta.更新日時;
@@ -3922,6 +3944,16 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose, init
         : <input value={form[k]} onChange={e=>set(k,e.target.value)} placeholder={ph} />}
     </div>
   );
+  const selectField = ({label, k, options}) => (
+    <div className="mb-3">
+      <label className="block text-sm font-semibold text-gray-600 mb-1">{label}</label>
+      <select value={form[k]} onChange={e=>set(k,e.target.value)}>
+        <option value="">（未選択）</option>
+        {options.map(o=><option key={o} value={o}>{o}</option>)}
+        {form[k] && !options.includes(form[k]) && <option value={form[k]}>{form[k]}</option>}
+      </select>
+    </div>
+  );
   const choiceField = ({label, k, otherKey, options}) => (
     <div className="mb-3">
       <label className="block text-sm font-semibold text-gray-600 mb-1">{label}</label>
@@ -3958,11 +3990,16 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose, init
               <KarteRow label="給与支給日" value={payroll.支給日} />
               <KarteRow label="年末調整還付月" value={formatMonthValue(payroll.年末調整還付月)} />
               <KarteRow label="賞与支給月" value={payroll.賞与支給月} />
+              <KarteRow label="給与締め日" value={karte.給与締め日} />
+              <KarteRow label="支給日区分" value={karte.支給日区分} />
+              <KarteRow label="支給日" value={karte.支給日指定} />
+              <KarteRow label="金融機関休日" value={karte.金融機関休日} />
+              <KarteRow label="年末調整還付月[新]" value={karte.年調還付月} />
+              <KarteRow label="社会保険料の徴収" value={karte.社会保険料徴収} />
             </KarteSection>
             <KarteSection no="②" title="勤怠資料">
               <KarteRow label="受領方法" value={karteChoiceLabel(karte.勤怠受領方法, karte.勤怠受領方法その他)} />
               <KarteRow label="受領時期" value={karte.勤怠受領時期} />
-              <KarteRow label="保存場所" value={karte.勤怠保存場所} multi />
             </KarteSection>
             <KarteSection no="③" title="給与計算">
               <KarteRow label="給与計算ソフト" value={karteChoiceLabel(karte.給与ソフト, karte.給与ソフトその他)} />
@@ -3971,6 +4008,7 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose, init
             </KarteSection>
             <KarteSection no="④" title="納品・その他">
               <KarteRow label="納品方法" value={payroll.納品方法} />
+              <KarteRow label="納品方法[新]" value={karteChoiceLabel(karte.納品方法選択, karte.納品方法その他)} />
               <KarteRow label="納品期限" value={karte.納品期限} />
               <KarteRow label="納品先・保存場所" value={karte.納品先} multi />
               <KarteRow label="その他メモ" value={payroll.その他メモ} multi />
@@ -4006,19 +4044,24 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose, init
                   {field({label:'給与支給日', k:'支給日', ph:'例：翌月25日(前倒し)'})}
                   {field({label:'年末調整還付月', k:'年末調整還付月', ph:'例：1月'})}
                   {field({label:'賞与支給月', k:'賞与支給月', ph:'例：6月・12月'})}
+                  {selectField({label:'給与締め日', k:'給与締め日', options:KARTE_DAY_OPTIONS})}
+                  {selectField({label:'支給日区分', k:'支給日区分', options:KARTE_MONTH_KUBUN})}
+                  {selectField({label:'支給日', k:'支給日指定', options:KARTE_DAY_OPTIONS})}
+                  {selectField({label:'金融機関休日', k:'金融機関休日', options:KARTE_HOLIDAY_OPTIONS})}
+                  {selectField({label:'年末調整還付月[新]', k:'年調還付月', options:KARTE_NENCHO_MONTHS})}
+                  {selectField({label:'社会保険料の徴収', k:'社会保険料徴収', options:KARTE_MONTH_KUBUN})}
                 </div>
               </div>
             </KarteSection>
             <KarteSection no="②" title="勤怠資料">
               <div className="pt-3">
-                {choiceField({label:'受領方法', k:'勤怠受領方法', otherKey:'勤怠受領方法その他', options:KARTE_RECEIVE_METHODS})}
+                {choiceField({label:'受領方法', k:'勤怠受領方法', otherKey:'勤怠受領方法その他', options:karteMasterOptions(masters,'勤怠資料受領方法')})}
                 {field({label:'受領時期', k:'勤怠受領時期', ph:'例：締日の翌営業日までに届く'})}
-                {field({label:'保存場所', k:'勤怠保存場所', ph:'例：Google Drive「給与/顧問先名/勤怠」フォルダ'})}
               </div>
             </KarteSection>
             <KarteSection no="③" title="給与計算">
               <div className="pt-3">
-                {choiceField({label:'給与計算ソフト', k:'給与ソフト', otherKey:'給与ソフトその他', options:KARTE_SOFTWARES})}
+                {choiceField({label:'給与計算ソフト', k:'給与ソフト', otherKey:'給与ソフトその他', options:karteMasterOptions(masters,'給与計算ソフト')})}
                 {field({label:'計算上の個別ルール', k:'計算ルール', ph:'例：通勤手当は日額×出勤日数で計算', multi:true})}
                 {field({label:'計算時の確認事項', k:'計算確認事項', ph:'例：入退社者の日割り有無を毎月確認', multi:true})}
               </div>
@@ -4026,6 +4069,7 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose, init
             <KarteSection no="④" title="納品・その他">
               <div className="pt-3">
                 {field({label:'納品方法', k:'納品方法', ph:'例：PDF一覧/A4、dropboxあり'})}
+                {choiceField({label:'納品方法[新]', k:'納品方法選択', otherKey:'納品方法その他', options:karteMasterOptions(masters,'納品方法')})}
                 {field({label:'納品期限', k:'納品期限', ph:'例：支給日の3営業日前まで'})}
                 {field({label:'納品先・保存場所', k:'納品先', ph:'例：担当者様へメール、控えはDrive「納品済」'})}
                 {field({label:'その他メモ', k:'その他メモ', multi:true})}
@@ -4725,7 +4769,7 @@ function CustomerDetailModal({item, onClose, onEdit, partners}) {
   );
 }
 
-function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, partners}) {
+function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, partners, existingNames}) {
   const defForm = {no:'', name:'', グループ:'', 必須日付フィールド:[], 業種:'', 代表者名:'', 担当者名:'', 代表者メール:'', 担当者メール:'', CC1名:'', CC1メール:'', CC2名:'', CC2メール:'', CC3名:'', CC3メール:'', 事務所担当者:'', 決算月:'', 契約サービス:[], '36協定起算日':'', 'その他労使協定の届出':'', '東京SR特別加入':''};
   const [form, setForm] = useState(item ? {...defForm, ...item} : defForm);
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -4753,6 +4797,12 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, 
         <form onSubmit={e=>{
           e.preventDefault();
           if(!form.name.trim()){alert('名称は必須です');return;}
+          if(KARTE_MASTER_TABS[tab]){
+            const name = form.name.trim();
+            if((existingNames||[]).includes(name)){alert('同じ名称がすでに登録されています');return;}
+            onSave({name});
+            return;
+          }
           if(tab==='顧問先'){
             // オプションは未設定ならキー自体を持たせない（既存の顧問先データにフィールドが増えない）
             const saved = {...form};
@@ -5100,8 +5150,11 @@ function MasterScreen({masters, setMasters}) {
     return d !== null && d >= 0 && d <= 40;
   });
 
-  const listKey = tab==='顧問先'?'customers':tab==='担当者'?'assignees':tab==='手続き'?'procedures':'partners';
-  const rawList = masters[listKey] || [];
+  const karteTab = KARTE_MASTER_TABS[tab];
+  const listKey = karteTab ? karteTab.key : tab==='顧問先'?'customers':tab==='担当者'?'assignees':tab==='手続き'?'procedures':'partners';
+  // 給与計算カルテ用マスタは未登録の間は初期候補を表示し、初回の追加・編集・削除時に初期候補ごと保存する
+  const baseList = m => karteTab ? karteMasterList(m, tab) : (m[listKey]||[]);
+  const rawList = baseList(masters);
   const sorted = tab==='顧問先'
     ? [...rawList].sort((a,b) => {
         const na = a.no===''||a.no==null ? Infinity : Number(a.no);
@@ -5128,7 +5181,7 @@ function MasterScreen({masters, setMasters}) {
   const handleSave = form => {
     const newId = getNewId();
     const update = l => editItem ? l.map(i=>i.id===editItem.id?{...form,id:editItem.id}:i) : [...l,{...form,id:newId}];
-    setMasters(m => ({...m, [listKey]: update(m[listKey]||[]), nextId: editItem ? m.nextId : newId}));
+    setMasters(m => ({...m, [listKey]: update(baseList(m)), nextId: editItem ? m.nextId : newId}));
     setShowModal(false); setEditItem(null);
   };
 
@@ -5138,12 +5191,12 @@ function MasterScreen({masters, setMasters}) {
       const isCurrentlyTerminated = delItem.terminated;
       setMasters(m=>({...m,[listKey]:(m[listKey]||[]).map(i=>i.id===delItem.id?{...i,terminated:!isCurrentlyTerminated}:i)}));
     } else {
-      setMasters(m=>({...m,[listKey]:(m[listKey]||[]).filter(i=>i.id!==delItem.id)}));
+      setMasters(m=>({...m,[listKey]:baseList(m).filter(i=>i.id!==delItem.id)}));
     }
     setDelItem(null);
   };
 
-  const TABS = ['顧問先','担当者','手続き','提携先'];
+  const TABS = ['顧問先','担当者','手続き','提携先', ...Object.keys(KARTE_MASTER_TABS)];
 
   return (
     <div>
@@ -5329,6 +5382,7 @@ function MasterScreen({masters, setMasters}) {
           onClose={()=>{setShowModal(false);setEditItem(null);}}
           showNo={tab==='顧問先'}
           tab={tab}
+          existingNames={karteTab ? rawList.filter(i=>!editItem||i.id!==editItem.id).map(i=>String(i.name||'').trim()) : null}
           assignees={masters.assignees||[]}
           partners={masterList(masters.partners)}
         />
