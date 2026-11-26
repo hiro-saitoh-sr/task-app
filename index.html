@@ -631,7 +631,7 @@ const TASK_EXCEL_HEADERS = ['No', '顧客名', '手続き内容', 'メモ', '担
 const CHECK_EXCEL_HEADERS = ['No', '顧客名', '昇(降)給月', '改定年月', 'メモ', 'チェック対象者', '手続き対象者', '改定人数', '担当者', 'ステータス', '請求額', '対象年月'];
 const ANNUAL_EXCEL_HEADERS = ['No', '顧客名', '手続き名', '対象年度', 'メモ', '担当者', 'ステータス', '受付日', '対象人数', '請求額', '対象年月'];
 const PAYROLL_EXCEL_HEADERS = ['顧問先名', '担当者', '年', '月', '受取日', '送信日', '人数', '納品日', '賞与人数', '賞与納品日', '締日', '支給日', '年末調整還付月', '賞与支給月', '納品方法', 'その他メモ'];
-const CUSTOMER_MASTER_EXCEL_HEADERS = ['No', '名称', '業種', '代表者名', '代表者メール', '担当者名', '担当者メール', 'CC①名', 'CC①メール', 'CC②名', 'CC②メール', 'CC③名', 'CC③メール', '事務所担当者', '決算月', '契約サービス', '36協定起算日', 'その他労使協定の届出', '東京SR特別加入'];
+const CUSTOMER_MASTER_EXCEL_HEADERS = ['No', '名称', '業種', '代表者名', '代表者メール', '担当者名', '担当者メール', 'CC①名', 'CC①メール', 'CC②名', 'CC②メール', 'CC③名', 'CC③メール', '事務所担当者', '決算月', '契約サービス', '36協定起算日', 'その他労使協定の届出', '東京SR特別加入', '締日', '支給日'];
 
 function taskExcelFilenameDate() {
   const d = new Date();
@@ -721,9 +721,10 @@ function buildAnnualExportRows(cases) {
     });
 }
 
-function buildPayrollExportRows(payrolls) {
+function buildPayrollExportRows(payrolls, masters) {
   const rows = [];
-  (payrolls || []).forEach(p => {
+  (payrolls || []).forEach(p0 => {
+    const p = withMasterPayDates(p0, masters);
     const years = Object.keys(p.yearData || {}).sort((a, b) => Number(a) - Number(b));
     years.forEach(year => {
       const yd = p.yearData[year] || {};
@@ -778,6 +779,8 @@ function buildCustomerMasterExportRows(customers) {
       '36協定起算日':         c['36協定起算日'] || '',
       'その他労使協定の届出': c['その他労使協定の届出'] || '',
       '東京SR特別加入':       c['東京SR特別加入'] || '',
+      '締日':                 c.締日 || '',
+      '支給日':               c.支給日 || '',
     }));
 }
 
@@ -854,10 +857,10 @@ function buildBackupWorkbook({cases, checks, payrolls, masters}) {
     [{wch:8},{wch:26},{wch:12},{wch:12},{wch:24},{wch:20},{wch:20},{wch:10},{wch:12},{wch:12},{wch:10},{wch:14}], '月変チェック');
   addSheet(wb, ANNUAL_EXCEL_HEADERS, buildAnnualExportRows(cases),
     [{wch:8},{wch:26},{wch:14},{wch:10},{wch:24},{wch:12},{wch:12},{wch:12},{wch:10},{wch:10},{wch:14}], '年更・算定');
-  addSheet(wb, PAYROLL_EXCEL_HEADERS, buildPayrollExportRows(payrolls),
+  addSheet(wb, PAYROLL_EXCEL_HEADERS, buildPayrollExportRows(payrolls, masters),
     [{wch:22},{wch:12},{wch:6},{wch:5},{wch:10},{wch:10},{wch:8},{wch:10},{wch:10},{wch:12},{wch:10},{wch:14},{wch:14},{wch:12},{wch:12},{wch:24}], '給与計算');
   addSheet(wb, CUSTOMER_MASTER_EXCEL_HEADERS, buildCustomerMasterExportRows(masters && masters.customers),
-    [{wch:8},{wch:26},{wch:14},{wch:14},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:10},{wch:20},{wch:14},{wch:16},{wch:14}], '顧問先マスタ');
+    [{wch:8},{wch:26},{wch:14},{wch:14},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:22},{wch:12},{wch:10},{wch:20},{wch:14},{wch:16},{wch:14},{wch:10},{wch:18}], '顧問先マスタ');
   addSheet(wb, PROCEDURE_MASTER_EXCEL_HEADERS, buildProcedureMasterExportRows(masters && masters.procedures),
     [{wch:8},{wch:26},{wch:14},{wch:40}], '手続きマスタ');
   addSheet(wb, ASSIGNEE_MASTER_EXCEL_HEADERS, buildAssigneeMasterExportRows(masters && masters.assignees),
@@ -3833,6 +3836,29 @@ const KARTE_BASE_KEYS  = ['customerName','assignee','締日','支給日','年末
 const KARTE_FIELD_KEYS = ['給与締め日','支給日区分','支給日指定','金融機関休日','年調還付月','社会保険料徴収',
   '勤怠受領方法','勤怠受領方法その他','勤怠受領時期','給与ソフト','給与ソフトその他','計算ルール','計算確認事項',
   '納品方法選択','納品方法その他','納品期限','納品先'];
+// 締日・支給日は顧問先マスタ（masters.customers[].締日／支給日）に一元化する（2026-11-27）。
+// 顧問先名が顧問先マスタと一致しない給与計算レコード（マスタ未登録の内部データ・テスト等）は payrolls 側の値をそのまま読み書きする。
+// マスタと一致する顧問先の payrolls 側の締日・支給日は移行前の控えとして残し、画面では読み書きしない。
+const PAY_DATE_KEYS = ['締日', '支給日'];
+function payrollCustomerMaster(masters, name) {
+  const n = String(name || '');
+  if (!n) return null;
+  return masterList(masters && masters.customers).find(c => c.name === n) || null;
+}
+function withMasterPayDates(p, masters) {
+  const cm = payrollCustomerMaster(masters, p && p.customerName);
+  if (!cm) return p;
+  return {...p, 締日: cm.締日 || '', 支給日: cm.支給日 || ''};
+}
+// 顧問先マスタのレコードに締日・支給日を反映（空欄ならキー自体を持たせない）
+function applyPayDates(c, form) {
+  const next = {...c};
+  PAY_DATE_KEYS.forEach(k => {
+    const v = String(form[k] == null ? '' : form[k]).trim();
+    if (v) next[k] = v; else delete next[k];
+  });
+  return next;
+}
 // 「その他」自由入力欄 → 対応する選択項目（選択が「その他」以外なら自由入力は保存しない）
 const KARTE_OTHER_KEYS = {'勤怠受領方法その他':'勤怠受領方法', '給与ソフトその他':'給与ソフト', '納品方法その他':'納品方法選択'};
 
@@ -4042,6 +4068,7 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose, init
                   </div>
                   {field({label:'給与締日', k:'締日', ph:'例：末日、20日'})}
                   {field({label:'給与支給日', k:'支給日', ph:'例：翌月25日(前倒し)'})}
+                  {payrollCustomerMaster(masters, form.customerName) && <p className="col-span-2 text-xs text-gray-500 -mt-1 mb-3">※ 給与締日・給与支給日は顧問先マスタと共通です（ここで変更すると顧問先マスタにも反映されます）。</p>}
                   {field({label:'年末調整還付月', k:'年末調整還付月', ph:'例：1月'})}
                   {field({label:'賞与支給月', k:'賞与支給月', ph:'例：6月・12月'})}
                   {selectField({label:'給与締め日', k:'給与締め日', options:KARTE_DAY_OPTIONS})}
@@ -4266,7 +4293,7 @@ function PayrollMonthModal({payroll, month, year, cases, checks, masters, onSave
   );
 }
 
-function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks, currentUser}) {
+function PayrollScheduleScreen({payrolls, setPayrolls, masters, setMasters, cases, checks, currentUser}) {
   const [viewMode, setViewMode]             = useState('annual');
   const [selMonth, setSelMonth]             = useState(new Date().getMonth()+1);
   const [selYear, setSelYear]               = useState(2026);
@@ -4282,9 +4309,25 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks, c
   const [karteId, setKarteId]               = useState(null); // 給与計算カルテを表示中の payrolls id
   const [karteEditing, setKarteEditing]     = useState(false); // true: 一覧の「編集」から開いた（最初から編集画面）
   const openKarte = (id, editing) => { setKarteEditing(!!editing); setKarteId(id); };
-  const kartePayroll = karteId!=null ? payrolls.find(p=>p.id===karteId) : null;
+  // 表示用：締日・支給日を顧問先マスタの値に置き換えたレコード（保存処理は常に payrolls の元データを使う）
+  const viewPayrolls = useMemo(() => payrolls.map(p => withMasterPayDates(p, masters)), [payrolls, masters]);
+  const kartePayroll = karteId!=null ? viewPayrolls.find(p=>p.id===karteId) : null;
   const handleSaveKarte = (id, form, meta) => {
-    setPayrolls(p=>p.map(x=>x.id===id ? applyKarteForm(x, form, meta) : x));
+    const target = payrollCustomerMaster(masters, form.customerName);
+    let payrollForm = form;
+    if (target) {
+      // 顧問先マスタと一致する顧問先：締日・支給日は顧問先マスタへ保存し、payrolls 側の控えは変更しない
+      const raw = payrolls.find(x=>x.id===id) || {};
+      payrollForm = {...form};
+      PAY_DATE_KEYS.forEach(k => { payrollForm[k] = raw[k] == null ? '' : String(raw[k]); });
+      const changed = PAY_DATE_KEYS.some(k => String(form[k] == null ? '' : form[k]).trim() !== String(target[k] || ''));
+      if (changed) {
+        setMasters(m => ({...m, customers: Array.isArray(m.customers)
+          ? m.customers.map(c => c && c.id===target.id ? applyPayDates(c, form) : c)
+          : m.customers}));
+      }
+    }
+    setPayrolls(p=>p.map(x=>x.id===id ? applyKarteForm(x, payrollForm, meta) : x));
   };
   const handleSaveCust = form => {
     if(editCust){ setPayrolls(p=>p.map(x=>x.id===editCust.id?{...x,...form}:x)); }
@@ -4325,7 +4368,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks, c
   const currentRealMonth = new Date().getMonth()+1;
 
   const filteredPayrolls = useMemo(()=>{
-    return payrolls.filter(p=>{
+    return viewPayrolls.filter(p=>{
       if(showTerminated ? !p.terminated : p.terminated) return false;
       if(filterCustomer && p.customerName!==filterCustomer) return false;
       if(filterAssignee && p.assignee!==filterAssignee) return false;
@@ -4338,7 +4381,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks, c
       }
       return true;
     });
-  },[payrolls,filterCustomer,filterAssignee,filterStatus,showTerminated,selYear,selMonth,viewMode]);
+  },[viewPayrolls,filterCustomer,filterAssignee,filterStatus,showTerminated,selYear,selMonth,viewMode]);
 
   const hasFilter = !!(filterCustomer||filterAssignee||filterStatus!=='all'||showTerminated);
   const customerOptions = useMemo(() => {
@@ -4712,6 +4755,8 @@ function CustomerDetailModal({item, onClose, onEdit, partners}) {
   ];
   const fieldsAfter = [
     {k:'決算月',               v:item.決算月},
+    {k:'締日',                 v:item.締日},
+    {k:'支給日',               v:item.支給日},
     {k:'契約サービス',         v:(item.契約サービス||[]).join('・')},
     {k:'事務所担当者',         v:item.事務所担当者},
     {k:'36協定起算日',         v:item['36協定起算日']},
@@ -4819,6 +4864,8 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, 
             // 送付先の税理士は提携先マスタの担当顧問先から都度参照するため保存しない（旧方式の税理士送付先IDは保存時に取り除く）
             if (saved.税理士送付) saved.税理士送付 = true; else delete saved.税理士送付;
             delete saved.税理士送付先ID;
+            // 締日・支給日：空欄ならキー自体を持たせない（給与計算画面と共通のデータ）
+            PAY_DATE_KEYS.forEach(k => { const v = String(saved[k] == null ? '' : saved[k]).trim(); if (v) saved[k] = v; else delete saved[k]; });
             onSave(saved);
             return;
           }
@@ -5007,6 +5054,17 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, 
                 </select>
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3 mb-1">
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">締日</label>
+                <input value={form.締日||''} onChange={e=>set('締日',e.target.value)} placeholder="例：末日、20日" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">支給日</label>
+                <input value={form.支給日||''} onChange={e=>set('支給日',e.target.value)} placeholder="例：翌月25日(前倒し)" />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">※ 締日・支給日は給与計算画面（固定情報・カルテ）と共通のデータです。</p>
             <div className="mb-3">
               <label className="block text-sm font-semibold text-gray-600 mb-1">システムオプション（単価：円/名）</label>
               <div className="grid grid-cols-2 gap-x-5 gap-y-2">
@@ -5884,7 +5942,7 @@ function App() {
         {screen==='請求集計'            && <BillingSummaryScreen cases={cases} masters={masters} payrolls={payrolls} payrollRates={payrollRates} setPayrollRates={setPayrollRates} billingSnapshots={billingSnapshots} setBillingSnapshots={setBillingSnapshots} currentUser={currentUser} checks={checks} />}
         {screen==='月変チェック'        && <MonthlyCheckScreen checks={checks} setChecks={setChecks} masters={masters} cases={cases} currentUser={currentUser} />}
         {screen==='年更・算定案件管理'  && <AnnualUpdateScreen cases={cases} setCases={setCases} masters={masters} currentUser={currentUser} />}
-        {screen==='給与計算スケジュール'&& <PayrollScheduleScreen payrolls={payrolls} setPayrolls={setPayrolls} masters={masters} cases={cases} checks={checks} currentUser={currentUser} />}
+        {screen==='給与計算スケジュール'&& <PayrollScheduleScreen payrolls={payrolls} setPayrolls={setPayrolls} masters={masters} setMasters={setMasters} cases={cases} checks={checks} currentUser={currentUser} />}
         {screen==='マスタ管理'          && <MasterScreen masters={masters} setMasters={setMasters} />}
       </div>
 
