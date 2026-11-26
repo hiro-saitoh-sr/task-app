@@ -3810,7 +3810,7 @@ const PB = ()=>({受取日:'',送信日:'',人数:'',納品日:'',賞与人数:'
    選択肢は運用に合わせてここを変更する。 */
 const KARTE_RECEIVE_METHODS = ['メール', 'Google Drive', 'その他'];
 const KARTE_SOFTWARES       = ['弥生給与', 'オフィスステーション給与', 'その他'];
-const KARTE_BASE_KEYS  = ['assignee','締日','支給日','年末調整還付月','賞与支給月','納品方法','その他メモ'];
+const KARTE_BASE_KEYS  = ['customerName','assignee','締日','支給日','年末調整還付月','賞与支給月','納品方法','その他メモ'];
 const KARTE_FIELD_KEYS = ['勤怠受領方法','勤怠受領方法その他','勤怠受領時期','勤怠保存場所','給与ソフト','給与ソフトその他','計算ルール','計算確認事項','納品期限','納品先'];
 
 function karteChoiceLabel(value, other) {
@@ -3881,21 +3881,34 @@ function KarteSection({no, title, children}) {
   );
 }
 
-function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose}) {
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState(null);
+// initialEditing: 一覧の「編集」ボタンから開いたときは最初から編集画面を表示する（顧問先名クリックは閲覧から）
+function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose, initialEditing}) {
   const karte = payroll.カルテ || {};
-  const set = (k,v) => setForm(f => ({...f, [k]: v}));
-  const assignees = masterList(masters && masters.assignees);
-
-  const startEdit = () => {
+  const buildForm = () => {
     const f = {};
     KARTE_BASE_KEYS.forEach(k => { f[k] = payroll[k] == null ? '' : String(payroll[k]); });
     KARTE_FIELD_KEYS.forEach(k => { f[k] = karte[k] == null ? '' : String(karte[k]); });
-    setForm(f);
+    return f;
+  };
+  const [editing, setEditing] = useState(!!initialEditing);
+  const [form, setForm] = useState(() => initialEditing ? buildForm() : null);
+  const set = (k,v) => setForm(f => ({...f, [k]: v}));
+  const assignees = masterList(masters && masters.assignees);
+  const customerOptions = useMemo(() => {
+    const opts = masterList(masters && masters.customers)
+      .filter(c=>!c.terminated&&c.name!=='スポット'&&c.name!=='その他（直接入力）')
+      .map(c=>({value:c.name,label:c.no?`${c.no}. ${c.name}`:c.name}));
+    // 現在の顧問先名がマスタの選択肢にない場合も表示・保持できるようにする
+    if (payroll.customerName && !opts.some(o=>o.value===payroll.customerName)) opts.unshift({value:payroll.customerName,label:payroll.customerName});
+    return opts;
+  }, [masters, payroll.customerName]);
+
+  const startEdit = () => {
+    setForm(buildForm());
     setEditing(true);
   };
   const handleSave = () => {
+    if (!String(form.customerName||'').trim()) { alert('顧問先名は必須です'); return; }
     onSave(payroll.id, form, {更新日時: new Date().toISOString(), 更新者: loginStaffName(masters, currentUser)});
     setEditing(false);
   };
@@ -3977,6 +3990,10 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose}) {
             <KarteSection no="①" title="基本情報">
               <div className="pt-3">
                 <div className="grid grid-cols-2 gap-x-4">
+                  <div className="mb-3" style={{position:'relative',zIndex:30}}>
+                    <label className="block text-sm font-semibold text-gray-600 mb-1">顧問先名 <span className="text-red-500">*</span></label>
+                    <SearchableSelect value={form.customerName} onChange={v=>set('customerName',v)} placeholder="選択または検索..." options={customerOptions} />
+                  </div>
                   <div className="mb-3">
                     <label className="block text-sm font-semibold text-gray-600 mb-1">担当者</label>
                     <select value={form.assignee} onChange={e=>set('assignee',e.target.value)}>
@@ -3985,13 +4002,11 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose}) {
                       {form.assignee && !assignees.some(a=>a.name===form.assignee) && <option value={form.assignee}>{form.assignee}</option>}
                     </select>
                   </div>
-                  <div />
                   {field({label:'給与締日', k:'締日', ph:'例：末日、20日'})}
                   {field({label:'給与支給日', k:'支給日', ph:'例：翌月25日(前倒し)'})}
                   {field({label:'年末調整還付月', k:'年末調整還付月', ph:'例：1月'})}
                   {field({label:'賞与支給月', k:'賞与支給月', ph:'例：6月・12月'})}
                 </div>
-                <p className="text-xs text-gray-400 mb-2">※ 顧問先名の変更は一覧の「編集」から行います。</p>
               </div>
             </KarteSection>
             <KarteSection no="②" title="勤怠資料">
@@ -4236,6 +4251,8 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks, c
   const [editMD, setEditMD]                 = useState(null); // {payroll, month, year}
   const [detailItem, setDetailItem]         = useState(null);
   const [karteId, setKarteId]               = useState(null); // 給与計算カルテを表示中の payrolls id
+  const [karteEditing, setKarteEditing]     = useState(false); // true: 一覧の「編集」から開いた（最初から編集画面）
+  const openKarte = (id, editing) => { setKarteEditing(!!editing); setKarteId(id); };
   const kartePayroll = karteId!=null ? payrolls.find(p=>p.id===karteId) : null;
   const handleSaveKarte = (id, form, meta) => {
     setPayrolls(p=>p.map(x=>x.id===id ? applyKarteForm(x, form, meta) : x));
@@ -4456,7 +4473,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks, c
                     style={{...stickyTd,borderRight:'1px solid #f3f4f6'}}>
                     <div className="font-semibold text-sm leading-tight" style={{color:p.terminated?'#9ca3af':'#1f2937'}}>
                       {p.terminated && <span className="inline-block mr-1.5 text-xs bg-gray-200 text-gray-500 rounded px-1 font-semibold">解除</span>}
-                      <button type="button" onClick={()=>setKarteId(p.id)} title="給与計算カルテを開く"
+                      <button type="button" onClick={()=>openKarte(p.id, false)} title="給与計算カルテを開く"
                         className="text-left font-semibold hover:text-blue-600 hover:underline" style={{color:'inherit'}}>{p.customerName}</button>
                     </div>
                   </td>
@@ -4477,7 +4494,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks, c
                   </td>
                   <td className="px-2 py-2.5">
                     <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      {!p.terminated && <button onClick={()=>{setEditCust(p);setShowCustModal(true);}} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>}
+                      {!p.terminated && <button onClick={()=>openKarte(p.id, true)} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">編集</button>}
                       <button onClick={()=>setTermCust(p)} className={`text-xs px-2 py-1 rounded font-medium ${p.terminated?'bg-gray-100 text-gray-400':'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}>
                         {p.terminated?'解除済':'契約解除'}
                       </button>
@@ -4594,7 +4611,7 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, cases, checks, c
 
       {/* ── モーダル ── */}
       {showCustModal && <PayrollCustomerModal item={editCust} onSave={handleSaveCust} onClose={()=>{setShowCustModal(false);setEditCust(null);}} masters={masters} />}
-      {kartePayroll && <PayrollKarteModal key={kartePayroll.id} payroll={kartePayroll} masters={masters} currentUser={currentUser} onSave={handleSaveKarte} onClose={()=>setKarteId(null)} />}
+      {kartePayroll && <PayrollKarteModal key={`${kartePayroll.id}-${karteEditing?'edit':'view'}`} payroll={kartePayroll} masters={masters} currentUser={currentUser} initialEditing={karteEditing} onSave={handleSaveKarte} onClose={()=>setKarteId(null)} />}
       {editMD && <PayrollMonthModal payroll={editMD.payroll} month={editMD.month} year={editMD.year} cases={cases} checks={checks} masters={masters} onSave={handleSaveMonth} onClose={()=>setEditMD(null)} />}
       {termCust && (
         termCust.terminated
