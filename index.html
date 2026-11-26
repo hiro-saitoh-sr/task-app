@@ -630,8 +630,8 @@ const TASK_EXPORT_STATUSES = ['依頼待ち', '依頼受付', '手続き済', '�
 const TASK_EXCEL_HEADERS = ['No', '顧客名', '手続き内容', 'メモ', '担当者', 'ステータス', '受付日', '対象年月'];
 const CHECK_EXCEL_HEADERS = ['No', '顧客名', '昇(降)給月', '改定年月', 'メモ', 'チェック対象者', '手続き対象者', '改定人数', '担当者', 'ステータス', '請求額', '対象年月'];
 const ANNUAL_EXCEL_HEADERS = ['No', '顧客名', '手続き名', '対象年度', 'メモ', '担当者', 'ステータス', '受付日', '対象人数', '請求額', '対象年月'];
-const PAYROLL_EXCEL_HEADERS = ['顧問先名', '担当者', '年', '月', '受取日', '送信日', '人数', '納品日', '賞与人数', '賞与納品日', '締日', '支給日', '年末調整還付月', '賞与支給月', '納品方法', 'その他メモ'];
-const CUSTOMER_MASTER_EXCEL_HEADERS = ['No', '名称', '業種', '代表者名', '代表者メール', '担当者名', '担当者メール', 'CC①名', 'CC①メール', 'CC②名', 'CC②メール', 'CC③名', 'CC③メール', '事務所担当者', '決算月', '契約サービス', '36協定起算日', 'その他労使協定の届出', '東京SR特別加入', '締日', '支給日'];
+const PAYROLL_EXCEL_HEADERS = ['顧問先名', '担当者', '年', '月', '受取日', '送信日', '人数', '納品日', '賞与人数', '賞与納品日', '給与締め日', '給与支給日', '年末調整還付月', '賞与支給月', '納品方法', 'その他メモ'];
+const CUSTOMER_MASTER_EXCEL_HEADERS = ['No', '名称', '業種', '代表者名', '代表者メール', '担当者名', '担当者メール', 'CC①名', 'CC①メール', 'CC②名', 'CC②メール', 'CC③名', 'CC③メール', '事務所担当者', '決算月', '契約サービス', '36協定起算日', 'その他労使協定の届出', '東京SR特別加入', '給与締め日', '給与支給日'];
 
 function taskExcelFilenameDate() {
   const d = new Date();
@@ -743,8 +743,8 @@ function buildPayrollExportRows(payrolls, masters) {
           '納品日':         md.納品日 || '',
           '賞与人数':       md.賞与人数 || '',
           '賞与納品日':     md.賞与納品日 || '',
-          '締日':           p.締日 || '',
-          '支給日':         p.支給日 || '',
+          '給与締め日':     p.締日 || '',
+          '給与支給日':     p.支給日 || '',
           '年末調整還付月': p.年末調整還付月 || '',
           '賞与支給月':     p.賞与支給月 || '',
           '納品方法':       p.納品方法 || '',
@@ -779,8 +779,8 @@ function buildCustomerMasterExportRows(customers) {
       '36協定起算日':         c['36協定起算日'] || '',
       'その他労使協定の届出': c['その他労使協定の届出'] || '',
       '東京SR特別加入':       c['東京SR特別加入'] || '',
-      '締日':                 c.締日 || '',
-      '支給日':               c.支給日 || '',
+      '給与締め日':           c.締日 || '',
+      '給与支給日':           c.支給日 || '',
     }));
 }
 
@@ -4012,13 +4012,13 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose, init
           <>
             <KarteSection no="①" title="基本情報">
               <KarteRow label="担当者" value={payroll.assignee} />
-              <KarteRow label="給与締日" value={payroll.締日} />
+              <KarteRow label="給与締め日" value={payroll.締日} />
               <KarteRow label="給与支給日" value={payroll.支給日} />
               <KarteRow label="年末調整還付月" value={formatMonthValue(payroll.年末調整還付月)} />
               <KarteRow label="賞与支給月" value={payroll.賞与支給月} />
-              <KarteRow label="給与締め日" value={karte.給与締め日} />
+              <KarteRow label="給与締め日[新]" value={karte.給与締め日} />
               <KarteRow label="支給日区分" value={karte.支給日区分} />
-              <KarteRow label="支給日" value={karte.支給日指定} />
+              <KarteRow label="支給日[新]" value={karte.支給日指定} />
               <KarteRow label="金融機関休日" value={karte.金融機関休日} />
               <KarteRow label="年末調整還付月[新]" value={karte.年調還付月} />
               <KarteRow label="社会保険料の徴収" value={karte.社会保険料徴収} />
@@ -4066,14 +4066,14 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose, init
                       {form.assignee && !assignees.some(a=>a.name===form.assignee) && <option value={form.assignee}>{form.assignee}</option>}
                     </select>
                   </div>
-                  {field({label:'給与締日', k:'締日', ph:'例：末日、20日'})}
+                  {field({label:'給与締め日', k:'締日', ph:'例：末日、20日'})}
                   {field({label:'給与支給日', k:'支給日', ph:'例：翌月25日(前倒し)'})}
-                  {payrollCustomerMaster(masters, form.customerName) && <p className="col-span-2 text-xs text-gray-500 -mt-1 mb-3">※ 給与締日・給与支給日は顧問先マスタと共通です（ここで変更すると顧問先マスタにも反映されます）。</p>}
+                  {payrollCustomerMaster(masters, form.customerName) && <p className="col-span-2 text-xs text-gray-500 -mt-1 mb-3">※ 給与締め日・給与支給日は顧問先マスタと共通です（ここで変更すると顧問先マスタにも反映されます）。</p>}
                   {field({label:'年末調整還付月', k:'年末調整還付月', ph:'例：1月'})}
                   {field({label:'賞与支給月', k:'賞与支給月', ph:'例：6月・12月'})}
-                  {selectField({label:'給与締め日', k:'給与締め日', options:KARTE_DAY_OPTIONS})}
+                  {selectField({label:'給与締め日[新]', k:'給与締め日', options:KARTE_DAY_OPTIONS})}
                   {selectField({label:'支給日区分', k:'支給日区分', options:KARTE_MONTH_KUBUN})}
-                  {selectField({label:'支給日', k:'支給日指定', options:KARTE_DAY_OPTIONS})}
+                  {selectField({label:'支給日[新]', k:'支給日指定', options:KARTE_DAY_OPTIONS})}
                   {selectField({label:'金融機関休日', k:'金融機関休日', options:KARTE_HOLIDAY_OPTIONS})}
                   {selectField({label:'年末調整還付月[新]', k:'年調還付月', options:KARTE_NENCHO_MONTHS})}
                   {selectField({label:'社会保険料の徴収', k:'社会保険料徴収', options:KARTE_MONTH_KUBUN})}
@@ -4083,7 +4083,7 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose, init
             <KarteSection no="②" title="勤怠資料">
               <div className="pt-3">
                 {choiceField({label:'受領方法', k:'勤怠受領方法', otherKey:'勤怠受領方法その他', options:karteMasterOptions(masters,'勤怠資料受領方法')})}
-                {field({label:'受領時期', k:'勤怠受領時期', ph:'例：締日の翌営業日までに届く'})}
+                {field({label:'受領時期', k:'勤怠受領時期', ph:'例：給与締め日の翌営業日までに届く'})}
               </div>
             </KarteSection>
             <KarteSection no="③" title="給与計算">
@@ -4136,7 +4136,7 @@ function PayrollCustomerModal({item, onSave, onClose, masters}) {
               </select>
             </div>
           </div>
-          <p className="text-sm text-gray-500 mb-6">※ 締日・支給日・納品方法などは、追加後に顧問先の［編集］（給与計算カルテ）から入力します。</p>
+          <p className="text-sm text-gray-500 mb-6">※ 給与締め日・給与支給日・納品方法などは、追加後に顧問先の［編集］（給与計算カルテ）から入力します。</p>
           <div className="flex gap-3 justify-end">
             <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
             <button type="submit" className="btn btn-primary">{item?'保存する':'追加する'}</button>
@@ -4530,8 +4530,8 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, setMasters, case
             <tbody className="divide-y divide-gray-100">
               {filteredPayrolls.map(p=>{
                 const infoLine1=[
-                  p.締日          && `締日：${p.締日}`,
-                  p.支給日        && `支給：${p.支給日}`,
+                  p.締日          && `給与締め日：${p.締日}`,
+                  p.支給日        && `給与支給日：${p.支給日}`,
                   p.年末調整還付月 && `年調：${p.年末調整還付月}月`,
                   p.賞与支給月    && `賞与：${p.賞与支給月}`,
                 ].filter(Boolean);
@@ -4609,8 +4609,8 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, setMasters, case
                 const st=getStatus(p,selYear,selMonth);
                 const rc=st==='done'?'bg-green-50 hover:bg-green-100':st==='wip'?'bg-yellow-50 hover:bg-yellow-100':'hover:bg-gray-50';
                 const infoLine1=[
-                  p.締日          && `締日：${p.締日}`,
-                  p.支給日        && `支給：${p.支給日}`,
+                  p.締日          && `給与締め日：${p.締日}`,
+                  p.支給日        && `給与支給日：${p.支給日}`,
                   p.年末調整還付月 && `年調：${p.年末調整還付月}月`,
                   p.賞与支給月    && `賞与：${p.賞与支給月}`,
                 ].filter(Boolean);
@@ -4661,8 +4661,8 @@ function PayrollScheduleScreen({payrolls, setPayrolls, masters, setMasters, case
             <div className="divide-y divide-gray-100">
               {[
                 ['担当者',        detailItem.assignee],
-                ['締日',          detailItem.締日],
-                ['支給日',        detailItem.支給日],
+                ['給与締め日',    detailItem.締日],
+                ['給与支給日',    detailItem.支給日],
                 ['年末調整還付月', detailItem.年末調整還付月],
                 ['賞与支給月',    detailItem.賞与支給月],
                 ['納品方法',      detailItem.納品方法],
@@ -4755,8 +4755,8 @@ function CustomerDetailModal({item, onClose, onEdit, partners}) {
   ];
   const fieldsAfter = [
     {k:'決算月',               v:item.決算月},
-    {k:'締日',                 v:item.締日},
-    {k:'支給日',               v:item.支給日},
+    {k:'給与締め日',           v:item.締日},
+    {k:'給与支給日',           v:item.支給日},
     {k:'契約サービス',         v:(item.契約サービス||[]).join('・')},
     {k:'事務所担当者',         v:item.事務所担当者},
     {k:'36協定起算日',         v:item['36協定起算日']},
@@ -5056,15 +5056,15 @@ function MasterItemModal({title, item, onSave, onClose, showNo, tab, assignees, 
             </div>
             <div className="grid grid-cols-2 gap-3 mb-1">
               <div>
-                <label className="block text-sm font-semibold text-gray-600 mb-1">締日</label>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">給与締め日</label>
                 <input value={form.締日||''} onChange={e=>set('締日',e.target.value)} placeholder="例：末日、20日" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-600 mb-1">支給日</label>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">給与支給日</label>
                 <input value={form.支給日||''} onChange={e=>set('支給日',e.target.value)} placeholder="例：翌月25日(前倒し)" />
               </div>
             </div>
-            <p className="text-xs text-gray-500 mb-3">※ 締日・支給日は給与計算画面（固定情報・カルテ）と共通のデータです。</p>
+            <p className="text-xs text-gray-500 mb-3">※ 給与締め日・給与支給日は給与計算画面（固定情報・カルテ）と共通のデータです。</p>
             <div className="mb-3">
               <label className="block text-sm font-semibold text-gray-600 mb-1">システムオプション（単価：円/名）</label>
               <div className="grid grid-cols-2 gap-x-5 gap-y-2">
