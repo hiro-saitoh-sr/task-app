@@ -4065,22 +4065,7 @@ function PayrollCustomerModal({item, onSave, onClose, masters}) {
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div><label className="block text-sm font-semibold text-gray-600 mb-1">締日</label><input value={form.締日} onChange={e=>set('締日',e.target.value)} placeholder="例：末日、20日" /></div>
-            <div><label className="block text-sm font-semibold text-gray-600 mb-1">支給日</label><input value={form.支給日} onChange={e=>set('支給日',e.target.value)} placeholder="例：翌月25日(前倒し)" /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div><label className="block text-sm font-semibold text-gray-600 mb-1">年末調整還付月</label><input value={form.年末調整還付月} onChange={e=>set('年末調整還付月',e.target.value)} placeholder="例：1月" /></div>
-            <div><label className="block text-sm font-semibold text-gray-600 mb-1">賞与支給月</label><input value={form.賞与支給月} onChange={e=>set('賞与支給月',e.target.value)} placeholder="例：6月・12月" /></div>
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-semibold text-gray-600 mb-1">納品方法</label>
-            <input value={form.納品方法} onChange={e=>set('納品方法',e.target.value)} placeholder="例：PDF一覧/A4、dropboxあり" />
-          </div>
-          <div className="mb-6">
-            <label className="block text-sm font-semibold text-gray-600 mb-1">その他メモ</label>
-            <textarea value={form.その他メモ} onChange={e=>set('その他メモ',e.target.value)} rows={3} />
-          </div>
+          <p className="text-sm text-gray-500 mb-6">※ 締日・支給日・納品方法などは、追加後に顧問先の［編集］（給与計算カルテ）から入力します。</p>
           <div className="flex gap-3 justify-end">
             <button type="button" className="btn btn-secondary" onClick={onClose}>キャンセル</button>
             <button type="submit" className="btn btn-primary">{item?'保存する':'追加する'}</button>
