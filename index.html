@@ -5134,6 +5134,9 @@ function PartnerItemModal({title, item, onSave, onClose, customers}) {
 
 function MasterScreen({masters, setMasters}) {
   const [tab, setTab]               = useState('顧問先');
+  // 「給与カルテ」タブ内のサブタブ（勤怠資料受領方法／給与計算ソフト／納品方法）。保存先は各マスタのキーのまま
+  const [karteSub, setKarteSub]     = useState(Object.keys(KARTE_MASTER_TABS)[0]);
+  const effTab = tab==='給与カルテ' ? karteSub : tab;
   const [showModal, setShowModal]   = useState(false);
   const [editItem, setEditItem]     = useState(null);
   const [viewItem, setViewItem]     = useState(null);
@@ -5150,10 +5153,10 @@ function MasterScreen({masters, setMasters}) {
     return d !== null && d >= 0 && d <= 40;
   });
 
-  const karteTab = KARTE_MASTER_TABS[tab];
+  const karteTab = KARTE_MASTER_TABS[effTab];
   const listKey = karteTab ? karteTab.key : tab==='顧問先'?'customers':tab==='担当者'?'assignees':tab==='手続き'?'procedures':'partners';
   // 給与計算カルテ用マスタは未登録の間は初期候補を表示し、初回の追加・編集・削除時に初期候補ごと保存する
-  const baseList = m => karteTab ? karteMasterList(m, tab) : (m[listKey]||[]);
+  const baseList = m => karteTab ? karteMasterList(m, effTab) : (m[listKey]||[]);
   const rawList = baseList(masters);
   const sorted = tab==='顧問先'
     ? [...rawList].sort((a,b) => {
@@ -5196,7 +5199,7 @@ function MasterScreen({masters, setMasters}) {
     setDelItem(null);
   };
 
-  const TABS = ['顧問先','担当者','手続き','提携先', ...Object.keys(KARTE_MASTER_TABS)];
+  const TABS = ['顧問先','担当者','手続き','提携先','給与カルテ'];
 
   return (
     <div>
@@ -5231,6 +5234,17 @@ function MasterScreen({masters, setMasters}) {
             契約解除済みを表示
           </label>
         </>)}
+        {tab==='給与カルテ' && (
+          <div className="flex items-center ml-2 rounded-lg border border-gray-200 overflow-hidden">
+            {Object.keys(KARTE_MASTER_TABS).map(k=>(
+              <button key={k} onClick={()=>{setKarteSub(k);setShowModal(false);setEditItem(null);}}
+                className={`px-3 py-1.5 text-sm font-medium transition-colors ${karteSub===k?'bg-blue-50 text-blue-700':'bg-white text-gray-600 hover:bg-gray-50'}`}
+                style={{borderLeft: k===Object.keys(KARTE_MASTER_TABS)[0] ? 'none' : '1px solid #e5e7eb'}}>
+                {k}
+              </button>
+            ))}
+          </div>
+        )}
         {tab==='手続き' && (
           <div className="flex items-center gap-1.5 ml-2">
             <label style={{fontSize:'13px',fontWeight:'500',color:'#374151'}}>グループ</label>
@@ -5376,12 +5390,12 @@ function MasterScreen({masters, setMasters}) {
       )}
       {showModal && tab!=='提携先' && (
         <MasterItemModal
-          title={`${tab}マスタ — ${editItem?'編集':'追加'}`}
+          title={`${effTab}マスタ — ${editItem?'編集':'追加'}`}
           item={editItem}
           onSave={handleSave}
           onClose={()=>{setShowModal(false);setEditItem(null);}}
           showNo={tab==='顧問先'}
-          tab={tab}
+          tab={effTab}
           existingNames={karteTab ? rawList.filter(i=>!editItem||i.id!==editItem.id).map(i=>String(i.name||'').trim()) : null}
           assignees={masters.assignees||[]}
           partners={masterList(masters.partners)}
