@@ -4032,7 +4032,7 @@ function PayrollKarteModal({payroll, masters, currentUser, onSave, onClose, init
               </div>
             </KarteSection>
             <div className="flex gap-2 justify-end mt-4">
-              <button className="btn btn-secondary" onClick={()=>setEditing(false)}>キャンセル</button>
+              <button className="btn btn-secondary" onClick={onClose}>キャンセル</button>
               <button className="btn btn-primary" onClick={handleSave}>保存する</button>
             </div>
           </>
