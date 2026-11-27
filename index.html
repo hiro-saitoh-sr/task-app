@@ -1845,6 +1845,12 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-gray-700">絞り込みフィルター</span>
             {hasFilter && <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold">適用中</span>}
+            {/* 一覧の行の色分け（rowAlert）の凡例。色は .row-danger / .row-warning と同じ */}
+            <span className="ml-4 flex items-center gap-3 text-xs text-gray-600" title="依頼受付の案件が対象です">
+              <span>凡例：</span>
+              <span className="flex items-center gap-1"><span style={{display:'inline-block',width:'14px',height:'14px',background:'#fee2e2',border:'1px solid #fca5a5',borderRadius:'3px'}}></span>対象日超過</span>
+              <span className="flex items-center gap-1"><span style={{display:'inline-block',width:'14px',height:'14px',background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:'3px'}}></span>対象日まで7日以内</span>
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <button
