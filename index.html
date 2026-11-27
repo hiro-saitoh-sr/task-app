@@ -917,12 +917,22 @@ function daysSince(str) {
   const t = new Date(); t.setHours(0,0,0,0);
   return Math.floor((t - d) / 86400000);
 }
+// 対象年月（"2026年7月"）＋対象日（数値1〜31）から、今日から対象日までの日数を返す（過ぎていればマイナス、日が未入力ならnull）
+function daysUntilTargetDate(c) {
+  const m = String(c.targetMonth||'').match(/(\d+)年(\d+)月/);
+  const day = parseInt(c.targetDay, 10);
+  if (!m || !day || day < 1 || day > 31) return null;
+  const target = new Date(+m[1], +m[2]-1, day);
+  const t = new Date(); t.setHours(0,0,0,0);
+  return Math.round((target - t) / 86400000);
+}
+// 一覧の行の色分け：依頼受付の案件のみ、対象日基準（赤＝対象日を1日以上過ぎた、黄＝対象日まで7日以内〔当日含む〕）
 function rowAlert(c) {
-  if (c.status !== '依頼受付') return '';
-  const days = daysSince(c.receivedDate);
-  if (days === null) return '';
-  if (days >= 30) return 'row-danger';
-  if (days >= 14) return 'row-warning';
+  if (c.cancelled || c.isAnnualOnly || c.status !== '依頼受付') return '';
+  const d = daysUntilTargetDate(c);
+  if (d === null) return '';
+  if (d < 0) return 'row-danger';
+  if (d <= 7) return 'row-warning';
   return '';
 }
 function daysUntil36Kisan(str) {
@@ -1707,16 +1717,6 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
     return cnt;
   },[cases]);
 
-  const alertCounts = useMemo(()=>{
-    let danger=0, warning=0;
-    cases.filter(c=>!c.cancelled&&!c.isAnnualOnly).forEach(c=>{
-      if(c.status!=='依頼受付') return;
-      const d=daysSince(c.receivedDate); if(d===null) return;
-      if(d>=30) danger++; else if(d>=14) warning++;
-    });
-    return {danger,warning};
-  },[cases]);
-
   const filtered = useMemo(()=>{
     let arr = showCancelled ? cases.filter(c=>c.cancelled&&!c.isAnnualOnly) : cases.filter(c=>!c.cancelled&&!c.isAnnualOnly);
     const st = filter.status || (activeTab!=='全件' ? activeTab : '');
@@ -1820,14 +1820,6 @@ function CaseListScreen({cases, setCases, masters, currentUser, checks, payrolls
         </div>
       )}
 
-      {/* Alert badges */}
-      {(alertCounts.danger>0||alertCounts.warning>0) && (
-        <div className="flex gap-2 mb-3 items-center bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm">
-          <span className="text-sm font-semibold text-gray-600 mr-1">期限注意</span>
-          {alertCounts.danger>0  && <span className="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">🔴 30日超過 {alertCounts.danger}件</span>}
-          {alertCounts.warning>0 && <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-3 py-1 rounded-full">🟡 14日超過 {alertCounts.warning}件</span>}
-        </div>
-      )}
       {alertCustomers36.length > 0 && (
         <div onClick={()=>setShowAlert36(true)} style={{cursor:'pointer',background:'#fff7ed',border:'1px solid #fdba74',borderRadius:'8px',padding:'10px 16px',marginBottom:'12px',display:'flex',alignItems:'center',gap:'8px',fontSize:'14px',fontWeight:'600',color:'#9a3412'}}>
           <span>⚠️</span>
