@@ -1300,6 +1300,8 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
     const newErrors = {receivedDate:'', targetMonth:''};
     if (!validateDateInput(form.receivedDate)) newErrors.receivedDate='正しい日付を入力してください（例：2026/4/1）';
     if (!form.targetMonth) newErrors.targetMonth='対象年月を選択してください';
+    // 対象日：新規登録時のみ必須（既存案件の編集は日なしのままでも保存可）
+    else if (isNew && !form.targetDay) newErrors.targetMonth='対象日（日）を選択してください';
     if (newErrors.receivedDate || newErrors.targetMonth) { setErrors(newErrors); return; }
     // 基本料金・単価は、空欄またはデフォルト値と同じなら保存しない（デフォルトで計算される）
     const saved = {...form, billingAmount: amt, receivedDate: formatDate(form.receivedDate)};
@@ -1476,15 +1478,15 @@ function CaseModal({caseData, onSave, onClose, masters, currentUser}) {
               </div>
             )}
             <div>
-              <label className="block text-sm font-semibold text-gray-600 mb-1">対象年月 <span className="text-red-500">*</span> <span className="text-gray-400 font-normal">（日は任意）</span></label>
+              <label className="block text-sm font-semibold text-gray-600 mb-1">{isNew ? '対象年月日' : '対象年月'} <span className="text-red-500">*</span>{!isNew && <span className="text-gray-400 font-normal">（日は任意）</span>}</label>
               <div style={{display:'flex', gap:'8px', alignItems:'flex-start'}}>
                 <div style={{flex:1, minWidth:0}}>
                   <YearMonthPicker value={form.targetMonth} onChange={v=>{set('targetMonth',v);clearErr('targetMonth');}} style={errors.targetMonth?{borderColor:'#ef4444'}:{}} />
                 </div>
                 <select
                   value={form.targetDay ? String(form.targetDay) : ''}
-                  onChange={e=>setDay(e.target.value ? Number(e.target.value) : null)}
-                  style={{width:'88px', flexShrink:0, minHeight:'36px', fontSize:'19px', border:'1px solid #9ca3af', borderRadius:'6px', padding:'6px 8px', background:'white', color: form.targetDay ? '#111827' : '#9ca3af', boxSizing:'border-box', cursor:'pointer'}}>
+                  onChange={e=>{setDay(e.target.value ? Number(e.target.value) : null); if(e.target.value) clearErr('targetMonth');}}
+                  style={{width:'88px', flexShrink:0, minHeight:'36px', fontSize:'19px', border: (isNew && errors.targetMonth && form.targetMonth && !form.targetDay) ? '1px solid #ef4444' : '1px solid #9ca3af', borderRadius:'6px', padding:'6px 8px', background:'white', color: form.targetDay ? '#111827' : '#9ca3af', boxSizing:'border-box', cursor:'pointer'}}>
                   <option value="">日</option>
                   {Array.from({length:31},(_,i)=>i+1).map(d=><option key={d} value={d}>{d}日</option>)}
                 </select>
